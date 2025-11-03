@@ -6,7 +6,8 @@ using Vistumbler.Core.Services;
 namespace Vistumbler.Infrastructure.WiFi;
 
 /// <summary>
-/// WiFi scanner using Native WiFi API
+/// Simplified WiFi scanner using Native WiFi API through ManagedNativeWifi library
+/// This is a working starter implementation - can be enhanced later
 /// </summary>
 public class NativeWiFiScanner : IWiFiScannerService
 {
@@ -38,10 +39,10 @@ public class NativeWiFiScanner : IWiFiScannerService
         }
         catch (Exception ex)
         {
-            OnScanError(new ScanErrorEventArgs 
-            { 
-                ErrorMessage = "Error during scanning", 
-                Exception = ex 
+            OnScanError(new ScanErrorEventArgs
+            {
+                ErrorMessage = "Error during scanning",
+                Exception = ex
             });
         }
         finally
@@ -61,7 +62,7 @@ public class NativeWiFiScanner : IWiFiScannerService
         return await Task.Run(() =>
         {
             var adapters = new List<WiFiAdapter>();
-            
+
             try
             {
                 foreach (var interfaceInfo in NativeWifi.EnumerateInterfaces())
@@ -76,10 +77,10 @@ public class NativeWiFiScanner : IWiFiScannerService
             }
             catch (Exception ex)
             {
-                OnScanError(new ScanErrorEventArgs 
-                { 
-                    ErrorMessage = "Error enumerating adapters", 
-                    Exception = ex 
+                OnScanError(new ScanErrorEventArgs
+                {
+                    ErrorMessage = "Error enumerating adapters",
+                    Exception = ex
                 });
             }
 
@@ -103,11 +104,11 @@ public class NativeWiFiScanner : IWiFiScannerService
                     if (_activeAdapterId != null && interfaceInfo.Id.ToString() != _activeAdapterId)
                         continue;
 
-                    var connection = NativeWifi.GetConnectionAttributes(interfaceInfo.Id);
+                    // Try to get connected network info
+                    var connection = NativeWifi.GetConnectionAttribute(interfaceInfo.Id);
                     if (connection != null)
                     {
-                        return BitConverter.ToString(connection.wlanAssociationAttributes.dot11Bssid)
-                            .Replace("-", ":");
+                        return Convert.ToHexString(connection.Bssid.ToBytes()).Insert(2, ":").Insert(5, ":").Insert(8, ":").Insert(11, ":").Insert(14, ":");
                     }
                 }
             }
@@ -128,7 +129,7 @@ public class NativeWiFiScanner : IWiFiScannerService
             {
                 var accessPoints = await ScanNetworksAsync();
                 OnAccessPointsDetected(new AccessPointsDetectedEventArgs { AccessPoints = accessPoints });
-                
+
                 await Task.Delay(ScanIntervalMs, cancellationToken);
             }
             catch (OperationCanceledException)
@@ -137,12 +138,12 @@ public class NativeWiFiScanner : IWiFiScannerService
             }
             catch (Exception ex)
             {
-                OnScanError(new ScanErrorEventArgs 
-                { 
-                    ErrorMessage = "Error in scan loop", 
-                    Exception = ex 
+                OnScanError(new ScanErrorEventArgs
+                {
+                    ErrorMessage = "Error in scan loop",
+                    Exception = ex
                 });
-                
+
                 // Continue scanning despite errors
                 await Task.Delay(ScanIntervalMs, cancellationToken);
             }
@@ -163,28 +164,38 @@ public class NativeWiFiScanner : IWiFiScannerService
                         continue;
 
                     // Trigger scan
-                    NativeWifi.Scan(interfaceInfo.Id);
+                    try
+                    {
+                        NativeWifi.ScanNetworks(interfaceInfo.Id);
+                    }
+                    catch
+                    {
+                        // Scan may fail if already in progress
+                    }
 
-                    // Get BSS list
-                    var bssEntries = NativeWifi.EnumerateBssNetworks(interfaceInfo.Id);
+                    // Get available network BSS list
+                    var bssNetworks = NativeWifi.EnumerateBssNetworks(interfaceInfo.Id);
 
-                    foreach (var bss in bssEntries)
+                    foreach (var bss in bssNetworks)
                     {
                         var ap = new AccessPoint
                         {
-                            Bssid = BitConverter.ToString(bss.Bssid).Replace("-", ":"),
-                            Ssid = Encoding.UTF8.GetString(bss.Ssid),
+                            Bssid = Convert.ToHexString(bss.Bssid.ToBytes()).Insert(2, ":").Insert(5, ":").Insert(8, ":").Insert(11, ":").Insert(14, ":"),
+                            Ssid = Encoding.UTF8.GetString(bss.Ssid.ToBytes()).TrimEnd('\0'),
                             Signal = bss.LinkQuality,
-                            Rssi = bss.Rssi,
-                            Channel = GetChannelFromFrequency(bss.ChCenterFrequency),
-                            RadioType = GetRadioTypeName(bss.PhyType),
-                            NetworkType = GetNetworkType(bss.BssType),
+                            Channel = GetChannelFromFrequency(bss.Frequency),
+                            RadioType = bss.PhyType.ToString(),
+                            NetworkType = bss.BssType == BssType.Infrastructure ? NetworkType.Infrastructure : NetworkType.Adhoc,
                             LastSeen = DateTime.Now,
                             IsActive = true
                         };
 
-                        // Parse security information
-                        ParseSecurityInfo(bss, ap);
+                        // Estimate RSSI from link quality (this is approximate)
+                        ap.Rssi = -100 + ap.Signal.GetValueOrDefault();
+
+                        // Set authentication and encryption from BSS  type
+                        ap.Authentication = AuthenticationType.Unknown;
+                        ap.Encryption = Core.Models.EncryptionType.Unknown;
 
                         accessPoints.Add(ap);
                     }
@@ -192,10 +203,10 @@ public class NativeWiFiScanner : IWiFiScannerService
             }
             catch (Exception ex)
             {
-                OnScanError(new ScanErrorEventArgs 
-                { 
-                    ErrorMessage = "Error scanning networks", 
-                    Exception = ex 
+                OnScanError(new ScanErrorEventArgs
+                {
+                    ErrorMessage = "Error scanning networks",
+                    Exception = ex
                 });
             }
 
@@ -203,65 +214,23 @@ public class NativeWiFiScanner : IWiFiScannerService
         });
     }
 
-    private void ParseSecurityInfo(BssNetworkPack bss, AccessPoint ap)
-    {
-        // Simplified security parsing - would need more detailed implementation
-        // based on the BSS network data
-        if (bss.BssType == BssType.Infrastructure)
-        {
-            ap.NetworkType = NetworkType.Infrastructure;
-        }
-        else if (bss.BssType == BssType.Independent)
-        {
-            ap.NetworkType = NetworkType.Adhoc;
-        }
-
-        // Default values - would need proper parsing from BSS data
-        ap.Authentication = AuthenticationType.Unknown;
-        ap.Encryption = EncryptionType.Unknown;
-    }
-
-    private int GetChannelFromFrequency(uint frequency)
+    private int GetChannelFromFrequency(int frequency)
     {
         // 2.4 GHz band
         if (frequency >= 2412 && frequency <= 2484)
         {
             if (frequency == 2484)
                 return 14;
-            return (int)((frequency - 2412) / 5) + 1;
+            return (frequency - 2412) / 5 + 1;
         }
 
         // 5 GHz band
         if (frequency >= 5170 && frequency <= 5825)
         {
-            return (int)((frequency - 5170) / 5) + 34;
+            return (frequency - 5170) / 5 + 34;
         }
 
         return 0;
-    }
-
-    private string GetRadioTypeName(PhyType phyType)
-    {
-        return phyType switch
-        {
-            PhyType.B => "802.11b",
-            PhyType.G => "802.11g",
-            PhyType.N => "802.11n",
-            PhyType.A => "802.11a",
-            PhyType.AC => "802.11ac",
-            PhyType.AX => "802.11ax",
-            _ => "Unknown"
-        };
-    }
-
-    private NetworkType GetNetworkType(BssType bssType)
-    {
-        return bssType switch
-        {
-            BssType.Infrastructure => NetworkType.Infrastructure,
-            BssType.Independent => NetworkType.Adhoc,
-            _ => NetworkType.Unknown
-        };
     }
 
     protected virtual void OnAccessPointsDetected(AccessPointsDetectedEventArgs e)

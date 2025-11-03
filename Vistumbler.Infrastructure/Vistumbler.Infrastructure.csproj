@@ -4,7 +4,6 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +15,7 @@
     <PackageReference Include="System.IO.Ports" Version="8.0.0" />
     <PackageReference Include="ManagedNativeWifi" Version="2.1.0" />
     <PackageReference Include="Dapper" Version="2.1.28" />
+    <PackageReference Include="System.Data.OleDb" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

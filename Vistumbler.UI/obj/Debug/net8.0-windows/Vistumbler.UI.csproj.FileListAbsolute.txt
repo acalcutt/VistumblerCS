@@ -1,0 +1,6 @@
+C:\Users\andrew.EIRI\Documents\GitHub\VistumblerCS\Vistumbler.UI\obj\Debug\net8.0-windows\Vistumbler.UI.csproj.AssemblyReference.cache
+C:\Users\andrew.EIRI\Documents\GitHub\VistumblerCS\Vistumbler.UI\obj\Debug\net8.0-windows\App.baml
+C:\Users\andrew.EIRI\Documents\GitHub\VistumblerCS\Vistumbler.UI\obj\Debug\net8.0-windows\Views\MainWindow.g.cs
+C:\Users\andrew.EIRI\Documents\GitHub\VistumblerCS\Vistumbler.UI\obj\Debug\net8.0-windows\App.g.cs
+C:\Users\andrew.EIRI\Documents\GitHub\VistumblerCS\Vistumbler.UI\obj\Debug\net8.0-windows\Vistumbler.UI_MarkupCompile.cache
+C:\Users\andrew.EIRI\Documents\GitHub\VistumblerCS\Vistumbler.UI\obj\Debug\net8.0-windows\Vistumbler.UI_MarkupCompile.lref

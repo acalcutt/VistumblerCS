@@ -1,0 +1,18 @@
+<Application x:Class="Vistumbler.UI.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="Views/MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Add custom styles here -->
+            </ResourceDictionary.MergedDictionaries>
+            
+            <!-- Global Colors -->
+            <SolidColorBrush x:Key="PrimaryBrush" Color="#99B4A1"/>
+            <SolidColorBrush x:Key="AccentBrush" Color="#D7E4C2"/>
+            <SolidColorBrush x:Key="ActiveBrush" Color="#E1F2D0"/>
+            <SolidColorBrush x:Key="InactiveBrush" Color="#F2D0D0"/>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

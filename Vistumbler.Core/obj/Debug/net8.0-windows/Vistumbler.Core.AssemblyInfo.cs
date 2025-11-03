@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Vistumbler.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1f670ef5b8c8af03630d37056f7a83f0722825c3")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+20f9831718c4c6f707c842f247c7face3ded0c15")]
 [assembly: System.Reflection.AssemblyProductAttribute("Vistumbler.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Vistumbler.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

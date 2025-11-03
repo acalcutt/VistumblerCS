@@ -1,11 +1,11 @@
 {
   "version": 2,
-  "dgSpecHash": "3a/RMlVMVa8=",
+  "dgSpecHash": "p1RXCC2IWA8=",
   "success": true,
   "projectFilePath": "C:\\Users\\andrew.EIRI\\Documents\\GitHub\\VistumblerCS\\Vistumbler.Infrastructure\\Vistumbler.Infrastructure.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\andrew.EIRI\\.nuget\\packages\\dapper\\2.1.28\\dapper.2.1.28.nupkg.sha512",
-    "C:\\Users\\andrew.EIRI\\.nuget\\packages\\managednativewifi\\2.1.0\\managednativewifi.2.1.0.nupkg.sha512",
+    "C:\\Users\\andrew.EIRI\\.nuget\\packages\\managednativewifi\\3.0.2\\managednativewifi.3.0.2.nupkg.sha512",
     "C:\\Users\\andrew.EIRI\\.nuget\\packages\\runtime.linux-arm.runtime.native.system.io.ports\\8.0.0\\runtime.linux-arm.runtime.native.system.io.ports.8.0.0.nupkg.sha512",
     "C:\\Users\\andrew.EIRI\\.nuget\\packages\\runtime.linux-arm64.runtime.native.system.io.ports\\8.0.0\\runtime.linux-arm64.runtime.native.system.io.ports.8.0.0.nupkg.sha512",
     "C:\\Users\\andrew.EIRI\\.nuget\\packages\\runtime.linux-x64.runtime.native.system.io.ports\\8.0.0\\runtime.linux-x64.runtime.native.system.io.ports.8.0.0.nupkg.sha512",

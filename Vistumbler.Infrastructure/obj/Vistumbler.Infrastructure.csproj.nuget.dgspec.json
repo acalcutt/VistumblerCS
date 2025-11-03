@@ -133,7 +133,7 @@
             },
             "ManagedNativeWifi": {
               "target": "Package",
-              "version": "[2.1.0, )"
+              "version": "[3.0.2, )"
             },
             "System.Data.OleDb": {
               "target": "Package",

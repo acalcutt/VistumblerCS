@@ -1,5 +1,5 @@
+using System.Data.Common;
 using System.Data.OleDb;
-using System.Data.SQLite;
 using Vistumbler.Core.Models;
 using Vistumbler.Core.Services;
 
@@ -243,7 +243,7 @@ public class MdbToSqliteMigration
         };
     }
 
-    private DateTime ParseDateTime(OleDbDataReader reader, int dateIndex, int timeIndex = -1)
+    private DateTime ParseDateTime(DbDataReader reader, int dateIndex, int timeIndex = -1)
     {
         try
         {

@@ -22,11 +22,11 @@
           }
         }
       },
-      "ManagedNativeWifi/2.1.0": {
+      "ManagedNativeWifi/3.0.2": {
         "runtime": {
-          "lib/net5.0/ManagedNativeWifi.dll": {
-            "assemblyVersion": "2.1.0.0",
-            "fileVersion": "2.1.0.0"
+          "lib/net8.0/ManagedNativeWifi.dll": {
+            "assemblyVersion": "3.0.2.0",
+            "fileVersion": "3.0.2.0"
           }
         }
       },
@@ -640,12 +640,12 @@
       "path": "dapper/2.1.28",
       "hashPath": "dapper.2.1.28.nupkg.sha512"
     },
-    "ManagedNativeWifi/2.1.0": {
+    "ManagedNativeWifi/3.0.2": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-JljrCZt9ZzDj4+0INn3ppASTSHJI1NUwZo5P4SkG10hK2CiGc8XassdgJphQ7Izf3aEmxmP9XCjI40LXNE08fw==",
-      "path": "managednativewifi/2.1.0",
-      "hashPath": "managednativewifi.2.1.0.nupkg.sha512"
+      "sha512": "sha512-HgeZhoFiFBYcEkhs8yZdq26Ow8oZGG3uoCBEGw2HmjpCsMNGb3nWlN0vQZwCKVPy0NImaaYAzeCNMzqhuBkuWg==",
+      "path": "managednativewifi/3.0.2",
+      "hashPath": "managednativewifi.3.0.2.nupkg.sha512"
     },
     "Microsoft.Extensions.Configuration/8.0.0": {
       "type": "package",

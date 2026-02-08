@@ -1,5 +1,0 @@
-C:\Users\andrew.EIRI\Documents\GitHub\VistumblerCS\Vistumbler.Core\obj\Debug\net8.0\Vistumbler.Core.GeneratedMSBuildEditorConfig.editorconfig
-C:\Users\andrew.EIRI\Documents\GitHub\VistumblerCS\Vistumbler.Core\obj\Debug\net8.0\Vistumbler.Core.AssemblyInfoInputs.cache
-C:\Users\andrew.EIRI\Documents\GitHub\VistumblerCS\Vistumbler.Core\obj\Debug\net8.0\Vistumbler.Core.AssemblyInfo.cs
-C:\Users\andrew.EIRI\Documents\GitHub\VistumblerCS\Vistumbler.Core\obj\Debug\net8.0\Vistumbler.Core.csproj.CoreCompileInputs.cache
-C:\Users\andrew.EIRI\Documents\GitHub\VistumblerCS\Vistumbler.Core\obj\Debug\net8.0\Vistumbler.Core.sourcelink.json

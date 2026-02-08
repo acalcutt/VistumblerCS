@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Vistumbler.Core.Models;
+using Vistumbler.Core.Extensions;
 
 namespace Vistumbler.UI.ViewModels;
 
@@ -69,26 +70,49 @@ public partial class AccessPointViewModel : ViewModelBase
 
     public void UpdateFrom(AccessPoint accessPoint)
     {
-        ApId = accessPoint.ApId;
-        Bssid = accessPoint.Bssid;
-        Ssid = accessPoint.Ssid;
-        Manufacturer = accessPoint.Manufacturer;
-        Label = accessPoint.Label;
+        // Don't overwrite ApId if we already have one
+        if (ApId == 0) ApId = accessPoint.ApId;
+        
+        // Always update identity information properly
+        // Check BSSID matching? We assume UpdateFrom is called on matching BSSID.
+        if (string.IsNullOrEmpty(Bssid)) Bssid = accessPoint.Bssid;
+        if (string.IsNullOrEmpty(Ssid) && !string.IsNullOrEmpty(accessPoint.Ssid)) Ssid = accessPoint.Ssid;
+        
+        // Manufacturer & Label - Prefer existing if new is empty/unknown
+        if (string.IsNullOrEmpty(Manufacturer) && !string.IsNullOrEmpty(accessPoint.Manufacturer) && accessPoint.Manufacturer != "Unknown") 
+            Manufacturer = accessPoint.Manufacturer;
+            
+        if (!string.IsNullOrEmpty(accessPoint.Label) && accessPoint.Label != "Unknown") Label = accessPoint.Label;
+
         Channel = accessPoint.Channel;
         Signal = accessPoint.Signal;
         Rssi = accessPoint.Rssi;
         RadioType = accessPoint.RadioType;
         NetworkType = accessPoint.NetworkType;
-        Authentication = accessPoint.Authentication;
-        Encryption = accessPoint.Encryption;
+        
+        // Critical: Do NOT overwrite known Auth/Encryption with Unknown
+        if (accessPoint.Authentication != AuthenticationType.Unknown)
+            Authentication = accessPoint.Authentication;
+            
+        if (accessPoint.Encryption != EncryptionType.Unknown)
+            Encryption = accessPoint.Encryption;
+            
         IsActive = accessPoint.IsActive;
         LastSeen = accessPoint.LastSeen;
-        Latitude = accessPoint.Latitude;
-        Longitude = accessPoint.Longitude;
+        
+        // GPS - Merge logic
+        // If the new AP has GPS data, update it. 
+        // If new AP has NO GPS data (e.g. indoor scan), keep old GPS? Usually yes.
+        if (accessPoint.Latitude.HasValue && accessPoint.Longitude.HasValue)
+        {
+            Latitude = accessPoint.Latitude;
+            Longitude = accessPoint.Longitude;
+        }
 
         // Update highest signal if current is higher
         if (Signal > HighestSignal || HighestSignal == null)
             HighestSignal = Signal;
+
 
         if (Rssi > HighestRssi || HighestRssi == null)
             HighestRssi = Rssi;
@@ -100,8 +124,8 @@ public partial class AccessPointViewModel : ViewModelBase
 
     public string DisplaySignal => Signal.HasValue ? $"{Signal}%" : "N/A";
     public string DisplayRssi => Rssi.HasValue ? $"{Rssi} dBm" : "N/A";
-    public string NetworkTypeDisplay => NetworkType.ToString();
-    public string AuthenticationDisplay => Authentication.ToString();
-    public string EncryptionDisplay => Encryption.ToString();
+    public string NetworkTypeDisplay => NetworkType.ToLegacyString();
+    public string AuthenticationDisplay => Authentication.ToLegacyString();
+    public string EncryptionDisplay => Encryption.ToLegacyString();
     public string ActiveDisplay => IsActive ? "Active" : "Dead";
 }

@@ -32,13 +32,21 @@
         <!-- Menu Bar -->
         <Menu Grid.Row="0">
             <MenuItem Header="_File">
-                <MenuItem Header="Save As..."/>
+                <MenuItem Header="New Session"/>
+                <MenuItem Header="Import">
+                    <MenuItem Header="Import" Command="{Binding OpenImportWindowCommand}"/>
+                    <MenuItem Header="Import Folder"/>
+                </MenuItem>
                 <MenuItem Header="Export">
-                    <MenuItem Header="Export to KML"/>
-                    <MenuItem Header="Export to CSV"/>
-                    <MenuItem Header="Export to VS1"/>
+                    <MenuItem Header="Export To VS1" Command="{Binding ExportVs1Command}"/>
+                    <MenuItem Header="Export To VSZ" Command="{Binding ExportVszCommand}"/>
+                    <MenuItem Header="Export To CSV" Command="{Binding ExportCsvCommand}"/>
+                    <MenuItem Header="Export To KML" Command="{Binding ExportKmlCommand}"/>
+                    <MenuItem Header="Export To GPX" Command="{Binding ExportGpxCommand}"/>
+                    <MenuItem Header="Export To NS1" Command="{Binding ExportNs1Command}"/>
                 </MenuItem>
                 <Separator/>
+                <MenuItem Header="Exit (Save DB)"/>
                 <MenuItem Header="E_xit" Command="{Binding ExitCommand}"/>
             </MenuItem>
             <MenuItem Header="_Edit">

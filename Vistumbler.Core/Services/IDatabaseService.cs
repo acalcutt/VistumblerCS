@@ -68,16 +68,6 @@ public interface IDatabaseService
     Task UpsertLabelAsync(string bssid, string label);
     
     /// <summary>
-    /// Export to VS1 format
-    /// </summary>
-    Task ExportToVs1Async(string filePath, List<AccessPoint>? accessPoints = null);
-    
-    /// <summary>
-    /// Import from VS1 format
-    /// </summary>
-    Task ImportFromVs1Async(string filePath);
-    
-    /// <summary>
     /// Close database connection
     /// </summary>
     Task CloseAsync();

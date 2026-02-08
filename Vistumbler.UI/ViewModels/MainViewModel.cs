@@ -1,9 +1,16 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Win32;
 using Vistumbler.Core.Models;
 using Vistumbler.Core.Services;
 
@@ -14,6 +21,9 @@ public partial class MainViewModel : ViewModelBase
     private readonly IWiFiScannerService _wifiScanner;
     private readonly IGpsService _gpsService;
     private readonly IDatabaseService _databaseService;
+    private readonly IImportService _importService;
+    private readonly IExportService _exportService;
+    private readonly IServiceProvider _serviceProvider;
     private CancellationTokenSource? _scanCancellationTokenSource;
 
     [ObservableProperty]
@@ -49,15 +59,28 @@ public partial class MainViewModel : ViewModelBase
     public ICommand StopGpsCommand { get; }
     public ICommand ClearAllCommand { get; }
     public ICommand ExitCommand { get; }
+    public ICommand OpenImportWindowCommand { get; }
+    public ICommand ExportVs1Command { get; }
+    public ICommand ExportVszCommand { get; }
+    public ICommand ExportCsvCommand { get; }
+    public ICommand ExportKmlCommand { get; }
+    public ICommand ExportGpxCommand { get; }
+    public ICommand ExportNs1Command { get; }
 
     public MainViewModel(
         IWiFiScannerService wifiScanner,
         IGpsService gpsService,
-        IDatabaseService databaseService)
+        IDatabaseService databaseService,
+        IImportService importService,
+        IExportService exportService,
+        IServiceProvider serviceProvider)
     {
         _wifiScanner = wifiScanner;
         _gpsService = gpsService;
         _databaseService = databaseService;
+        _importService = importService;
+        _exportService = exportService;
+        _serviceProvider = serviceProvider;
 
         // Subscribe to events
         _wifiScanner.AccessPointsDetected += OnAccessPointsDetected;
@@ -72,6 +95,13 @@ public partial class MainViewModel : ViewModelBase
         StopGpsCommand = new RelayCommand(StopGps, () => IsGpsActive);
         ClearAllCommand = new AsyncRelayCommand(ClearAllAsync);
         ExitCommand = new RelayCommand(Exit);
+        OpenImportWindowCommand = new RelayCommand(OpenImportWindow);
+        ExportVs1Command = new AsyncRelayCommand(ExportVs1);
+        ExportVszCommand = new AsyncRelayCommand(ExportVsz);
+        ExportCsvCommand = new AsyncRelayCommand(ExportCsv);
+        ExportKmlCommand = new AsyncRelayCommand(ExportKml);
+        ExportGpxCommand = new AsyncRelayCommand(ExportGpx);
+        ExportNs1Command = new RelayCommand(ExportNs1);
 
         // Initialize database
         InitializeDatabaseAsync();
@@ -255,5 +285,127 @@ public partial class MainViewModel : ViewModelBase
             StatusMessage = $"GPS error: {e.ErrorMessage}";
             IsGpsActive = false;
         });
+    }
+
+    private void OpenImportWindow()
+    {
+        var window = _serviceProvider.GetRequiredService<Views.ImportWindow>();
+        if (window.DataContext == null || !(window.DataContext is ImportViewModel))
+        {
+            window.DataContext = _serviceProvider.GetRequiredService<ImportViewModel>();
+        }
+        window.Owner = Application.Current.MainWindow;
+        window.ShowDialog();
+        
+        LoadAccessPointsFromDatabase();
+    }
+
+    private async void LoadAccessPointsFromDatabase()
+    {
+        StatusMessage = "Reloading from database...";
+        try
+        {
+            var aps = await _databaseService.GetAllAccessPointsAsync();
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                AccessPoints.Clear();
+                foreach (var ap in aps)
+                {
+                    AccessPoints.Add(new AccessPointViewModel(ap));
+                }
+                ActiveApCount = AccessPoints.Count(ap => ap.IsActive);
+                StatusMessage = $"Loaded {AccessPoints.Count} access points.";
+            });
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error reloading database: {ex.Message}";
+        }
+    }
+
+    private List<AccessPoint> GetAccessPointsModels()
+    {
+        var list = new List<AccessPoint>();
+        foreach (var vm in AccessPoints)
+        {
+            list.Add(new AccessPoint
+            {
+                ApId = vm.ApId,
+                Bssid = vm.Bssid,
+                Ssid = vm.Ssid,
+                Manufacturer = vm.Manufacturer,
+                Label = vm.Label,
+                NetworkType = vm.NetworkType,
+                Authentication = vm.Authentication,
+                Encryption = vm.Encryption,
+                RadioType = vm.RadioType,
+                Channel = vm.Channel,
+                Signal = vm.Signal,
+                HighestSignal = vm.HighestSignal,
+                Rssi = vm.Rssi,
+                HighestRssi = vm.HighestRssi,
+                FirstSeen = vm.FirstSeen,
+                LastSeen = vm.LastSeen,
+                Latitude = vm.Latitude,
+                Longitude = vm.Longitude,
+                IsActive = vm.IsActive
+            });
+        }
+        return list;
+    }
+
+    private async Task ExportVs1()
+    {
+        var dialog = new SaveFileDialog { Filter = "Vistumbler VS1 (*.vs1)|*.vs1" };
+        if (dialog.ShowDialog() == true)
+        {
+            await _exportService.ExportToVs1Async(dialog.FileName, GetAccessPointsModels());
+            StatusMessage = "Exported to VS1";
+        }
+    }
+
+    private async Task ExportVsz()
+    {
+        var dialog = new SaveFileDialog { Filter = "Vistumbler VSZ (*.vsz)|*.vsz" };
+        if (dialog.ShowDialog() == true)
+        {
+            await _exportService.ExportToVszAsync(dialog.FileName, GetAccessPointsModels());
+            StatusMessage = "Exported to VSZ";
+        }
+    }
+
+    private async Task ExportCsv()
+    {
+        var dialog = new SaveFileDialog { Filter = "CSV Files (*.csv)|*.csv" };
+        if (dialog.ShowDialog() == true)
+        {
+            await _exportService.ExportToCsvAsync(dialog.FileName, GetAccessPointsModels());
+            StatusMessage = "Exported to CSV";
+        }
+    }
+
+    private async Task ExportKml()
+    {
+        var dialog = new SaveFileDialog { Filter = "KML Files (*.kml)|*.kml" };
+        if (dialog.ShowDialog() == true)
+        {
+            await _exportService.ExportToKmlAsync(dialog.FileName, GetAccessPointsModels(), new ExportOptions());
+            StatusMessage = "Exported to KML";
+        }
+    }
+
+    private async Task ExportGpx()
+    {
+        var dialog = new SaveFileDialog { Filter = "GPX Files (*.gpx)|*.gpx" };
+        if (dialog.ShowDialog() == true)
+        {
+            await _exportService.ExportToGpxAsync(dialog.FileName, GetAccessPointsModels());
+            StatusMessage = "Exported to GPX";
+        }
+    }
+
+    private void ExportNs1()
+    {
+        MessageBox.Show("NetStumbler export is not supported in this version.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 }

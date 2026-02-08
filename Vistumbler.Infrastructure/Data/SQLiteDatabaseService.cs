@@ -277,35 +277,6 @@ public class SQLiteDatabaseService : IDatabaseService
         await _connection.ExecuteAsync(sql, new { Bssid = bssid.ToUpper(), Label = label });
     }
 
-    public async Task ExportToVs1Async(string filePath, List<AccessPoint>? accessPoints = null)
-    {
-        // Get all access points if not provided
-        accessPoints ??= await GetAllAccessPointsAsync();
-
-        using var writer = new StreamWriter(filePath);
-        
-        // Write header
-        await writer.WriteLineAsync("# Vistumbler VS1 Export");
-        await writer.WriteLineAsync($"# Exported: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-        await writer.WriteLineAsync("# Format: BSSID,SSID,Channel,Authentication,Encryption,NetworkType,Signal,RadioType,Latitude,Longitude,FirstSeen,LastSeen");
-        
-        // Write data
-        foreach (var ap in accessPoints)
-        {
-            var line = $"{ap.Bssid},{ap.Ssid},{ap.Channel},{ap.Authentication},{ap.Encryption}," +
-                      $"{ap.NetworkType},{ap.Signal},{ap.RadioType},{ap.Latitude},{ap.Longitude}," +
-                      $"{ap.FirstSeen:yyyy-MM-dd HH:mm:ss},{ap.LastSeen:yyyy-MM-dd HH:mm:ss}";
-            await writer.WriteLineAsync(line);
-        }
-    }
-
-    public async Task ImportFromVs1Async(string filePath)
-    {
-        // Implementation would parse VS1 file and import data
-        // This is a placeholder for the actual implementation
-        await Task.CompletedTask;
-    }
-
     public async Task CloseAsync()
     {
         if (_connection != null)

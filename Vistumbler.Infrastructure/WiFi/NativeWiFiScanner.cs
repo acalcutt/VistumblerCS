@@ -176,26 +176,42 @@ public class NativeWiFiScanner : IWiFiScannerService
                     }
                     catch { /* Scan may fail if already in progress */ }
 
+                    // We need AvailableNetworks to get Auth/Cipher info
+                    var availableNetworks = NativeWifi.EnumerateAvailableNetworks()
+                        .GroupBy(x => x.Ssid.ToString())
+                        .ToDictionary(g => g.Key, g => g.First());
+
                     var bssNetworks = NativeWifi.EnumerateBssNetworks();
 
                     foreach (var bss in bssNetworks)
                     {
+                        var ssid = Encoding.UTF8.GetString(bss.Ssid.ToBytes()).TrimEnd('\0');
+                        var bssid = Convert.ToHexString(bss.Bssid.ToBytes()).Insert(2, ":").Insert(5, ":").Insert(8, ":").Insert(11, ":").Insert(14, ":");
+
                         var ap = new AccessPoint
                         {
-                            Bssid = Convert.ToHexString(bss.Bssid.ToBytes()).Insert(2, ":").Insert(5, ":").Insert(8, ":").Insert(11, ":").Insert(14, ":"),
-                            Ssid = Encoding.UTF8.GetString(bss.Ssid.ToBytes()).TrimEnd('\0'),
+                            Bssid = bssid,
+                            Ssid = ssid,
                             Signal = bss.LinkQuality,
                             Channel = GetChannelFromFrequency(bss.Frequency),
-                            // FIX: Use Band property
-                            RadioType = bss.Band.ToString(),
+                            RadioType = MapPhyType(bss.PhyType),
                             NetworkType = bss.BssType == BssType.Infrastructure ? NetworkType.Infrastructure : NetworkType.Adhoc,
                             LastSeen = DateTime.Now,
                             IsActive = true
                         };
 
                         ap.Rssi = -100 + ap.Signal.GetValueOrDefault();
+                        
+                        // Default to Unknown
                         ap.Authentication = AuthenticationType.Unknown;
-                        ap.Encryption = Core.Models.EncryptionType.Unknown;
+                        ap.Encryption = Vistumbler.Core.Models.EncryptionType.Unknown;
+
+                        // Try to find matching Available Network for security info
+                        if (availableNetworks.TryGetValue(ssid, out var availableNetwork))
+                        {
+                            ap.Authentication = MapAuthentication(availableNetwork.AuthenticationAlgorithm);
+                            ap.Encryption = MapEncryption(availableNetwork.CipherAlgorithm);
+                        }
 
                         accessPoints.Add(ap);
                     }
@@ -214,6 +230,9 @@ public class NativeWiFiScanner : IWiFiScannerService
 
     private int GetChannelFromFrequency(int frequency)
     {
+        // Convert KHz to MHz if necessary (ManagedNativeWifi normally returns KHz)
+        if (frequency > 1000000) frequency /= 1000;
+
         if (frequency >= 2412 && frequency <= 2484)
         {
             if (frequency == 2484)
@@ -226,7 +245,60 @@ public class NativeWiFiScanner : IWiFiScannerService
             return (frequency - 5170) / 5 + 34;
         }
 
-        return 0;
+        return 0; // Unknown
+    }
+    
+    private AuthenticationType MapAuthentication(AuthenticationAlgorithm algo)
+    {
+        return algo switch
+        {
+            AuthenticationAlgorithm.Open => AuthenticationType.Open,
+            AuthenticationAlgorithm.Shared => AuthenticationType.Shared,
+            AuthenticationAlgorithm.WPA => AuthenticationType.WPA,
+            AuthenticationAlgorithm.WPA_PSK => AuthenticationType.WPA_PSK,
+            // AuthenticationAlgorithm.WPA_None => AuthenticationType.WPA, // Not available in this version
+            AuthenticationAlgorithm.RSNA => AuthenticationType.WPA2,
+            AuthenticationAlgorithm.RSNA_PSK => AuthenticationType.WPA2_PSK,
+            // AuthenticationAlgorithm.WPA3 => AuthenticationType.WPA3, // Not available
+            AuthenticationAlgorithm.WPA3_ENT_192 => AuthenticationType.WPA3_Enterprise,
+            AuthenticationAlgorithm.WPA3_SAE => AuthenticationType.WPA3_PSK,
+            AuthenticationAlgorithm.OWE => AuthenticationType.Open,
+            _ => AuthenticationType.Unknown
+        };
+    }
+
+    private Vistumbler.Core.Models.EncryptionType MapEncryption(CipherAlgorithm cipher)
+    {
+        return cipher switch
+        {
+            CipherAlgorithm.None => Vistumbler.Core.Models.EncryptionType.None,
+            // CipherAlgorithm.WEP40 => Vistumbler.Core.Models.EncryptionType.WEP, // Not available
+            // CipherAlgorithm.WEP104 => Vistumbler.Core.Models.EncryptionType.WEP, // Not available
+            CipherAlgorithm.WEP => Vistumbler.Core.Models.EncryptionType.WEP,
+            CipherAlgorithm.TKIP => Vistumbler.Core.Models.EncryptionType.TKIP,
+            CipherAlgorithm.CCMP => Vistumbler.Core.Models.EncryptionType.CCMP,
+            CipherAlgorithm.GCMP => Vistumbler.Core.Models.EncryptionType.CCMP, // Map to similar strength or add new enum
+            _ => Vistumbler.Core.Models.EncryptionType.Unknown
+        };
+    }
+
+    private string MapPhyType(PhyType phy)
+    {
+        return phy switch
+        {
+            PhyType.Fhss => "Bluetooth",
+            PhyType.Dsss => "802.11b*",
+            PhyType.IrBaseband => "Legacy Infrared",
+            PhyType.Ofdm => "802.11a",
+            PhyType.HrDsss => "802.11b",
+            PhyType.Erp => "802.11g",
+            PhyType.Ht => "802.11n",
+            PhyType.Vht => "802.11ac",
+            PhyType.Dmg => "802.11ad",
+            PhyType.He => "802.11ax",
+            // (PhyType)11 => "802.11be", // Unreachable or already handled
+            _ => "Unknown"
+        };
     }
 
     protected virtual void OnAccessPointsDetected(AccessPointsDetectedEventArgs e)

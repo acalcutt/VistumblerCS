@@ -16,11 +16,21 @@ public interface IExportService
     /// Export access points to GPX format
     /// </summary>
     Task ExportToGpxAsync(string filePath, List<AccessPoint> accessPoints);
+
+    /// <summary>
+    /// Export access points to NS1 format (NetStumbler binary)
+    /// </summary>
+    Task ExportToNs1Async(string filePath, List<AccessPoint> accessPoints);
     
     /// <summary>
     /// Export access points to CSV format
     /// </summary>
     Task ExportToCsvAsync(string filePath, List<AccessPoint> accessPoints, bool includeSignalHistory = false);
+
+    /// <summary>
+    /// Export access points to Wigle CSV format
+    /// </summary>
+    Task ExportToWigleCsvAsync(string filePath, List<AccessPoint> accessPoints);
     
     /// <summary>
     /// Export to VS1 text format (Vistumbler native)

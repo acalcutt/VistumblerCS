@@ -47,7 +47,8 @@ VistumblerCS/
 │   │   ├── IWiFiScannerService.cs     # WiFi scanning contract
 │   │   ├── IGpsService.cs             # GPS communication contract
 │   │   ├── IDatabaseService.cs        # Data persistence contract
-│   │   └── IExportService.cs          # Export functionality contract
+│   │   ├── IExportService.cs          # Export functionality contract
+│   │   └── IImportService.cs          # Import functionality contract
 │   ├── Repositories/                  # Repository interfaces
 │   │   └── IRepository.cs             # Generic repository pattern
 │   └── Enums/                         # Enumerations
@@ -61,6 +62,8 @@ VistumblerCS/
 │   ├── Data/                          # Data access implementation
 │   │   ├── SQLiteDatabaseService.cs   # SQLite database operations
 │   │   └── MdbToSqliteMigration.cs    # MDB to SQLite converter
+│   ├── Import/                        # Import implementations
+│   │   └── ImportService.cs           # VS1, VSZ, NS1, CSV, Wigle import
 │   └── Export/                        # Export implementations
 │       └── ExportService.cs           # KML, GPX, CSV, VS1 export
 │
@@ -70,13 +73,16 @@ VistumblerCS/
 │   ├── ViewModels/                    # MVVM ViewModels
 │   │   ├── ViewModelBase.cs           # Base ViewModel class
 │   │   ├── MainViewModel.cs           # Main window ViewModel
+│   │   ├── ImportViewModel.cs         # Import dialog ViewModel
 │   │   ├── AccessPointViewModel.cs    # Access point wrapper
 │   │   ├── SettingsViewModel.cs       # Settings ViewModel
 │   │   └── GpsDetailsViewModel.cs     # GPS details ViewModel
 │   ├── Views/                         # XAML Views
 │   │   ├── MainWindow.xaml            # Main application window
+│   │   ├── ImportWindow.xaml          # Import dialog window
 │   │   └── MainWindow.xaml.cs         # Code-behind (minimal)
-│   ├── Converters/                    # Value converters (TBD)
+│   ├── Converters/                    # Value converters
+│   │   └── EnumToBooleanConverter.cs  # Enum binding support
 │   └── Resources/                     # Images, styles (TBD)
 │
 └── Vistumbler.Tests/                  # Test project
@@ -126,8 +132,15 @@ VistumblerCS/
 6. **Export**
    - KML export
    - GPX export
-   - CSV export
+   - CSV export (Vistumbler & Wigle)
    - VS1 export format
+   - VSZ export (Compressed)
+
+7. **Import**
+   - Vistumbler VS1/VSZ
+   - NetStumbler NS1/TXT
+   - Vistumbler Detailed CSV
+   - Wigle CSV
 
 ### ⏳ Planned Features (Beta Release)
 
@@ -138,7 +151,6 @@ VistumblerCS/
    - Map integration
 
 2. **Data Management**
-   - Import from VS1/VSZ
    - Auto-save functionality
    - Session management
    - Filter management UI

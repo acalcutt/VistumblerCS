@@ -3,7 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Vistumbler.Core.Services;
 using Vistumbler.Infrastructure.Data;
+using Vistumbler.Infrastructure.Export;
 using Vistumbler.Infrastructure.Gps;
+using Vistumbler.Infrastructure.Import;
 using Vistumbler.Infrastructure.WiFi;
 using Vistumbler.UI.ViewModels;
 using Vistumbler.UI.Views;
@@ -23,14 +25,18 @@ public partial class App : Application
                 services.AddSingleton<IWiFiScannerService, NativeWiFiScanner>();
                 services.AddSingleton<IGpsService, SerialGpsService>();
                 services.AddSingleton<IDatabaseService, SQLiteDatabaseService>();
+                services.AddSingleton<IExportService, ExportService>();
+                services.AddSingleton<IImportService, ImportService>();
 
                 // Register ViewModels
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<SettingsViewModel>();
+                services.AddTransient<ImportViewModel>();
                 services.AddTransient<GpsDetailsViewModel>();
 
                 // Register Views
                 services.AddSingleton<MainWindow>();
+                services.AddTransient<ImportWindow>();
             })
             .Build();
     }

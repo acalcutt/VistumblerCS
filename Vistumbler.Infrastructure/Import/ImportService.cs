@@ -34,8 +34,8 @@ public class ImportService : IImportService
                 
                 // Read AP Info
                 var ssidLength = reader.ReadByte();
-                var ssidChars = reader.ReadChars(ssidLength);
-                ap.Ssid = new string(ssidChars);
+                var ssidBytes = reader.ReadBytes(ssidLength);
+                ap.Ssid = System.Text.Encoding.ASCII.GetString(ssidBytes);
                 
                 var bssidBytes = reader.ReadBytes(6);
                 ap.Bssid = BitConverter.ToString(bssidBytes).Replace("-", ":");
@@ -120,7 +120,7 @@ public class ImportService : IImportService
 
                 // Remaining AP fields
                 var nameLength = reader.ReadByte();
-                var nameChars = reader.ReadChars(nameLength); 
+                var nameBytes = reader.ReadBytes(nameLength); 
                 // ignoring name
                 
                 var channels = reader.ReadUInt64();
@@ -135,6 +135,39 @@ public class ImportService : IImportService
                 var ipSubnet = reader.ReadUInt32();
                 var ipMask = reader.ReadUInt32();
                 var apFlags = reader.ReadUInt32();
+
+                // Map Vistumbler Custom Flags for Auth/Encryption
+                // 0x0001: WPA-Personal
+                // 0x0002: WPA-Enterprise
+                // 0x0004: WPA2-Personal
+                // 0x0008: WPA2-Enterprise
+                // 0x0010: WPA3
+                // 0x0020: OWE
+                // 0x0040: TKIP
+                // 0x0080: CCMP/AES
+                // 0x0100: GCMP
+                // 0x0200: GCMP_256
+                // 0x0400: CCMP_256
+                // 0x0800: BIP
+
+
+                // Auth
+                if ((apFlags & 0x0020) != 0) ap.Authentication = AuthenticationType.OWE;
+                else if ((apFlags & 0x0010) != 0) ap.Authentication = AuthenticationType.WPA3_PSK;
+                else if ((apFlags & 0x0008) != 0) ap.Authentication = AuthenticationType.WPA2_Enterprise;
+                else if ((apFlags & 0x0004) != 0) ap.Authentication = AuthenticationType.WPA2_PSK;
+                else if ((apFlags & 0x0002) != 0) ap.Authentication = AuthenticationType.WPA_Enterprise;
+                else if ((apFlags & 0x0001) != 0) ap.Authentication = AuthenticationType.WPA_PSK;
+
+                // Encryption
+                if ((apFlags & 0x0800) != 0) ap.Encryption = EncryptionType.BIP;
+                else if ((apFlags & 0x0400) != 0) ap.Encryption = EncryptionType.CCMP_256;
+                else if ((apFlags & 0x0200) != 0) ap.Encryption = EncryptionType.GCMP_256;
+                else if ((apFlags & 0x0100) != 0) ap.Encryption = EncryptionType.GCMP;
+                else if ((apFlags & 0x0080) != 0) ap.Encryption = EncryptionType.CCMP;
+                else if ((apFlags & 0x0040) != 0) ap.Encryption = EncryptionType.TKIP;
+
+
                 
                 var ieLength = reader.ReadUInt32();
                 reader.ReadBytes((int)ieLength); // Skip IEs
@@ -241,13 +274,31 @@ public class ImportService : IImportService
     {
         if (string.IsNullOrWhiteSpace(value)) return AuthenticationType.Unknown;
         
-        // Handle VS1 specific strings
+        // Handle VS1/Legacy specific strings
         if (value.Equals("WPA2-Personal", StringComparison.OrdinalIgnoreCase)) return AuthenticationType.WPA2_PSK;
         if (value.Equals("WPA-Personal", StringComparison.OrdinalIgnoreCase)) return AuthenticationType.WPA_PSK;
         if (value.Equals("WPA2-Enterprise", StringComparison.OrdinalIgnoreCase)) return AuthenticationType.WPA2_Enterprise;
         if (value.Equals("WPA-Enterprise", StringComparison.OrdinalIgnoreCase)) return AuthenticationType.WPA_Enterprise;
-        if (value.Equals("OWE", StringComparison.OrdinalIgnoreCase)) return AuthenticationType.Open; // Map OWE to Open for now or add enum
+        
+        // WPA3 Handling
+        if (value.Contains("WPA3", StringComparison.OrdinalIgnoreCase))
+        {
+            if (value.Contains("Enterprise", StringComparison.OrdinalIgnoreCase))
+            {
+                if (value.Contains("192", StringComparison.OrdinalIgnoreCase)) return AuthenticationType.WPA3_Enterprise_192;
+                return AuthenticationType.WPA3_Enterprise;
+            }
+            if (value.Contains("SAE", StringComparison.OrdinalIgnoreCase) || 
+                value.Contains("Personal", StringComparison.OrdinalIgnoreCase) || 
+                value.Contains("PSK", StringComparison.OrdinalIgnoreCase)) 
+                return AuthenticationType.WPA3_PSK;
+                
+            return AuthenticationType.WPA3; // Generic
+        }
+
+        if (value.Equals("OWE", StringComparison.OrdinalIgnoreCase)) return AuthenticationType.OWE;
         if (value.Equals("Open", StringComparison.OrdinalIgnoreCase)) return AuthenticationType.Open;
+        if (value.Equals("WEP", StringComparison.OrdinalIgnoreCase)) return AuthenticationType.Open; // Note: Auth is Open, Enc is WEP usually
 
         return Enum.TryParse<AuthenticationType>(value, true, out var auth) ? auth : AuthenticationType.Unknown;
     }
@@ -256,9 +307,16 @@ public class ImportService : IImportService
     {
         if (string.IsNullOrWhiteSpace(value)) return EncryptionType.Unknown;
 
-        if (value.Equals("CCMP", StringComparison.OrdinalIgnoreCase)) return EncryptionType.CCMP; // Or AES if CCMP not in enum? It is in enum.
+        // Legacy/Common strings
+        if (value.Equals("AES", StringComparison.OrdinalIgnoreCase)) return EncryptionType.AES;
+        if (value.Equals("CCMP", StringComparison.OrdinalIgnoreCase)) return EncryptionType.CCMP;
         if (value.Equals("None", StringComparison.OrdinalIgnoreCase)) return EncryptionType.None;
         
+        if (value.Contains("GCMP-256", StringComparison.OrdinalIgnoreCase)) return EncryptionType.GCMP_256;
+        if (value.Contains("GCMP", StringComparison.OrdinalIgnoreCase)) return EncryptionType.GCMP;
+        if (value.Contains("CCMP-256", StringComparison.OrdinalIgnoreCase)) return EncryptionType.CCMP_256;
+        if (value.Contains("BIP", StringComparison.OrdinalIgnoreCase)) return EncryptionType.BIP;
+
         return Enum.TryParse<EncryptionType>(value, true, out var enc) ? enc : EncryptionType.Unknown;
     }
 

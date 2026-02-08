@@ -117,7 +117,36 @@ public class ExportService : IExportService
                  writer.Write((uint)0); // DataRate
                  writer.Write((uint)0); // IPSubnet
                  writer.Write((uint)0); // IPMask
-                 writer.Write((uint)0); // ApFlags
+
+                 // Calculate ApFlags for Vistumbler Custom Fields
+                 uint apFlags = 0;
+                 
+                 // Auth Flags (Legacy Basic)
+                 if (ap.Authentication == AuthenticationType.WPA_PSK) apFlags |= 0x0001;
+                 else if (ap.Authentication == AuthenticationType.WPA_Enterprise) apFlags |= 0x0002;
+                 else if (ap.Authentication == AuthenticationType.WPA2_PSK) apFlags |= 0x0004;
+                 else if (ap.Authentication == AuthenticationType.WPA2_Enterprise) apFlags |= 0x0008;
+
+                 // Auth Flags (Extended)
+                 if (ap.Authentication == AuthenticationType.WPA3_PSK || // SAE (WPA3-Personal) 
+                     ap.Authentication.ToString().Contains("WPA3")) 
+                 {
+                     apFlags |= 0x0010;
+                 }
+
+                 if (ap.Authentication == AuthenticationType.OWE) apFlags |= 0x0020;
+
+                 // Encr Flags (Legacy Basic)
+                 if (ap.Encryption == EncryptionType.TKIP) apFlags |= 0x0040;
+                 else if (ap.Encryption == EncryptionType.CCMP || ap.Encryption == EncryptionType.AES) apFlags |= 0x0080;
+
+                 // Encr Flags (Extended)
+                 if (ap.Encryption == EncryptionType.GCMP) apFlags |= 0x0100;
+                 if (ap.Encryption == EncryptionType.GCMP_256) apFlags |= 0x0200;
+                 if (ap.Encryption == EncryptionType.CCMP_256) apFlags |= 0x0400;
+                 if (ap.Encryption.ToString().StartsWith("BIP")) apFlags |= 0x0800;
+
+                 writer.Write(apFlags); // ApFlags
                  
                  writer.Write((uint)0); // IELength
                  // No IEs

@@ -1,7 +1,6 @@
 using System.IO.Compression;
 using System.Text;
 using System.Xml;
-using Vistumbler.Core.Enums;
 using Vistumbler.Core.Models;
 using Vistumbler.Core.Services;
 using Vistumbler.Core.Extensions;
@@ -55,7 +54,7 @@ public class ExportService : IExportService
                  if (ap.NetworkType == NetworkType.Infrastructure) flags |= 0x0001;
                  else if (ap.NetworkType == NetworkType.Adhoc) flags |= 0x0002;
                  
-                 if (ap.Encryption != EncryptionType.Open && ap.Encryption != EncryptionType.None)
+                 if (ap.Encryption != EncryptionType.None)
                  {
                      flags |= 0x0010;
                  }

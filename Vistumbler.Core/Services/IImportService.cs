@@ -23,11 +23,6 @@ public interface IImportService
     Task<List<AccessPoint>> ImportFromNs1Async(string filePath);
 
     /// <summary>
-    /// Import from NetStumbler NS1 (Binary) or Text format
-    /// </summary>
-    Task<List<AccessPoint>> ImportFromNs1Async(string filePath);
-
-    /// <summary>
     /// Import from CSV format (Supports Vistumbler Detailed and Wigle)
     /// </summary>
     Task<List<AccessPoint>> ImportFromCsvAsync(string filePath);

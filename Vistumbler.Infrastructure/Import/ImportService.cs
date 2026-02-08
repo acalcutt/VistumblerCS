@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
-using Vistumbler.Core.Enums;
 using Vistumbler.Core.Models;
 using Vistumbler.Core.Services;
 
@@ -53,11 +52,11 @@ public class ImportService : IImportService
                 // Map flags if needed. Bit 4 is Privacy.
                 if ((flags & 0x0010) != 0) 
                 {
-                    ap.Encryption = EncryptionType.Wep;
+                    ap.Encryption = EncryptionType.WEP;
                 }
                 else
                 {
-                    ap.Encryption = EncryptionType.Open;
+                    ap.Encryption = EncryptionType.None;
                 }
                 
                 // Network Type (ESS vs IBSS)
@@ -292,28 +291,6 @@ public class ImportService : IImportService
             if (Directory.Exists(tempDir))
                 try { Directory.Delete(tempDir, true); } catch { }
         }
-    }
-
-    public async Task<List<AccessPoint>> ImportFromNs1Async(string filePath)
-    {
-        var accessPoints = new List<AccessPoint>();
-        if (!File.Exists(filePath)) return accessPoints;
-
-        var lines = await File.ReadAllLinesAsync(filePath);
-
-        foreach (var line in lines)
-        {
-            if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#"))
-                continue;
-
-            var parts = line.Split('\t');
-            if (parts.Length >= 13) 
-            {
-                var ap = ParseNs1Line(parts);
-                if (ap != null) accessPoints.Add(ap);
-            }
-        }
-        return accessPoints;
     }
 
     public async Task<List<AccessPoint>> ImportFromCsvAsync(string filePath)

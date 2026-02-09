@@ -1,6 +1,9 @@
 using System.Globalization;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
+using System.Data.SQLite;
+using System.Text.Json;
 using Vistumbler.Core.Models;
 using Vistumbler.Core.Services;
 
@@ -177,6 +180,460 @@ public class ImportService : IImportService
 
             return accessPoints;
         });
+    }
+
+    public async Task<List<AccessPoint>> ImportFromNetXmlAsync(string filePath)
+    {
+        return await Task.Run(() =>
+        {
+            var accessPoints = new List<AccessPoint>();
+            if (!File.Exists(filePath)) return accessPoints;
+
+            try
+            {
+                var doc = XDocument.Load(filePath);
+                var networks = doc.Descendants("wireless-network");
+
+                foreach (var net in networks)
+                {
+                    var ap = new AccessPoint();
+                    ap.Bssid = net.Element("BSSID")?.Value ?? string.Empty;
+                    var ssidElem = net.Element("SSID");
+                    ap.Ssid = ssidElem?.Element("essid")?.Value ?? string.Empty;
+                    ap.Manufacturer = net.Element("manuf")?.Value ?? string.Empty;
+                    ap.Channel = ParseInt(net.Element("channel")?.Value ?? "0");
+
+                    var firstTime = net.Attribute("first-time")?.Value;
+                    var lastTime = net.Attribute("last-time")?.Value;
+                    ap.FirstSeen = ParseKismetDate(firstTime) ?? DateTime.UtcNow;
+                    ap.LastSeen = ParseKismetDate(lastTime) ?? DateTime.UtcNow;
+
+                    var snr = net.Element("snr-info");
+                    if (snr != null)
+                    {
+                        var maxSigStr = snr.Element("max_signal_dbm")?.Value ?? "0";
+                        var lastSigStr = snr.Element("last_signal_dbm")?.Value ?? "0";
+                        
+                        ap.HighestSignal = ParseInt(maxSigStr);
+                        if (ap.HighestSignal == 0) ap.HighestSignal = ParseInt(lastSigStr);
+                        
+                        ap.Signal = ParseInt(lastSigStr);
+                        ap.Rssi = ap.Signal;
+                        ap.HighestRssi = ap.HighestSignal;
+                    }
+
+                    var gps = net.Element("gps-info");
+                    if (gps != null)
+                    {
+                        var latStr = gps.Element("peak-lat")?.Value ?? gps.Element("avg-lat")?.Value ?? "0";
+                        var lonStr = gps.Element("peak-lon")?.Value ?? gps.Element("avg-lon")?.Value ?? "0";
+                        var lat = ParseDouble(latStr);
+                        var lon = ParseDouble(lonStr);
+                        
+                        if (lat.HasValue && lon.HasValue && (lat.Value != 0 || lon.Value != 0))
+                        {
+                            ap.Latitude = lat;
+                            ap.Longitude = lon;
+                        }
+                    }
+
+                    var encStr = ssidElem?.Element("encryption")?.Value ?? "";
+                    if (!string.IsNullOrEmpty(encStr))
+                    {
+                        if (encStr.Contains("WPA"))
+                        {
+                            if (encStr.Contains("PSK")) ap.Authentication = AuthenticationType.WPA_PSK;
+                            else ap.Authentication = AuthenticationType.WPA_Enterprise;
+
+                            if (encStr.Contains("AES") || encStr.Contains("CCM") || encStr.Contains("WPA2"))
+                            {
+                                if (ap.Authentication == AuthenticationType.WPA_PSK) ap.Authentication = AuthenticationType.WPA2_PSK;
+                                else ap.Authentication = AuthenticationType.WPA2_Enterprise;
+                                ap.Encryption = EncryptionType.CCMP;
+                            }
+                            else
+                            {
+                                ap.Encryption = EncryptionType.TKIP;
+                            }
+                        }
+                        else if (encStr.Contains("WEP"))
+                        {
+                            ap.Encryption = EncryptionType.WEP;
+                            ap.Authentication = AuthenticationType.Open;
+                        }
+                        else if (encStr.Contains("None") || encStr == "Open")
+                        {
+                            ap.Encryption = EncryptionType.None;
+                            ap.Authentication = AuthenticationType.Open;
+                        }
+                    }
+
+                    var typeStr = net.Attribute("type")?.Value;
+                    if (typeStr == "infrastructure") ap.NetworkType = NetworkType.Infrastructure;
+                    else if (typeStr == "ad-hoc") ap.NetworkType = NetworkType.Adhoc;
+
+                    // Vistumbler Custom Attributes
+                    var radioType = net.Element("bsstype")?.Value;
+                    if (!string.IsNullOrEmpty(radioType))
+                    {
+                        ap.RadioType = radioType;
+                    }
+
+                    var sigQual = net.Element("signal_quality")?.Value;
+                    if (!string.IsNullOrEmpty(sigQual))
+                    {
+                        ap.Signal = ParseInt(sigQual);
+                    }
+
+                    accessPoints.Add(ap);
+                }
+            }
+            catch
+            {
+                // Ignore errors
+            }
+            return accessPoints;
+        });
+    }
+
+    public async Task<List<AccessPoint>> ImportFromKismetDbAsync(string filePath)
+    {
+         var accessPoints = new List<AccessPoint>();
+         if (!File.Exists(filePath)) return accessPoints;
+
+         try 
+         {
+             using var conn = new SQLiteConnection($"Data Source={filePath};Version=3;Read Only=True;");
+             await conn.OpenAsync();
+             
+             // Check if 'devices' table exists
+             using (var checkCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='devices';", conn))
+             {
+                 var tableExists = await checkCmd.ExecuteScalarAsync();
+                 if (tableExists == null) return accessPoints;
+             }
+
+             var sql = @"SELECT devmac, type, strongest_signal, min_lat, min_lon, device FROM devices 
+                         WHERE type IN ('Wi-Fi AP','Wi-Fi Ad-Hoc','Wi-Fi','infrastructure','ad-hoc')";
+             
+             using var cmd = new SQLiteCommand(sql, conn);
+             using var reader = await cmd.ExecuteReaderAsync();
+             
+             while (await reader.ReadAsync())
+             {
+                 var ap = new AccessPoint();
+                 ap.Bssid = reader["devmac"]?.ToString() ?? "";
+                 var type = reader["type"]?.ToString();
+                 
+                 var sig = Convert.ToInt32(reader["strongest_signal"]);
+                 ap.HighestSignal = sig;
+                 ap.Signal = sig;
+                 ap.HighestRssi = sig;
+                 ap.Rssi = sig;
+                 
+                 ap.Latitude = reader["min_lat"] != DBNull.Value ? Convert.ToDouble(reader["min_lat"]) : 0;
+                 ap.Longitude = reader["min_lon"] != DBNull.Value ? Convert.ToDouble(reader["min_lon"]) : 0;
+
+                 if (type?.Contains("Ad-Hoc", StringComparison.OrdinalIgnoreCase) == true) ap.NetworkType = NetworkType.Adhoc;
+                 else ap.NetworkType = NetworkType.Infrastructure;
+
+                 // JSON Parsing
+                 string? jsonStr = null;
+                 var deviceObj = reader["device"];
+                 
+                 if (deviceObj != DBNull.Value)
+                 {
+                     if (deviceObj is byte[] bytes)
+                     {
+                         try { jsonStr = System.Text.Encoding.UTF8.GetString(bytes); } catch {}
+                     }
+                     else if (deviceObj is string str)
+                     {
+                         jsonStr = str;
+                     }
+                 }
+
+                 if (!string.IsNullOrWhiteSpace(jsonStr))
+                 {
+                     try 
+                     {
+                         using var doc = JsonDocument.Parse(jsonStr);
+                         var root = doc.RootElement;
+                         
+                         if (TryGetPropertyPath(root, "kismet.device.base.manuf", out var manuf))
+                            ap.Manufacturer = manuf.GetString() ?? string.Empty;
+                         
+                         // robust SSID extraction
+                         var ssidFound = false;
+                         
+                         // --- Helper to traverse Kismet's weird dot-keys ---
+                         // root -> "kismet.device.base.name"
+                         if (root.TryGetProperty("kismet.device.base.name", out var kName) && kName.ValueKind == JsonValueKind.String) {
+                             var n = kName.GetString();
+                             if (!string.IsNullOrEmpty(n) && n != ap.Bssid) { ap.Ssid = n; ssidFound = true; }
+                         }
+
+                         var dot11Device = default(JsonElement);
+                         var hasDot11 = root.TryGetProperty("dot11.device", out dot11Device);
+
+                         if (!ssidFound && hasDot11)
+                         {
+                             // root -> "dot11.device" -> "dot11.device.last_beaconed_ssid"
+                             if (dot11Device.TryGetProperty("dot11.device.last_beaconed_ssid", out var lbSsid) && lbSsid.ValueKind == JsonValueKind.String)
+                             {
+                                 ap.Ssid = lbSsid.GetString() ?? string.Empty;
+                                 if (!string.IsNullOrEmpty(ap.Ssid)) ssidFound = true;
+                             }
+                             
+                             if (!ssidFound)
+                             {
+                                 // root -> "dot11.device" -> "dot11.device.last_beaconed_ssid_record" -> "dot11.advertisedssid.ssid"
+                                 if (dot11Device.TryGetProperty("dot11.device.last_beaconed_ssid_record", out var lbRec))
+                                 {
+                                     if (lbRec.TryGetProperty("dot11.advertisedssid.ssid", out var advSsid))
+                                     {
+                                          ap.Ssid = advSsid.GetString() ?? string.Empty;
+                                          if (!string.IsNullOrEmpty(ap.Ssid)) ssidFound = true;
+                                     }
+                                 }
+                             }
+                         }
+
+                         if (!ssidFound)
+                         {
+                             // fallbacks
+                             if (TryGetPropertyPath(root, "kismet.device.base.commonname", out var cname) && cname.ValueKind == JsonValueKind.String)
+                             {
+                                 var cn = cname.GetString();
+                                 if (!string.IsNullOrEmpty(cn) && cn != ap.Bssid) ap.Ssid = cn;
+                             }
+                         }
+                         
+                         // Channel Extraction
+                         if (root.TryGetProperty("kismet.device.base.channel", out var chan))
+                         {
+                             if (int.TryParse(chan.ToString(), out var ch)) ap.Channel = ch;
+                         }
+                         else if (hasDot11)
+                         {
+                             // root -> "dot11.device" -> "dot11.device.last_beaconed_ssid_record" -> "dot11.advertisedssid.channel"
+                             if (dot11Device.TryGetProperty("dot11.device.last_beaconed_ssid_record", out var lbRec) && 
+                                 lbRec.TryGetProperty("dot11.advertisedssid.channel", out var advChan))
+                             {
+                                 if (int.TryParse(advChan.ToString(), out var ch)) ap.Channel = ch;
+                             }
+                         }
+
+                         // Auth/Encryption
+                         string cryptString = "";
+                         if (root.TryGetProperty("kismet.device.base.crypt_string", out var cs)) cryptString = cs.GetString() ?? "";
+                         else if (root.TryGetProperty("kismet.device.base.encryption", out var enc)) cryptString = enc.GetString() ?? ""; 
+                         
+                         // If empty, try digging into dot11 record
+                         if (string.IsNullOrEmpty(cryptString) && hasDot11)
+                         {
+                             if (dot11Device.TryGetProperty("dot11.device.last_beaconed_ssid_record", out var lbRec) &&
+                                 lbRec.TryGetProperty("dot11.advertisedssid.crypt_string", out var recCrypt))
+                             {
+                                 cryptString = recCrypt.GetString() ?? "";
+                             }
+                         }
+
+                         if (!string.IsNullOrEmpty(cryptString))
+                         {
+                             // Vistumbler Format: Auth/Encr
+                             if (cryptString.Contains("/"))
+                             {
+                                 var parts = cryptString.Split('/');
+                                 if (parts.Length >= 2)
+                                 {
+                                     // Basic mapping attempt from string to Enum
+                                     // Auth
+                                     if (parts[0].Contains("WPA2") && parts[0].Contains("PSK")) ap.Authentication = AuthenticationType.WPA2_PSK;
+                                     else if (parts[0].Contains("WPA") && parts[0].Contains("PSK")) ap.Authentication = AuthenticationType.WPA_PSK;
+                                     else if (parts[0].Contains("Open")) ap.Authentication = AuthenticationType.Open;
+                                     
+                                     // Encr
+                                     if (parts[1].Contains("CCMP") || parts[1].Contains("AES")) ap.Encryption = EncryptionType.CCMP;
+                                     else if (parts[1].Contains("TKIP")) ap.Encryption = EncryptionType.TKIP;
+                                     else if (parts[1].Contains("WEP")) ap.Encryption = EncryptionType.WEP;
+                                     else if (parts[1].Contains("None")) ap.Encryption = EncryptionType.None;
+                                 }
+                             }
+                             else
+                             {
+                                 ParseKismetCrypt(cryptString, out var parsedAuth, out var parsedEncr);
+                                 ap.Authentication = parsedAuth;
+                                 ap.Encryption = parsedEncr;
+                             }
+                         }
+
+                         // Vistumbler Custom Fields & Radio Type Fallback
+                         var isRadioTypeSet = false;
+                         if (TryGetPropertyPath(root, "vistumbler.device.radio_type", out var rt) && rt.ValueKind == JsonValueKind.String)
+                         {
+                             ap.RadioType = rt.GetString() ?? "";
+                             if (!string.IsNullOrEmpty(ap.RadioType) && ap.RadioType != "Unknown") isRadioTypeSet = true;
+                         }
+                         
+                         if (!isRadioTypeSet)
+                         {
+                             // Try to deduce from Frequency
+                             if (TryGetPropertyPath(root, "kismet.device.base.frequency", out var freqElem))
+                             {
+                                 double freqKhz = 0;
+                                 if (freqElem.ValueKind == JsonValueKind.Number) freqElem.TryGetDouble(out freqKhz);
+                                 
+                                 double freqMhz = freqKhz / 1000.0;
+                                 
+                                 if (freqMhz >= 5925) ap.RadioType = "802.11ax";
+                                 else if (freqMhz >= 4900 && freqMhz <= 5900) ap.RadioType = "802.11ac";
+                                 else if (freqMhz >= 2400 && freqMhz <= 2500) ap.RadioType = "802.11n";
+                             }
+                         }
+
+                         if (TryGetPropertyPath(root, "vistumbler.device.signal_quality", out var sq))
+                         {
+                             if (sq.ValueKind == JsonValueKind.Number && sq.TryGetInt32(out var sVal))
+                                 ap.Signal = sVal;
+                         }
+                     }
+                     catch {}
+                 }
+                 
+                 accessPoints.Add(ap);
+             }
+         }
+         catch
+         {
+             // Ignore errors
+         }
+         return accessPoints;
+    }
+
+    private void ParseKismetCrypt(string cryptString, out AuthenticationType auth, out EncryptionType encr)
+    {
+        auth = AuthenticationType.Open;
+        encr = EncryptionType.None;
+        
+        var crypt = (cryptString ?? "").ToUpperInvariant();
+
+        if (crypt.Contains("WPA3"))
+        {
+            if (crypt.Contains("SAE") || crypt.Contains("PERSONAL"))
+            {
+                auth = AuthenticationType.WPA3_PSK;
+            }
+            else if (crypt.Contains("ENTERPRISE") || crypt.Contains("1X"))
+            {
+                // Mapping WPA3 Ent to WPA2 Ent as Vistumbler legacy enum doesn't have WPA3 Ent yet
+                auth = AuthenticationType.WPA2_Enterprise; 
+            }
+            else
+            {
+                auth = AuthenticationType.WPA3_PSK;
+            }
+        }
+        else if (crypt.Contains("WPA2"))
+        {
+            if (crypt.Contains("PSK") || crypt.Contains("PERSONAL"))
+            {
+                auth = AuthenticationType.WPA2_PSK;
+            }
+            else if (crypt.Contains("ENTERPRISE") || crypt.Contains("1X"))
+            {
+                auth = AuthenticationType.WPA2_Enterprise;
+            }
+            else
+            {
+                auth = AuthenticationType.WPA2_PSK;
+            }
+        }
+        else if (crypt.Contains("WPA"))
+        {
+            if (crypt.Contains("PSK") || crypt.Contains("PERSONAL"))
+            {
+                auth = AuthenticationType.WPA_PSK;
+            }
+            else if (crypt.Contains("ENTERPRISE") || crypt.Contains("1X"))
+            {
+                auth = AuthenticationType.WPA_Enterprise;
+            }
+            else
+            {
+                auth = AuthenticationType.WPA_PSK;
+            }
+        }
+        else if (crypt.Contains("WEP"))
+        {
+            auth = AuthenticationType.Open;
+            encr = EncryptionType.WEP;
+        }
+        else if (crypt.Contains("OPEN") || string.IsNullOrEmpty(crypt))
+        {
+            auth = AuthenticationType.Open;
+            encr = EncryptionType.None;
+        }
+
+        // Encryption logic
+        if (encr == EncryptionType.None && !crypt.Contains("WEP"))
+        {
+            if (crypt.Contains("CCMP") || crypt.Contains("AES"))
+            {
+                encr = EncryptionType.CCMP;
+            }
+            else if (crypt.Contains("TKIP"))
+            {
+                encr = EncryptionType.TKIP;
+            }
+            else if (crypt.Contains("GCMP"))
+            {
+                encr = EncryptionType.GCMP;
+            }
+            else if (crypt.Contains("WPA"))
+            {
+                encr = EncryptionType.CCMP;
+            }
+        }
+    }
+
+    private bool TryGetPropertyPath(JsonElement element, string path, out JsonElement result)
+    {
+        // Strategy 1: Attempt to find the full path as a single key (Kismet 'flatter' style)
+        if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty(path, out result))
+        {
+            return true;
+        }
+
+        // Strategy 2: Traverse by splitting dots (Nested style)
+        var parts = path.Split('.');
+        var current = element;
+        foreach (var part in parts)
+        {
+            if (current.ValueKind == JsonValueKind.Object && current.TryGetProperty(part, out var next))
+            {
+                current = next;
+            }
+            else
+            {
+                result = default;
+                return false;
+            }
+        }
+        result = current;
+        return true;
+    }
+
+    private DateTime? ParseKismetDate(string? dateStr)
+    {
+        if (string.IsNullOrWhiteSpace(dateStr)) return null;
+        if (DateTime.TryParse(dateStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt)) return dt;
+        
+        // Try Kismet Legacy: "Fri Feb 09 10:00:00 2024"
+        // "ddd MMM dd HH:mm:ss yyyy"
+        if (DateTime.TryParseExact(dateStr, "ddd MMM dd HH:mm:ss yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var kdt)) return kdt;
+        
+        return null;
     }
 
     public async Task<List<AccessPoint>> ImportFromVs1Async(string filePath)

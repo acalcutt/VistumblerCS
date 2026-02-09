@@ -17,7 +17,9 @@ public enum ImportType
     Netstumbler,
     VistumblerDetailedCsv,
     WardriveAndroid,
-    WigleCsv
+    WigleCsv,
+    NetXml,
+    KismetDb
 }
 
 public partial class ImportViewModel : ViewModelBase
@@ -99,6 +101,12 @@ public partial class ImportViewModel : ViewModelBase
                      // Assuming ImportFromCsvAsync handles all these or we treat them as generic CSV for now.
                     importedAps = await _importService.ImportFromCsvAsync(FilePath);
                     break;
+                case ImportType.NetXml:
+                    importedAps = await _importService.ImportFromNetXmlAsync(FilePath);
+                    break;
+                case ImportType.KismetDb:
+                    importedAps = await _importService.ImportFromKismetDbAsync(FilePath);
+                    break;
             }
 
             if (importedAps != null && importedAps.Count > 0)
@@ -150,6 +158,10 @@ public partial class ImportViewModel : ViewModelBase
             case ImportType.WardriveAndroid:
             case ImportType.WigleCsv:
                 return "CSV Files (*.csv)|*.csv|All files (*.*)|*.*";
+            case ImportType.NetXml:
+                return "NetXML Files (*.netxml)|*.netxml|All files (*.*)|*.*";
+            case ImportType.KismetDb:
+                return "KismetDB Files (*.kismet)|*.kismet|All files (*.*)|*.*";
             default:
                 return "All files (*.*)|*.*";
         }

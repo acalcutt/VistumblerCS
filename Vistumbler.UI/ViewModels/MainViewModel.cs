@@ -66,6 +66,8 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ExportKmlCommand { get; }
     public ICommand ExportGpxCommand { get; }
     public ICommand ExportNs1Command { get; }
+    public ICommand ExportNetXmlCommand { get; }
+    public ICommand ExportKismetDbCommand { get; }
 
     public MainViewModel(
         IWiFiScannerService wifiScanner,
@@ -101,7 +103,9 @@ public partial class MainViewModel : ViewModelBase
         ExportCsvCommand = new AsyncRelayCommand(ExportCsv);
         ExportKmlCommand = new AsyncRelayCommand(ExportKml);
         ExportGpxCommand = new AsyncRelayCommand(ExportGpx);
-        ExportNs1Command = new RelayCommand(ExportNs1);
+        ExportNs1Command = new AsyncRelayCommand(ExportNs1);
+        ExportNetXmlCommand = new AsyncRelayCommand(ExportNetXml);
+        ExportKismetDbCommand = new AsyncRelayCommand(ExportKismetDb);
 
         // Initialize database
         InitializeDatabaseAsync();
@@ -404,8 +408,33 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    private void ExportNs1()
+    private async Task ExportNs1()
     {
-        MessageBox.Show("NetStumbler export is not supported in this version.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+        var dialog = new SaveFileDialog { Filter = "NetStumbler Files (*.ns1)|*.ns1" };
+        if (dialog.ShowDialog() == true)
+        {
+            await _exportService.ExportToNs1Async(dialog.FileName, GetAccessPointsModels());
+            StatusMessage = "Exported to NS1";
+        }
+    }
+
+    private async Task ExportNetXml()
+    {
+        var dialog = new SaveFileDialog { Filter = "NetXML Files (*.netxml)|*.netxml" };
+        if (dialog.ShowDialog() == true)
+        {
+            await _exportService.ExportToNetXmlAsync(dialog.FileName, GetAccessPointsModels());
+            StatusMessage = "Exported to NetXML";
+        }
+    }
+
+    private async Task ExportKismetDb()
+    {
+        var dialog = new SaveFileDialog { Filter = "KismetDB Files (*.kismet)|*.kismet" };
+        if (dialog.ShowDialog() == true)
+        {
+            await _exportService.ExportToKismetDbAsync(dialog.FileName, GetAccessPointsModels());
+            StatusMessage = "Exported to KismetDB";
+        }
     }
 }

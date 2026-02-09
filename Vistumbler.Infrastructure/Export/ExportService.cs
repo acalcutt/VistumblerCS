@@ -1,3 +1,6 @@
+using System.Data.SQLite;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.IO.Compression;
 using System.Text;
 using System.Xml;
@@ -154,6 +157,231 @@ public class ExportService : IExportService
         });
     }
 
+    public async Task ExportToKismetDbAsync(string filePath, List<AccessPoint> accessPoints)
+    {
+        await Task.Run(() =>
+        {
+            if (File.Exists(filePath)) File.Delete(filePath);
+
+            var connectionString = $"Data Source={filePath};Version=3;";
+            using var connection = new SQLiteConnection(connectionString);
+            connection.Open();
+
+            using var transaction = connection.BeginTransaction();
+
+            using (var cmd = new SQLiteCommand(connection))
+            {
+                // Create Schema
+                cmd.CommandText = @"
+                    CREATE TABLE KISMET (kismet_version TEXT, db_version INTEGER, db_module TEXT);
+                    INSERT INTO KISMET (kismet_version, db_version, db_module) VALUES ('2023-07', 10, 'kismetlog');
+
+                    CREATE TABLE alerts (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, devmac TEXT, lat REAL, lon REAL, header TEXT, json BLOB);
+                    
+                    CREATE TABLE data (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, devmac TEXT, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, datasource TEXT, type TEXT, json BLOB, signal INTEGER);
+                    
+                    CREATE TABLE datasources (uuid TEXT, typestring TEXT, definition TEXT, name TEXT, interface TEXT, json BLOB, UNIQUE(uuid) ON CONFLICT REPLACE);
+                    INSERT INTO datasources (uuid, typestring, definition, name, interface, json) VALUES ('00000000-0000-0000-0000-000000000000', 'vistumbler', 'vistumbler', 'vistumbler', 'vistumbler', '{}');
+
+                    CREATE TABLE devices (first_time INTEGER, last_time INTEGER, devkey TEXT, phyname TEXT, devmac TEXT, strongest_signal INTEGER, min_lat REAL, min_lon REAL, max_lat REAL, max_lon REAL, avg_lat REAL, avg_lon REAL, bytes_data INTEGER, type TEXT, device BLOB, UNIQUE(phyname, devmac) ON CONFLICT REPLACE);
+                    CREATE INDEX idx_devices_devkey ON devices(devkey);
+                    CREATE INDEX idx_devices_devmac ON devices(devmac);
+
+                    CREATE TABLE messages (ts_sec INTEGER, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, msgtype TEXT, message TEXT);
+
+                    CREATE TABLE packets (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, sourcemac TEXT, destmac TEXT, transmac TEXT, frequency REAL, devkey TEXT, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, packet_len INTEGER, signal INTEGER, datasource TEXT, dlt INTEGER, packet BLOB, error INTEGER, tags TEXT, datarate REAL, hash INTEGER, packetid INTEGER, packet_full_len INTEGER);
+                    CREATE INDEX idx_packets_sourcemac ON packets(sourcemac);
+
+                    CREATE TABLE snapshots (ts_sec INTEGER, ts_usec INTEGER, lat REAL, lon REAL, snaptype TEXT, json TEXT);
+                ";
+                cmd.ExecuteNonQuery();
+            }
+
+            int packetId = 1;
+            foreach (var ap in accessPoints)
+            {
+                // Prepare Data
+                var deviceJson = GenerateKismetDeviceJson(ap);
+                string jsonString = deviceJson.ToJsonString();
+                
+                long firstTime = ToUnixTime(ap.FirstSeen);
+                long lastTime = ToUnixTime(ap.LastSeen);
+                string devKey = ap.Bssid ?? "";
+                string phyName = "IEEE802.11";
+                string devMac = ap.Bssid ?? "";
+                int strongestSignal = ap.HighestRssi ?? ap.Rssi ?? -100;
+                
+                double lat = ap.Latitude ?? 0;
+                double lon = ap.Longitude ?? 0;
+
+                string type = "Wi-Fi AP";
+                if (ap.NetworkType == NetworkType.Adhoc) type = "Wi-Fi Ad-Hoc";
+                // If it's a client/probe, logic differs, but AccessPoint usually implies AP.
+
+                using (var cmd = new SQLiteCommand(connection))
+                {
+                    cmd.CommandText = @"
+                        INSERT INTO devices (first_time, last_time, devkey, phyname, devmac, strongest_signal, min_lat, min_lon, max_lat, max_lon, avg_lat, avg_lon, bytes_data, type, device)
+                        VALUES (@first_time, @last_time, @devkey, @phyname, @devmac, @strongest_signal, @lat, @lon, @lat, @lon, @lat, @lon, 0, @type, @device);
+                    ";
+                    cmd.Parameters.AddWithValue("@first_time", firstTime);
+                    cmd.Parameters.AddWithValue("@last_time", lastTime);
+                    cmd.Parameters.AddWithValue("@devkey", devKey);
+                    cmd.Parameters.AddWithValue("@phyname", phyName);
+                    cmd.Parameters.AddWithValue("@devmac", devMac);
+                    cmd.Parameters.AddWithValue("@strongest_signal", strongestSignal);
+                    cmd.Parameters.AddWithValue("@lat", lat);
+                    cmd.Parameters.AddWithValue("@lon", lon);
+                    cmd.Parameters.AddWithValue("@type", type);
+                    cmd.Parameters.AddWithValue("@device", jsonString);
+                    cmd.ExecuteNonQuery();
+                }
+
+                // Packets from History
+                if (ap.SignalHistory != null)
+                {
+                    foreach (var hist in ap.SignalHistory)
+                    {
+                        // Signal/RSSI logic: Kismet packets expect dBm in 'signal' column.
+                        // Vistumbler Hist table: Signal (%), RSSI (dBm).
+                        // Legacy: Stores RSSI in 'signal' column. If RSSI=0 and Signal>0, calc RSSI = (Signal/2)-100.
+                        int signalDbm = hist.Rssi; // Assuming Rssi property holds dBm
+                        if (signalDbm == 0 && hist.Signal > 0)
+                        {
+                            // Fallback if Rssi is missing but Signal % is present
+                             signalDbm = (hist.Signal / 2) - 100; 
+                        }
+
+                        // Tags for Vistumbler Signal %
+                        // Legacy: "VISTUMBLER_SIG=" & $hSignal
+                        string tags = $"VISTUMBLER_SIG={hist.Signal}";
+
+                        long pktTime = ToUnixTime(hist.Timestamp);
+                        double pktLat = hist.GpsData?.Latitude ?? 0;
+                        double pktLon = hist.GpsData?.Longitude ?? 0;
+                        double pktAlt = hist.GpsData?.Altitude ?? 0;
+                        double pktSpeed = (hist.GpsData?.SpeedKnots ?? 0) * 1.852;
+                        
+                        double freq = GetFreqFromChannel(ap.Channel) / 1000.0; // MHz to GHz?? Wait.
+                        // Legacy: $aGrpFreqs[$g] (kHz) / 1000 => MHz?
+                        // Legacy: $iFreqKhz = $fFreq * 1000. 
+                        // packet frequency is REAL. 
+                        // In legacy AddPacket: uses $frequency directly.
+                        // C# GetFreqFromChannel returns MHz (int). 
+                        // Kismet usually expects MHz (e.g. 2412.0) or KHz?
+                        // Legacy `_KismetDB_GenerateRadiotapBeacon` takes frequency.
+                        // Let's use MHz.
+
+                        using (var cmd = new SQLiteCommand(connection))
+                        {
+                            cmd.CommandText = @"
+                                INSERT INTO packets (ts_sec, ts_usec, phyname, sourcemac, destmac, transmac, frequency, devkey, lat, lon, alt, speed, heading, packet_len, signal, datasource, dlt, packet, error, tags, datarate, hash, packetid, packet_full_len)
+                                VALUES (@ts, 0, 'IEEE802.11', @src, 'FF:FF:FF:FF:FF:FF', @src, @freq, '', @lat, @lon, @alt, @speed, 0, 0, @sig, 'vistumbler', 127, X'', 0, @tags, 0, 0, @pid, 0);
+                            ";
+                            cmd.Parameters.AddWithValue("@ts", pktTime);
+                            cmd.Parameters.AddWithValue("@src", devMac);
+                            cmd.Parameters.AddWithValue("@freq", GetFreqFromChannel(ap.Channel));
+                            cmd.Parameters.AddWithValue("@lat", pktLat);
+                            cmd.Parameters.AddWithValue("@lon", pktLon);
+                            cmd.Parameters.AddWithValue("@alt", pktAlt);
+                            cmd.Parameters.AddWithValue("@speed", pktSpeed);
+                            cmd.Parameters.AddWithValue("@sig", signalDbm);
+                            cmd.Parameters.AddWithValue("@tags", tags);
+                            cmd.Parameters.AddWithValue("@pid", packetId++);
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                }
+            }
+
+            transaction.Commit();
+            connection.Close();
+        });
+    }
+
+    private JsonObject GenerateKismetDeviceJson(AccessPoint ap)
+    {
+        // Construct the complicated Kismet Device JSOn
+        // We need: dot11.device -> advertised_ssid_map
+        
+        // Checksum for SSID Map Key (Legacy uses simple hash or xxhash)
+        // We'll use a simple arbitrary string or just the SSID itself if unique enough, 
+        // but Kismet usually expects a hash key.
+        // Legacy: BitXOR loop.
+        string ssid = ap.Ssid ?? "";
+        int ssidCsum = 0;
+        foreach (char c in ssid)
+        {
+            ssidCsum = (ssidCsum * 31) ^ (int)c;
+        }
+        ssidCsum = Math.Abs(ssidCsum);
+        string ssidKey = ssidCsum.ToString();
+
+        // Crypt Set Calculation (Simulated)
+        int cryptSet = 0; // Populate properly if possible
+        if (ap.Encryption != EncryptionType.None) cryptSet = 2; // Rough guess
+
+        var ssidRecord = new JsonObject
+        {
+            ["dot11.advertisedssid.ssid"] = ssid,
+            ["dot11.advertisedssid.ssidlen"] = ssid.Length,
+            ["dot11.advertisedssid.ssid_len"] = ssid.Length,
+            ["dot11.advertisedssid.length"] = ssid.Length,
+            ["dot11.advertisedssid.crypt_set"] = cryptSet,
+            ["dot11.advertisedssid.crypt_bitfield"] = cryptSet,
+            ["dot11.advertisedssid.channel"] = ap.Channel.ToString(),
+            ["dot11.advertisedssid.beacon_info"] = "",
+            ["dot11.advertisedssid.first_time"] = 0,
+            ["dot11.advertisedssid.last_time"] = 0
+        };
+
+        var ssidMap = new JsonObject
+        {
+            [ssidKey] = ssidRecord
+        };
+
+        var dot11 = new JsonObject
+        {
+            ["dot11.device.last_beaconed_ssid"] = ssid,
+            ["dot11.device.last_beaconed_ssid_record"] = ssidRecord,
+            ["dot11.device.last_beaconed_ssid_checksum"] = ssidCsum,
+            ["dot11.device.num_advertised_ssids"] = 1,
+            ["dot11.device.advertised_ssid_map"] = ssidMap
+        };
+
+        int freqKhz = GetFreqFromChannel(ap.Channel) * 1000;
+        var freqMap = new JsonObject
+        {
+            [freqKhz.ToString()] = 1
+        };
+
+        var device = new JsonObject
+        {
+            ["kismet.device.base.key"] = ap.Bssid ?? "",
+            ["kismet.device.base.macaddr"] = ap.Bssid ?? "",
+            ["kismet.device.base.name"] = ssid,
+            ["kismet.device.base.phyname"] = "IEEE802.11",
+            ["kismet.device.base.manuf"] = ap.Manufacturer ?? "Unknown",
+            ["kismet.device.base.channel"] = ap.Channel.ToString(),
+            ["kismet.device.base.frequency"] = freqKhz,
+            ["kismet.device.base.freq_khz_map"] = freqMap,
+            ["kismet.device.base.crypt_string"] = ap.Encryption.ToString(),
+            ["kismet.device.base.type"] = ap.NetworkType == NetworkType.Adhoc ? "Wi-Fi Ad-Hoc" : "Wi-Fi AP",
+            ["kismet.device.base.commonname"] = ssid,
+            ["dot11.device"] = dot11,
+            // Custom Vistumbler Fields
+            ["vistumbler.device.radio_type"] = ap.RadioType ?? "", // Ensure RadioType is on AccessPoint model
+            ["vistumbler.device.signal_quality"] = ap.Signal ?? 0 // Saving Signal % in JSON as well
+        };
+
+        return device;
+    }
+
+    private long ToUnixTime(DateTime date)
+    {
+        return new DateTimeOffset(date).ToUnixTimeSeconds();
+    }
+
     private ulong GetChannelBitMask(int channel)
     {
         if (channel >= 1 && channel <= 14) return (ulong)1 << (channel - 1);
@@ -193,6 +421,172 @@ public class ExportService : IExportService
         {
             return 0;
         }
+    }
+
+
+    public async Task ExportToNetXmlAsync(string filePath, List<AccessPoint> accessPoints)
+    {
+        var settings = new XmlWriterSettings
+        {
+            Indent = true,
+            IndentChars = "  ",
+            Encoding = Encoding.UTF8, // Switching to UTF8 for better compatibility in modern tools
+            Async = true
+        };
+
+        using var writer = XmlWriter.Create(filePath, settings);
+        
+        await writer.WriteStartDocumentAsync();
+        await writer.WriteDocTypeAsync("detection-run", "SYSTEM", "http://kismetwireless.net/kismet-3.1.0.dtd", null);
+        
+        await writer.WriteStartElementAsync(null, "detection-run", null);
+        await writer.WriteAttributeStringAsync(null, "kismet-version", null, "Vistumbler");
+        await writer.WriteAttributeStringAsync(null, "start-time", null, FormatKismetDate(DateTime.Now));
+        
+        await writer.WriteStartElementAsync(null, "card-source", null);
+        await writer.WriteAttributeStringAsync(null, "uuid", null, "00000000-0000-0000-0000-000000000000");
+        await writer.WriteStringAsync("vistumbler");
+        await writer.WriteEndElementAsync(); // card-source
+
+        foreach (var ap in accessPoints)
+        {
+             await WriteNetXmlNetworkAsync(writer, ap);
+        }
+
+        await writer.WriteEndElementAsync(); // detection-run
+        await writer.WriteEndDocumentAsync();
+    }
+
+    private async Task WriteNetXmlNetworkAsync(XmlWriter writer, AccessPoint ap)
+    {
+        // Calculate Stats
+        int minRssi = ap.Rssi ?? -100, maxRssi = ap.HighestRssi ?? ap.Rssi ?? -100, lastRssi = ap.Rssi ?? -100;
+        
+        if (ap.SignalHistory != null && ap.SignalHistory.Count > 0)
+        {
+             // Try to use History if populated with RSSI (Noise is usually 0 in Vistumbler)
+             // NOTE: Vistumbler Hist table stores Signal (%) and RSSI (dBm). We want dBm.
+             // If History is loaded...
+             // Check if we have RSSI values in history?
+             // AccessPoint model has SignalHistory with Signal (int). Is it % or dBm?
+             // ImportService: hist.Signal = reader.ReadInt32(); (VS1 has Signal % usually, RSSI is separate or derived)
+             // Let's assume SignalHistory.Signal is %. We might need RSSI derived.
+             // But if we have RSSI on AP, use that for now to avoid complexity without direct history RSSI field.
+             // Actually, the AP usually has the aggregates.
+        }
+
+        string type = ap.NetworkType == NetworkType.Adhoc ? "ad-hoc" : "infrastructure";
+        string startTime = FormatKismetDate(ap.FirstSeen);
+        string endTime = FormatKismetDate(ap.LastSeen);
+        
+        await writer.WriteStartElementAsync(null, "wireless-network", null);
+        await writer.WriteAttributeStringAsync(null, "number", null, "0");
+        await writer.WriteAttributeStringAsync(null, "type", null, type);
+        await writer.WriteAttributeStringAsync(null, "first-time", null, startTime);
+        await writer.WriteAttributeStringAsync(null, "last-time", null, endTime);
+        
+        // SSID
+        await writer.WriteStartElementAsync(null, "SSID", null);
+        await writer.WriteAttributeStringAsync(null, "first-time", null, startTime);
+        await writer.WriteAttributeStringAsync(null, "last-time", null, endTime);
+        
+        await writer.WriteElementStringAsync(null, "type", null, "Beacon"); 
+        await writer.WriteElementStringAsync(null, "max-rate", null, "54.0");
+        await writer.WriteElementStringAsync(null, "packets", null, "0");
+        await writer.WriteElementStringAsync(null, "beaconrate", null, "10");
+        
+        string encStr = ap.Encryption.ToString(); // Improve mapping if needed
+        if (ap.Encryption == EncryptionType.None) encStr = "None";
+        else if (ap.Encryption == EncryptionType.WEP) encStr = "WEP";
+        else if (ap.Authentication.ToString().Contains("WPA")) encStr = ap.Authentication.ToString().Replace("_", "+"); 
+        
+        await writer.WriteElementStringAsync(null, "encryption", null, encStr);
+        
+        await writer.WriteStartElementAsync(null, "essid", null);
+        await writer.WriteAttributeStringAsync(null, "cloaked", null, string.IsNullOrEmpty(ap.Ssid) ? "true" : "false");
+        await writer.WriteStringAsync(ap.Ssid);
+        await writer.WriteEndElementAsync(); // essid
+        
+        await writer.WriteEndElementAsync(); // SSID
+        
+        await writer.WriteElementStringAsync(null, "BSSID", null, ap.Bssid);
+        await writer.WriteElementStringAsync(null, "manuf", null, ap.Manufacturer);
+        await writer.WriteElementStringAsync(null, "channel", null, ap.Channel.ToString());
+        await writer.WriteElementStringAsync(null, "freqmhz", null, $"{GetFreqFromChannel(ap.Channel)} 0");
+        await writer.WriteElementStringAsync(null, "maxseenrate", null, "54.0");
+        
+        // SNR
+        await writer.WriteStartElementAsync(null, "snr-info", null);
+        await writer.WriteElementStringAsync(null, "last_signal_dbm", null, lastRssi.ToString());
+        await writer.WriteElementStringAsync(null, "last_noise_dbm", null, "0");
+        await writer.WriteElementStringAsync(null, "last_signal_rssi", null, lastRssi.ToString());
+        await writer.WriteElementStringAsync(null, "last_noise_rssi", null, "0");
+        await writer.WriteElementStringAsync(null, "min_signal_dbm", null, minRssi.ToString());
+        await writer.WriteElementStringAsync(null, "min_noise_dbm", null, "0");
+        await writer.WriteElementStringAsync(null, "min_signal_rssi", null, minRssi.ToString());
+        await writer.WriteElementStringAsync(null, "min_noise_rssi", null, "0");
+        await writer.WriteElementStringAsync(null, "max_signal_dbm", null, maxRssi.ToString());
+        await writer.WriteElementStringAsync(null, "max_noise_dbm", null, "0");
+        await writer.WriteElementStringAsync(null, "max_signal_rssi", null, maxRssi.ToString());
+        await writer.WriteElementStringAsync(null, "max_noise_rssi", null, "0");
+        await writer.WriteEndElementAsync(); // snr-info
+        
+        // Vistumbler Custom Attributes for Radio Type and Signal Percent
+        // These are not standard Kismet but used by Vistumbler for extended data preservation
+        if (!string.IsNullOrEmpty(ap.RadioType))
+        {
+            await writer.WriteStartElementAsync(null, "bsstype", null);
+            await writer.WriteStringAsync(ap.RadioType);
+            await writer.WriteEndElementAsync();
+        }
+
+        if (ap.Signal.HasValue)
+        {
+             await writer.WriteStartElementAsync(null, "signal_quality", null);
+             await writer.WriteStringAsync(ap.Signal.Value.ToString());
+             await writer.WriteEndElementAsync();
+        }
+
+        // GPS
+        if (ap.Latitude.HasValue || ap.Longitude.HasValue)
+        {
+            double lat = ap.Latitude ?? 0;
+            double lon = ap.Longitude ?? 0;
+            await writer.WriteStartElementAsync(null, "gps-info", null);
+            await writer.WriteElementStringAsync(null, "min-lat", null, lat.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            await writer.WriteElementStringAsync(null, "min-lon", null, lon.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            await writer.WriteElementStringAsync(null, "min-alt", null, "0");
+            await writer.WriteElementStringAsync(null, "min-spd", null, "0");
+             await writer.WriteElementStringAsync(null, "max-lat", null, lat.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            await writer.WriteElementStringAsync(null, "max-lon", null, lon.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            await writer.WriteElementStringAsync(null, "max-alt", null, "0");
+            await writer.WriteElementStringAsync(null, "max-spd", null, "0");
+             await writer.WriteElementStringAsync(null, "peak-lat", null, lat.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            await writer.WriteElementStringAsync(null, "peak-lon", null, lon.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            await writer.WriteElementStringAsync(null, "peak-alt", null, "0");
+            await writer.WriteElementStringAsync(null, "peak-spd", null, "0");
+             await writer.WriteElementStringAsync(null, "avg-lat", null, lat.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            await writer.WriteElementStringAsync(null, "avg-lon", null, lon.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            await writer.WriteElementStringAsync(null, "avg-alt", null, "0");
+            await writer.WriteElementStringAsync(null, "avg-spd", null, "0");
+            await writer.WriteEndElementAsync(); // gps-info
+        }
+
+        await writer.WriteElementStringAsync(null, "datasize", null, "0");
+        await writer.WriteEndElementAsync(); // wireless-network
+    }
+
+    private string FormatKismetDate(DateTime dt)
+    {
+         return dt.ToString("ddd MMM dd HH:mm:ss yyyy", System.Globalization.CultureInfo.InvariantCulture);
+    }
+    
+    private int GetFreqFromChannel(int channel)
+    {
+        if (channel >= 1 && channel <= 13) return 2407 + (channel * 5);
+        if (channel == 14) return 2484;
+        if (channel >= 36 && channel <= 177) return 5000 + (channel * 5);
+        return 0;
     }
 
     public async Task ExportToKmlAsync(string filePath, List<AccessPoint> accessPoints, ExportOptions options)

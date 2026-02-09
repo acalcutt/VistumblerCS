@@ -21,7 +21,17 @@ public interface IExportService
     /// Export access points to NS1 format (NetStumbler binary)
     /// </summary>
     Task ExportToNs1Async(string filePath, List<AccessPoint> accessPoints);
+
+    /// <summary>
+    /// Export access points to KismetDB format
+    /// </summary>
+    Task ExportToKismetDbAsync(string filePath, List<AccessPoint> accessPoints);
     
+    /// <summary>
+    /// Export access points to NetXML format (Kismet Legacy)
+    /// </summary>
+    Task ExportToNetXmlAsync(string filePath, List<AccessPoint> accessPoints);
+
     /// <summary>
     /// Export access points to CSV format
     /// </summary>

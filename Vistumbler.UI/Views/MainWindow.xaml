@@ -44,6 +44,8 @@
                     <MenuItem Header="Export To KML" Command="{Binding ExportKmlCommand}"/>
                     <MenuItem Header="Export To GPX" Command="{Binding ExportGpxCommand}"/>
                     <MenuItem Header="Export To NS1" Command="{Binding ExportNs1Command}"/>
+                    <MenuItem Header="Export To NetXML" Command="{Binding ExportNetXmlCommand}"/>
+                    <MenuItem Header="Export To KismetDB" Command="{Binding ExportKismetDbCommand}"/>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="Exit (Save DB)"/>

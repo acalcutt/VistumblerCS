@@ -78,7 +78,7 @@
                               IsChecked="{Binding GraphDeadTime, Mode=OneWay}"/>
                 </MenuItem>
             </MenuItem>
-            <MenuItem Header="_Options">
+            <MenuItem Header="_Settings">
                 <MenuItem Header="Misc Settings"              Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="0"/>
                 <MenuItem Header="Save Settings"              Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="1"/>
                 <MenuItem Header="GPS Settings"               Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="2"/>

@@ -15,6 +15,7 @@ public class AccessPoint
     public EncryptionType Encryption { get; set; }
     public string RadioType { get; set; } = string.Empty;
     public int Channel { get; set; }
+    public int FrequencyMhz { get; set; }
     public int? Signal { get; set; }
     public int? HighestSignal { get; set; }
     public int? Rssi { get; set; }

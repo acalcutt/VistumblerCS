@@ -188,12 +188,15 @@ public class NativeWiFiScanner : IWiFiScannerService
                         var ssid = Encoding.UTF8.GetString(bss.Ssid.ToBytes()).TrimEnd('\0');
                         var bssid = Convert.ToHexString(bss.Bssid.ToBytes()).Insert(2, ":").Insert(5, ":").Insert(8, ":").Insert(11, ":").Insert(14, ":");
 
+                        var (channel, freqMhz) = GetChannelAndFreq(bss.Frequency);
+
                         var ap = new AccessPoint
                         {
                             Bssid = bssid,
                             Ssid = ssid,
                             Signal = bss.LinkQuality,
-                            Channel = GetChannelFromFrequency(bss.Frequency),
+                            Channel = channel,
+                            FrequencyMhz = freqMhz,
                             RadioType = MapPhyType(bss.PhyType),
                             NetworkType = bss.BssType == BssType.Infrastructure ? NetworkType.Infrastructure : NetworkType.Adhoc,
                             LastSeen = DateTime.Now,
@@ -228,25 +231,32 @@ public class NativeWiFiScanner : IWiFiScannerService
 
     // --- Helper and Event Methods ---
 
-    private int GetChannelFromFrequency(int frequency)
+    private static (int channel, int freqMhz) GetChannelAndFreq(int frequency)
     {
-        // Convert KHz to MHz if necessary (ManagedNativeWifi normally returns KHz)
-        if (frequency > 1000000) frequency /= 1000;
+        // ManagedNativeWifi returns frequency in KHz
+        int freqMhz = frequency > 1_000_000 ? frequency / 1000 : frequency;
 
-        if (frequency >= 2412 && frequency <= 2484)
+        // 2.4 GHz band
+        if (freqMhz >= 2412 && freqMhz <= 2484)
         {
-            if (frequency == 2484)
-                return 14;
-            return (frequency - 2412) / 5 + 1;
+            int ch = freqMhz == 2484 ? 14 : (freqMhz - 2407) / 5;
+            return (ch, freqMhz);
         }
 
-        if (frequency >= 5170 && frequency <= 5825)
-        {
-            return (frequency - 5170) / 5 + 34;
-        }
+        // 5 GHz band (5150–5925 MHz)  chan = (freq - 5000) / 5
+        if (freqMhz >= 5150 && freqMhz < 5925)
+            return ((freqMhz - 5000) / 5, freqMhz);
 
-        return 0; // Unknown
+        // 6 GHz band (Wi-Fi 6E / Wi-Fi 7) 5925–7125 MHz  chan = (freq - 5950) / 5
+        if (freqMhz >= 5925 && freqMhz <= 7125)
+            return ((freqMhz - 5950) / 5, freqMhz);
+
+        return (0, freqMhz);
     }
+
+    // Legacy wrapper kept for any remaining callers
+    private int GetChannelFromFrequency(int frequency)
+        => GetChannelAndFreq(frequency).channel;
     
     private AuthenticationType MapAuthentication(AuthenticationAlgorithm algo)
     {

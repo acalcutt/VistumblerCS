@@ -14,12 +14,11 @@ namespace Vistumbler.UI.ViewModels;
 public enum ImportType
 {
     VistumblerFile,
-    Netstumbler,
     VistumblerDetailedCsv,
+    Netstumbler,
+    KismetFiles,   // Covers both .kismet (KismetDB) and .netxml — auto-detected by extension
     WardriveAndroid,
-    WigleCsv,
-    NetXml,
-    KismetDb
+    WigleCsv
 }
 
 public partial class ImportViewModel : ViewModelBase
@@ -35,6 +34,27 @@ public partial class ImportViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _statusMessage = "Ready";
+
+    [ObservableProperty]
+    private double _progressValue = 0;
+
+    [ObservableProperty]
+    private string _progressLabel = "Progress: Ready";
+
+    [ObservableProperty]
+    private string _minutesLabel = "Minutes:";
+
+    [ObservableProperty]
+    private string _lineTotalLabel = "Line/Total:";
+
+    [ObservableProperty]
+    private string _linesMinLabel = "Lines/Min:";
+
+    [ObservableProperty]
+    private string _newApsLabel = "New APs:";
+
+    [ObservableProperty]
+    private string _estTimeLabel = "Estimated Time Remaining:";
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ImportCommand))]
@@ -69,12 +89,13 @@ public partial class ImportViewModel : ViewModelBase
     {
         if (string.IsNullOrWhiteSpace(FilePath) || !File.Exists(FilePath))
         {
-            StatusMessage = "Please select a valid file.";
+            ProgressLabel = "Progress: Please select a valid file.";
             return;
         }
 
         IsImporting = true;
-        StatusMessage = "Importing...";
+        ProgressLabel = "Progress: Loading";
+        ProgressValue = 0;
 
         try
         {
@@ -96,38 +117,46 @@ public partial class ImportViewModel : ViewModelBase
                     importedAps = await _importService.ImportFromNs1Async(FilePath);
                     break;
                 case ImportType.VistumblerDetailedCsv:
-                case ImportType.WigleCsv:
-                case ImportType.WardriveAndroid:
-                     // Assuming ImportFromCsvAsync handles all these or we treat them as generic CSV for now.
                     importedAps = await _importService.ImportFromCsvAsync(FilePath);
                     break;
-                case ImportType.NetXml:
-                    importedAps = await _importService.ImportFromNetXmlAsync(FilePath);
+                case ImportType.WigleCsv:
+                    importedAps = await _importService.ImportFromCsvAsync(FilePath);
                     break;
-                case ImportType.KismetDb:
-                    importedAps = await _importService.ImportFromKismetDbAsync(FilePath);
+                case ImportType.WardriveAndroid:
+                    importedAps = await _importService.ImportFromCsvAsync(FilePath);
+                    break;
+                case ImportType.KismetFiles:
+                    // Auto-detect by extension: .kismet = KismetDB, .netxml = NetXML
+                    if (Path.GetExtension(FilePath).Equals(".netxml", StringComparison.OrdinalIgnoreCase))
+                        importedAps = await _importService.ImportFromNetXmlAsync(FilePath);
+                    else
+                        importedAps = await _importService.ImportFromKismetDbAsync(FilePath);
                     break;
             }
 
             if (importedAps != null && importedAps.Count > 0)
             {
-                StatusMessage = $"Imported {importedAps.Count} APs. Saving to database...";
+                ProgressLabel = $"Progress: Saving {importedAps.Count} APs...";
+                ProgressValue = 50;
                 int savedCount = 0;
                 foreach (var ap in importedAps)
                 {
                    savedCount += await _databaseService.UpsertAccessPointAsync(ap);
                 }
-                StatusMessage = $"Successfully imported and saved {importedAps.Count} APs.";
+                ProgressValue = 100;
+                ProgressLabel = "Progress: Done";
+                NewApsLabel = $"New APs: {savedCount}";
+                LineTotalLabel = $"Line/Total: {importedAps.Count}/{importedAps.Count}";
             }
             else
             {
-                StatusMessage = "No Access Points found in file.";
+                ProgressLabel = "Progress: No APs found";
             }
 
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Error: {ex.Message}";
+            ProgressLabel = $"Progress: Error — {ex.Message}";
         }
         finally
         {
@@ -153,15 +182,13 @@ public partial class ImportViewModel : ViewModelBase
             case ImportType.VistumblerFile:
                 return "Vistumbler Files (*.vs1;*.vsz)|*.vs1;*.vsz|All files (*.*)|*.*";
             case ImportType.Netstumbler:
-                return "Netstumbler Files (*.ns1;*.txt)|*.ns1;*.txt|All files (*.*)|*.*";
+                return "NetStumbler Files (*.ns1;*.txt)|*.ns1;*.txt|All files (*.*)|*.*";
             case ImportType.VistumblerDetailedCsv:
             case ImportType.WardriveAndroid:
             case ImportType.WigleCsv:
                 return "CSV Files (*.csv)|*.csv|All files (*.*)|*.*";
-            case ImportType.NetXml:
-                return "NetXML Files (*.netxml)|*.netxml|All files (*.*)|*.*";
-            case ImportType.KismetDb:
-                return "KismetDB Files (*.kismet)|*.kismet|All files (*.*)|*.*";
+            case ImportType.KismetFiles:
+                return "Kismet Files (*.kismet;*.netxml)|*.kismet;*.netxml|All files (*.*)|*.*";
             default:
                 return "All files (*.*)|*.*";
         }

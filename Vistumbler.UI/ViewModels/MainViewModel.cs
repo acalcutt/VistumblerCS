@@ -81,8 +81,13 @@ public partial class MainViewModel : ViewModelBase
     private bool _graphDeadTime = true;
 
     public bool IsGraphVisible => GraphMode != GraphMode.Hidden;
+    public bool IsTreeViewVisible => GraphMode == GraphMode.Hidden;
 
-    partial void OnGraphModeChanged(GraphMode value) => OnPropertyChanged(nameof(IsGraphVisible));
+    partial void OnGraphModeChanged(GraphMode value)
+    {
+        OnPropertyChanged(nameof(IsGraphVisible));
+        OnPropertyChanged(nameof(IsTreeViewVisible));
+    }
 
     partial void OnSelectedAccessPointChanged(AccessPointViewModel? value)
     {
@@ -96,8 +101,11 @@ public partial class MainViewModel : ViewModelBase
 
     public ICommand StartScanCommand { get; }
     public ICommand StopScanCommand { get; }
+    public ICommand ToggleScanCommand { get; }
     public ICommand StartGpsCommand { get; }
     public ICommand StopGpsCommand { get; }
+    public ICommand ToggleGpsCommand { get; }
+    public ICommand SaveAndClearCommand { get; }
     public ICommand ClearAllCommand { get; }
     public ICommand ExitCommand { get; }
     public ICommand OpenImportWindowCommand { get; }
@@ -117,6 +125,9 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ToggleUseRssiCommand { get; }
     public ICommand ToggleGraphDeadTimeCommand { get; }
     public ICommand OpenSignalHistoryCommand { get; }
+    public ICommand Open24GHzGraphCommand { get; }
+    public ICommand Open5GHzGraphCommand  { get; }
+    public ICommand Open6GHzGraphCommand  { get; }
 
     // ── Context-menu commands (right-click on AP row) ─────────────────────
     public ICommand CopyApInfoCommand { get; }
@@ -155,9 +166,14 @@ public partial class MainViewModel : ViewModelBase
 
         // Initialize commands
         StartScanCommand = new AsyncRelayCommand(StartScanAsync, () => !IsScanning);
-        StopScanCommand = new RelayCommand(StopScan, () => IsScanning);
+        StopScanCommand  = new RelayCommand(StopScan, () => IsScanning);
+        ToggleScanCommand = new AsyncRelayCommand(
+            () => IsScanning ? Task.Run(StopScan) : StartScanAsync(),
+            AsyncRelayCommandOptions.AllowConcurrentExecutions);
         StartGpsCommand = new AsyncRelayCommand(StartGpsAsync, () => !IsGpsActive);
-        StopGpsCommand = new RelayCommand(StopGps, () => IsGpsActive);
+        StopGpsCommand  = new RelayCommand(StopGps, () => IsGpsActive);
+        ToggleGpsCommand = new AsyncRelayCommand(() => IsGpsActive ? Task.Run(StopGps) : StartGpsAsync());
+        SaveAndClearCommand = new AsyncRelayCommand(SaveAndClearAsync);
         ClearAllCommand = new AsyncRelayCommand(ClearAllAsync);
         ExitCommand = new RelayCommand(Exit);
         OpenImportWindowCommand = new RelayCommand(OpenImportWindow);
@@ -177,6 +193,9 @@ public partial class MainViewModel : ViewModelBase
         ToggleUseRssiCommand    = new RelayCommand(() => UseRssiInGraphs = !UseRssiInGraphs);
         ToggleGraphDeadTimeCommand = new RelayCommand(() => GraphDeadTime = !GraphDeadTime);
         OpenSignalHistoryCommand = new RelayCommand(OpenSignalHistoryWindow, () => SelectedAccessPoint != null);
+        Open24GHzGraphCommand = new RelayCommand(() => OpenChannelGraph(Controls.GraphBand.TwoPointFourGHz));
+        Open5GHzGraphCommand  = new RelayCommand(() => OpenChannelGraph(Controls.GraphBand.FiveGHz));
+        Open6GHzGraphCommand  = new RelayCommand(() => OpenChannelGraph(Controls.GraphBand.SixGHz));
         CopyApInfoCommand     = new RelayCommand(CopyApInfo,         () => SelectedAccessPoint != null);
         AddManufacturerCommand = new AsyncRelayCommand(AddManufacturerAsync, () => SelectedAccessPoint != null);
         AddLabelCommand       = new AsyncRelayCommand(AddLabelAsync,        () => SelectedAccessPoint != null);
@@ -277,6 +296,39 @@ public partial class MainViewModel : ViewModelBase
             ClearTreeview();
             ActiveApCount = 0;
             StatusMessage = "All access points cleared";
+        }
+    }
+
+    private async Task SaveAndClearAsync()
+    {
+        // Prompt for save file, then clear — mirrors AutoIt _AutoSaveAndClear
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Save & Clear — choose export file",
+            Filter = "Vistumbler Files (*.vs1)|*.vs1|Vistumbler Zip (*.vsz)|*.vsz|All files (*.*)|*.*",
+            DefaultExt = ".vs1"
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        var path = dlg.FileName;
+        var aps  = GetAccessPointsModels();
+
+        try
+        {
+            if (path.EndsWith(".vsz", StringComparison.OrdinalIgnoreCase))
+                await _exportService.ExportToVszAsync(path, aps);
+            else
+                await _exportService.ExportToVs1Async(path, aps);
+
+            await _databaseService.ClearAllAccessPointsAsync();
+            AccessPoints.Clear();
+            ClearTreeview();
+            ActiveApCount = 0;
+            StatusMessage = $"Saved & cleared — {aps.Count} APs written to {System.IO.Path.GetFileName(path)}";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Save & Clear failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -463,6 +515,15 @@ public partial class MainViewModel : ViewModelBase
     {
         if (SelectedAccessPoint == null) return;
         var window = new Views.SignalHistoryWindow(SelectedAccessPoint)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        window.Show();
+    }
+
+    private void OpenChannelGraph(Controls.GraphBand band)
+    {
+        var window = new Views.ChannelGraphWindow(_accessPoints, UseRssiInGraphs, band)
         {
             Owner = Application.Current.MainWindow
         };

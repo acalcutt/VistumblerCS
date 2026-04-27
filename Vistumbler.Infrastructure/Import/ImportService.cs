@@ -958,27 +958,103 @@ public class ImportService : IImportService
         if (parts.Length < 7) return null;
         try
         {
-            // MAC,SSID,AuthMode,FirstSeen,Channel,RSSI,CurrentLatitude,CurrentLongitude...
+            // v1.4: MAC,SSID,AuthMode,FirstSeen,Channel,RSSI,Lat,Lon,Alt,Accuracy,Type  (11 cols)
+            // v1.6: MAC,SSID,AuthMode,FirstSeen,Channel,Frequency,RSSI,Lat,Lon,Alt,Accuracy,Type (12 cols)
+            bool isV16 = parts.Length >= 12;
+            int rssiIdx = isV16 ? 6 : 5;
+            int latIdx  = isV16 ? 7 : 6;
+            int lonIdx  = isV16 ? 8 : 7;
+
             var ap = new AccessPoint
             {
                 Bssid = parts[0],
                 Ssid = parts[1],
                 Channel = ParseInt(parts[4]),
-                Rssi = ParseInt(parts[5]),
-                Latitude = parts.Length > 6 ? ParseDouble(parts[6]) : null,
-                Longitude = parts.Length > 7 ? ParseDouble(parts[7]) : null
+                Rssi = ParseInt(parts[rssiIdx]),
+                Latitude  = parts.Length > latIdx ? ParseDouble(parts[latIdx]) : null,
+                Longitude = parts.Length > lonIdx ? ParseDouble(parts[lonIdx]) : null,
+                FirstSeen = DateTime.TryParse(parts[3], out var fs) ? fs : DateTime.UtcNow,
+                LastSeen  = DateTime.TryParse(parts[3], out var ls) ? ls : DateTime.UtcNow,
             };
-            
-            // Map wigle auth to Vistumbler auth if possible
-            var authStr = parts[2];
-            if (authStr.Contains("WPA2")) ap.Authentication = AuthenticationType.WPA2;
-            else if (authStr.Contains("WPA")) ap.Authentication = AuthenticationType.WPA;
-            else if (authStr.Contains("WEP")) ap.Encryption = EncryptionType.WEP;
-            else if (authStr == "[ESS]") { ap.Encryption = EncryptionType.None; ap.Authentication = AuthenticationType.Open; }
+
+            if (isV16 && int.TryParse(parts[5], out var freq) && freq > 0)
+                ap.Channel = GetChannelFromFreq(freq);
+
+            // Port of _WigleCSV_ParseAuthMode
+            ParseWigleAuthMode(parts[2], out var auth, out var encr, out var netType);
+            ap.Authentication = auth;
+            ap.Encryption = encr;
+            ap.NetworkType = netType;
+
+            // Derive Signal % from RSSI (RSSI range roughly -100..0 → 0..100 %)
+            if (ap.Rssi.HasValue)
+                ap.Signal = Math.Clamp((ap.Rssi.Value + 100) * 2, 0, 100);
 
             return ap;
         }
-        catch { return null; }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Port of _WigleCSV_ParseAuthMode: parses WiGLE capability flags to Vistumbler auth/encr/netType.
+    /// </summary>
+    private static void ParseWigleAuthMode(string authMode, out AuthenticationType auth, out EncryptionType encr, out NetworkType netType)
+    {
+        auth = AuthenticationType.Open;
+        encr = EncryptionType.None;
+        netType = NetworkType.Infrastructure;
+
+        var cap = authMode.ToUpperInvariant();
+
+        // Encryption cipher
+        if (cap.Contains("GCMP-256"))        encr = EncryptionType.GCMP_256;
+        else if (cap.Contains("GCMP"))       encr = EncryptionType.GCMP;
+        else if (cap.Contains("CCMP-256"))   encr = EncryptionType.CCMP_256;
+        else if (cap.Contains("CCMP") || cap.Contains("AES")) encr = EncryptionType.AES;
+        else if (cap.Contains("TKIP"))       encr = EncryptionType.TKIP;
+        else if (cap.Contains("WEP"))        encr = EncryptionType.WEP;
+
+        // Authentication (check WPA3 before WPA2 before WPA)
+        if (cap.Contains("WPA3") || cap.Contains("SAE") || cap.Contains("EAP_SUITE_B_192"))
+        {
+            auth = cap.Contains("EAP") ? AuthenticationType.WPA3_Enterprise : AuthenticationType.WPA3_PSK;
+        }
+        else if (cap.Contains("WPA2") || cap.Contains("RSN"))
+        {
+            auth = cap.Contains("EAP") ? AuthenticationType.WPA2_Enterprise : AuthenticationType.WPA2_PSK;
+        }
+        else if (cap.Contains("WPA"))
+        {
+            auth = cap.Contains("EAP") ? AuthenticationType.WPA_Enterprise : AuthenticationType.WPA_PSK;
+        }
+        else if (cap.Contains("OWE"))
+        {
+            auth = AuthenticationType.OWE;
+        }
+        else if (encr == EncryptionType.WEP)
+        {
+            auth = AuthenticationType.Open;
+        }
+        else
+        {
+            auth = AuthenticationType.Open;
+            encr = EncryptionType.None;
+        }
+
+        // Network type
+        if (cap.Contains("IBSS") || cap.Contains("AD-HOC"))
+            netType = NetworkType.Adhoc;
+    }
+
+    private static int GetChannelFromFreq(int freqMhz)
+    {
+        if (freqMhz == 2484) return 14;
+        if (freqMhz >= 2412 && freqMhz <= 2477) return (freqMhz - 2407) / 5;
+        if (freqMhz >= 5180 && freqMhz <= 5885) return (freqMhz - 5000) / 5;
+        return 0;
     }
 
     private string TrimNs1String(string s)

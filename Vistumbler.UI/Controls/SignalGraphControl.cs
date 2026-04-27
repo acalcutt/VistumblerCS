@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
@@ -8,14 +7,17 @@ using Vistumbler.Core.Models;
 namespace Vistumbler.UI.Controls;
 
 /// <summary>
-/// A WPF OnRender-based signal graph that mirrors the GDI+ graph in Vistumbler.au3 _GraphDraw().
+/// WPF OnRender signal graph with proper Y-axis scale labels, tick marks, X-axis
+/// time labels, plot-area border, and adaptive label density.
 ///
-/// Graph1 (Line) – plots up to 50 most-recent history points connected with lines.
-/// Graph2 (Bar)  – one vertical bar per pixel-column of available width.
+/// Graph1 (Line) – up to 50 most-recent history points connected with lines, newest on right.
+/// Graph2 (Bar)  – one filled column per pixel-column of available width, newest on right.
 ///
-/// Signal history is passed in via the SignalHistory DependencyProperty whenever
-/// the selected AP changes.  The control redraws whenever Mode, UseRssi, or
-/// SignalHistory changes.
+/// Layout margins:
+///   LeftBorder   = 46 px  (Y-axis labels + ticks)
+///   TopBorder    =  6 px
+///   RightBorder  =  8 px
+///   BottomBorder = 22 px  (X-axis time labels + ticks)
 /// </summary>
 public class SignalGraphControl : FrameworkElement
 {
@@ -43,44 +45,49 @@ public class SignalGraphControl : FrameworkElement
         get => (GraphMode)GetValue(ModeProperty);
         set => SetValue(ModeProperty, value);
     }
-
     public bool UseRssi
     {
         get => (bool)GetValue(UseRssiProperty);
         set => SetValue(UseRssiProperty, value);
     }
-
     public bool GraphDeadTime
     {
         get => (bool)GetValue(GraphDeadTimeProperty);
         set => SetValue(GraphDeadTimeProperty, value);
     }
-
     public IReadOnlyList<SignalHistory>? SignalHistory
     {
         get => (IReadOnlyList<SignalHistory>?)GetValue(SignalHistoryProperty);
         set => SetValue(SignalHistoryProperty, value);
     }
 
-    // ── Drawing resources (created once) ─────────────────────────────────────
+    // ── Layout ────────────────────────────────────────────────────────────────
 
-    private static readonly Brush BackBrush    = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xAA));
-    private static readonly Pen   GridPen      = new Pen(new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0x88)), 1);
-    private static readonly Pen   SignalPen    = new Pen(Brushes.Red, 1.5);
-    private static readonly Pen   DeadPen      = new Pen(Brushes.Red, 1.0);
-    private static readonly Typeface LabelFont = new Typeface("Segoe UI");
+    private const double LeftBorder   = 46;   // Y-axis labels + ticks
+    private const double TopBorder    =  6;
+    private const double RightBorder  =  8;
+    private const double BottomBorder = 22;   // X-axis time labels + ticks
 
-    private const double LeftBorder = 35;
-    private const double TopBorder  = 4;
-    private const double RightBorder  = 4;
-    private const double BottomBorder = 4;
+    // ── Drawing resources ─────────────────────────────────────────────────────
+
+    private static readonly Brush OuterBrush  = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xAA));
+    private static readonly Brush PlotBrush   = new SolidColorBrush(Color.FromRgb(0xF8, 0xF8, 0xF0));
+    private static readonly Pen   BorderPen   = new Pen(new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x44)), 1);
+    private static readonly Pen   TickPen     = new Pen(new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x44)), 1);
+    private static readonly Pen   GridMajor   = new Pen(new SolidColorBrush(Color.FromArgb(170, 0xAA, 0xAA, 0x77)), 1);
+    private static readonly Pen   GridMinor   = new Pen(new SolidColorBrush(Color.FromArgb( 70, 0xAA, 0xAA, 0x77)), 1);
+    private static readonly Pen   SignalLine  = new Pen(new SolidColorBrush(Color.FromRgb(0xCC, 0x00, 0x00)), 2.0);
+    private static readonly Pen   DeadLine    = new Pen(new SolidColorBrush(Color.FromRgb(0x88, 0x00, 0x00)), 1.0);
+    private static readonly Brush DotFill     = new SolidColorBrush(Color.FromRgb(0xCC, 0x00, 0x00));
+    private static readonly Brush BarFill     = new SolidColorBrush(Color.FromArgb(200, 0xCC, 0x00, 0x00));
+    private static readonly Typeface AxisFont = new Typeface("Segoe UI");
 
     static SignalGraphControl()
     {
-        BackBrush.Freeze();
-        GridPen.Freeze();
-        SignalPen.Freeze();
-        DeadPen.Freeze();
+        OuterBrush.Freeze(); PlotBrush.Freeze(); BorderPen.Freeze(); TickPen.Freeze();
+        GridMajor.Freeze();  GridMinor.Freeze();
+        SignalLine.Freeze(); DeadLine.Freeze();
+        DotFill.Freeze();    BarFill.Freeze();
     }
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -91,160 +98,210 @@ public class SignalGraphControl : FrameworkElement
         double h = ActualHeight;
         if (w <= 0 || h <= 0) return;
 
-        // Background
-        dc.DrawRectangle(BackBrush, null, new Rect(0, 0, w, h));
+        double plotX = LeftBorder;
+        double plotY = TopBorder;
+        double plotW = w - LeftBorder - RightBorder;
+        double plotH = h - TopBorder  - BottomBorder;
+        if (plotW < 4 || plotH < 4) return;
 
-        double graphW = w - LeftBorder - RightBorder;
-        double graphH = h - TopBorder  - BottomBorder;
+        double ppd = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
-        DrawGrid(dc, graphW, graphH);
+        // Outer background
+        dc.DrawRectangle(OuterBrush, null, new Rect(0, 0, w, h));
 
-        if (Mode == GraphMode.Hidden) return;
+        // Plot area background
+        dc.DrawRectangle(PlotBrush, null, new Rect(plotX, plotY, plotW, plotH));
+
+        // Y-axis grid lines (span full plot width, no clipping needed)
+        DrawYGrid(dc, plotX, plotY, plotW, plotH);
+
+        // Clip data to the plot interior
+        dc.PushClip(new RectangleGeometry(new Rect(plotX + 1, plotY + 1, plotW - 2, plotH - 2)));
 
         var history = SignalHistory;
-        if (history == null || history.Count == 0) return;
+        bool hasData = Mode != GraphMode.Hidden && history != null && history.Count > 0;
+        if (hasData)
+        {
+            if (Mode == GraphMode.Line)
+                DrawLineGraph(dc, history!, plotX, plotY, plotW, plotH);
+            else
+                DrawBarGraph(dc, history!, plotX, plotY, plotW, plotH);
+        }
 
-        if (Mode == GraphMode.Line)
-            DrawLineGraph(dc, history, graphW, graphH);
-        else
-            DrawBarGraph(dc, history, graphW, graphH);
+        dc.Pop(); // pop clip
+
+        // Y-axis labels + tick marks (left margin, drawn after clip pop)
+        DrawYAxisLabels(dc, plotX, plotY, plotH, ppd);
+
+        // X-axis time labels + tick marks (bottom margin)
+        if (hasData)
+            DrawXAxisLabels(dc, history!, plotX, plotY, plotW, plotH, ppd);
+
+        // Border drawn last so it sits on top of everything
+        dc.DrawRectangle(null, BorderPen, new Rect(plotX, plotY, plotW, plotH));
     }
 
-    private void DrawGrid(DrawingContext dc, double graphW, double graphH)
-    {
-        double pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+    // ── Y-axis grid ───────────────────────────────────────────────────────────
 
+    private void DrawYGrid(DrawingContext dc, double plotX, double plotY, double plotW, double plotH)
+    {
         for (int i = 0; i <= 10; i++)
         {
-            double yFrac = i / 10.0;
-            double y;
-            string label;
-
-            if (UseRssi)
-            {
-                // dBm: 0 at top → -100 at bottom
-                y     = TopBorder + graphH * yFrac;
-                label = (i * -10).ToString();
-            }
-            else
-            {
-                // %: 100% at top → 0% at bottom
-                y     = TopBorder + graphH * (1.0 - yFrac);
-                label = (i * 10) + "%";
-            }
-
-            dc.DrawLine(GridPen,
-                new Point(LeftBorder, y),
-                new Point(LeftBorder + graphW, y));
-
-            var ft = new FormattedText(label, CultureInfo.CurrentUICulture,
-                FlowDirection.LeftToRight, LabelFont, 9,
-                Brushes.Black, pixelsPerDip);
-            dc.DrawText(ft, new Point(0, y - ft.Height / 2));
+            double y    = plotY + plotH * (i / 10.0);
+            bool   major = (i % 2 == 0);
+            dc.DrawLine(major ? GridMajor : GridMinor,
+                new Point(plotX, y), new Point(plotX + plotW, y));
         }
     }
 
-    /// <summary>
-    /// Graph1: line chart over the last 50 signal points (newest on the right).
-    /// Dead time gaps are drawn at the bottom of the chart in red.
-    /// </summary>
+    // ── Y-axis labels ─────────────────────────────────────────────────────────
+
+    private void DrawYAxisLabels(DrawingContext dc, double plotX, double plotY, double plotH, double ppd)
+    {
+        // Adaptive density: label every 1st, 2nd, or 5th tick based on available height
+        int every = plotH > 160 ? 1 : plotH > 90 ? 2 : 5;
+
+        for (int i = 0; i <= 10; i++)
+        {
+            double y = plotY + plotH * (i / 10.0);
+
+            // Tick mark outside the plot border
+            dc.DrawLine(TickPen, new Point(plotX - 4, y), new Point(plotX, y));
+
+            if (i % every != 0) continue;
+
+            // Top of chart is 0 dBm / 100%; bottom is -100 dBm / 0%
+            string label = UseRssi
+                ? (i * -10).ToString()      // 0, -10, …, -100
+                : ((10 - i) * 10) + "%";    // 100%, 90%, …, 0%
+
+            var ft = MakeText(label, 9, Brushes.Black, ppd);
+            // Right-align in the left margin
+            dc.DrawText(ft, new Point(plotX - 6 - ft.Width, y - ft.Height / 2));
+        }
+    }
+
+    // ── X-axis time labels ────────────────────────────────────────────────────
+
+    private void DrawXAxisLabels(DrawingContext dc, IReadOnlyList<SignalHistory> history,
+        double plotX, double plotY, double plotW, double plotH, double ppd)
+    {
+        int shown   = Math.Min(history.Count, Mode == GraphMode.Line ? 50 : (int)plotW);
+        if (shown < 2) return;
+
+        int    labelCount = Math.Min(5, shown);
+        double spacing    = plotW / Math.Max(shown - 1, 1);
+        double labelY     = plotY + plotH + 4;
+
+        for (int li = 0; li < labelCount; li++)
+        {
+            // dataIdx 0 = newest = rightmost; dataIdx shown-1 = oldest = leftmost
+            int    dataIdx = (int)Math.Round(li * (shown - 1.0) / (labelCount - 1));
+            double x       = plotX + plotW - spacing * dataIdx;
+
+            var    ts    = history[dataIdx].Timestamp;
+            string label = ts == default ? "" : ts.ToString("HH:mm:ss");
+            var    ft    = MakeText(label, 8, Brushes.Black, ppd);
+
+            // Tick below the plot border
+            dc.DrawLine(TickPen, new Point(x, plotY + plotH), new Point(x, plotY + plotH + 3));
+
+            // Center text under tick, clamped to stay within visible width
+            double tx = Math.Clamp(x - ft.Width / 2, 0, plotX + plotW - ft.Width);
+            dc.DrawText(ft, new Point(tx, labelY));
+        }
+    }
+
+    // ── Line graph ────────────────────────────────────────────────────────────
+
     private void DrawLineGraph(DrawingContext dc, IReadOnlyList<SignalHistory> history,
-                               double graphW, double graphH)
+        double plotX, double plotY, double plotW, double plotH)
     {
         const int MaxPoints = 50;
+        var    pts     = history.Take(MaxPoints).ToList();
+        double spacing = plotW / Math.Max(MaxPoints - 1, 1);
 
-        // Take the most recent MaxPoints entries (already ordered newest-first from the VM)
-        var points = history.Take(MaxPoints).ToList();
-        if (points.Count < 1) return;
-
-        double spacing = graphW / Math.Max(MaxPoints - 1, 1);
-
-        Point? prev = null;
+        Point?    prev     = null;
         DateTime? prevTime = null;
 
-        for (int i = 0; i < points.Count; i++)
+        for (int i = 0; i < pts.Count; i++)
         {
-            var entry = points[i];
-            // x: index 0 = rightmost, index n-1 = leftmost
-            double x = LeftBorder + graphW - spacing * i;
-            double y = SignalToY(entry, graphH);
+            var    entry = pts[i];
+            double x     = plotX + plotW - spacing * i;
+            double y     = SignalToY(entry, plotY, plotH);
 
-            // Dead-time gap between consecutive points
             if (i > 0 && GraphDeadTime && prevTime.HasValue)
             {
-                var gap = (prevTime.Value - entry.Timestamp).TotalSeconds;
+                double gap = (prevTime.Value - entry.Timestamp).TotalSeconds;
                 if (gap >= 2)
                 {
-                    // Draw a dead-point at the bottom then connect
-                    double deadY = TopBorder + graphH;
-                    var deadPt   = new Point(x, deadY);
+                    double deadY = plotY + plotH;
                     if (prev.HasValue)
-                        dc.DrawLine(DeadPen, prev.Value, deadPt);
-                    prev = deadPt;
+                        dc.DrawLine(DeadLine, prev.Value, new Point(x, deadY));
+                    prev = new Point(x, deadY);
                 }
             }
 
             var pt = new Point(x, y);
             if (prev.HasValue)
-                dc.DrawLine(SignalPen, prev.Value, pt);
+                dc.DrawLine(SignalLine, prev.Value, pt);
 
-            // Dot
-            dc.DrawRectangle(Brushes.Red, null, new Rect(x - 1.5, y - 1.5, 3, 3));
+            // Dot — larger for the most-recent (newest) point
+            double r = i == 0 ? 3.5 : 2.0;
+            dc.DrawEllipse(DotFill, null, pt, r, r);
 
             prev     = pt;
             prevTime = entry.Timestamp;
         }
     }
 
-    /// <summary>
-    /// Graph2: bar chart – one 1-px-wide bar per history entry from right to left.
-    /// </summary>
+    // ── Bar graph ─────────────────────────────────────────────────────────────
+
     private void DrawBarGraph(DrawingContext dc, IReadOnlyList<SignalHistory> history,
-                              double graphW, double graphH)
+        double plotX, double plotY, double plotW, double plotH)
     {
-        int maxBars = (int)graphW;
-        var points  = history.Take(maxBars).ToList();
-
-        double barW = graphW / Math.Max(maxBars, 1);
+        int      maxBars   = (int)plotW;
+        var      pts       = history.Take(maxBars).ToList();
+        double   barW      = plotW / Math.Max(maxBars, 1);
         DateTime? prevTime = null;
-        int gapOffset = 0;
+        int      gapOffset = 0;
 
-        for (int i = 0; i < points.Count; i++)
+        for (int i = 0; i < pts.Count; i++)
         {
-            var entry = points[i];
+            var entry = pts[i];
 
-            // Skip columns for dead time
             if (i > 0 && GraphDeadTime && prevTime.HasValue)
             {
-                var gap = (prevTime.Value - entry.Timestamp).TotalSeconds;
-                if (gap >= 2)
-                    gapOffset += (int)gap;
+                double gap = (prevTime.Value - entry.Timestamp).TotalSeconds;
+                if (gap >= 2) gapOffset += (int)gap;
             }
 
             int col = i + gapOffset;
             if (col >= maxBars) break;
 
-            double x    = LeftBorder + graphW - barW * (col + 1);
-            double sigY = SignalToY(entry, graphH);
-            double botY = TopBorder + graphH;
+            double x    = plotX + plotW - barW * (col + 1);
+            double sigY = SignalToY(entry, plotY, plotH);
+            double botY = plotY + plotH;
 
-            dc.DrawLine(SignalPen, new Point(x, sigY), new Point(x, botY));
+            if (botY > sigY)
+                dc.DrawRectangle(BarFill, null,
+                    new Rect(x, sigY, Math.Max(barW - 0.5, 0.5), botY - sigY));
 
             prevTime = entry.Timestamp;
         }
     }
 
-    private double SignalToY(SignalHistory entry, double graphH)
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private double SignalToY(SignalHistory entry, double plotY, double plotH)
     {
-        if (UseRssi)
-        {
-            // RSSI range -100…0 → map 0 to top, -100 to bottom
-            double fraction = (entry.Rssi + 100.0) / 100.0;
-            return TopBorder + graphH * (1.0 - Math.Clamp(fraction, 0, 1));
-        }
-        else
-        {
-            return TopBorder + graphH * (1.0 - Math.Clamp(entry.Signal / 100.0, 0, 1));
-        }
+        double fraction = UseRssi
+            ? Math.Clamp((entry.Rssi + 100.0) / 100.0, 0, 1)
+            : Math.Clamp(entry.Signal / 100.0, 0, 1);
+        return plotY + plotH * (1.0 - fraction);
     }
+
+    private static FormattedText MakeText(string text, double size, Brush fg, double ppd)
+        => new FormattedText(text, CultureInfo.InvariantCulture,
+               FlowDirection.LeftToRight, AxisFont, size, fg, ppd);
 }

@@ -4,17 +4,15 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:viewmodels="clr-namespace:Vistumbler.UI.ViewModels"
-        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         mc:Ignorable="d"
-        Title="Import Access Points" Height="300" Width="500" ResizeMode="NoResize" WindowStartupLocation="CenterOwner">
+        Title="Import" Height="290" Width="510" ResizeMode="NoResize" WindowStartupLocation="CenterOwner">
+
     <Window.Resources>
-        <ObjectDataProvider x:Key="ImportTypeEnum" MethodName="GetValues" ObjectType="{x:Type sys:Enum}">
-            <ObjectDataProvider.MethodParameters>
-                <x:Type TypeName="viewmodels:ImportType" />
-            </ObjectDataProvider.MethodParameters>
-        </ObjectDataProvider>
+        <Style TargetType="RadioButton">
+            <Setter Property="Margin" Value="0,3,0,3"/>
+        </Style>
     </Window.Resources>
-    
+
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -22,41 +20,79 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <GroupBox Header="Import Settings" Grid.Row="0" Margin="0,0,0,10">
-            <Grid Margin="5">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+        <!-- File path + Browse -->
+        <Grid Grid.Row="0" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox Text="{Binding FilePath}" IsReadOnly="True" VerticalAlignment="Center" Margin="0,0,5,0"/>
+            <Button Content="Browse" Grid.Column="1" Command="{Binding BrowseCommand}" Padding="10,2"/>
+        </Grid>
 
-                <TextBlock Text="Import Type:" VerticalAlignment="Center" Margin="0,0,10,10"/>
-                <ComboBox Grid.Column="1" Margin="0,0,0,10" 
-                          ItemsSource="{Binding Source={StaticResource ImportTypeEnum}}"
-                          SelectedItem="{Binding SelectedImportType}"/>
+        <!-- Radio buttons: 2-column layout -->
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <RadioButton Content="Vistumbler file (VS1, VSZ)"
+                             IsChecked="{Binding SelectedImportType, Converter={StaticResource EnumBoolConverter}, ConverterParameter=VistumblerFile}"/>
+                <RadioButton Content="Vistumbler Detailed CSV (CSV)"
+                             IsChecked="{Binding SelectedImportType, Converter={StaticResource EnumBoolConverter}, ConverterParameter=VistumblerDetailedCsv}"/>
+                <RadioButton Content="NetStumbler Files (TXT, NS1)"
+                             IsChecked="{Binding SelectedImportType, Converter={StaticResource EnumBoolConverter}, ConverterParameter=Netstumbler}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+                <RadioButton Content="Kismet Files (KISMET, NETXML)"
+                             IsChecked="{Binding SelectedImportType, Converter={StaticResource EnumBoolConverter}, ConverterParameter=KismetFiles}"/>
+                <RadioButton Content="Wardrive-android file (DB3)"
+                             IsChecked="{Binding SelectedImportType, Converter={StaticResource EnumBoolConverter}, ConverterParameter=WardriveAndroid}"/>
+                <RadioButton Content="WigleWifi 1.6 Compatible CSV (CSV)"
+                             IsChecked="{Binding SelectedImportType, Converter={StaticResource EnumBoolConverter}, ConverterParameter=WigleCsv}"/>
+            </StackPanel>
+        </Grid>
 
-                <TextBlock Grid.Row="1" Text="File:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                <Grid Grid.Row="1" Grid.Column="1">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBox Text="{Binding FilePath}" IsReadOnly="True" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <Button Content="Browse..." Grid.Column="1" Command="{Binding BrowseCommand}" Padding="10,2"/>
-                </Grid>
-            </Grid>
-        </GroupBox>
-
-        <TextBlock Grid.Row="2" Text="{Binding StatusMessage}" TextWrapping="Wrap" Margin="0,0,0,10" FontWeight="Bold"/>
-
-        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="Import" Command="{Binding ImportCommand}" Margin="0,0,10,0" Padding="20,5" IsDefault="True"/>
-            <Button Content="Close" Command="{Binding CloseCommand}" Padding="20,5" IsCancel="True"/>
+        <!-- Ok / Close buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,8">
+            <Button Content="Ok" Command="{Binding ImportCommand}" Margin="0,0,10,0" Padding="60,5" IsDefault="True"/>
+            <Button Content="Close" Command="{Binding CloseCommand}" Padding="60,5" IsCancel="True"/>
         </StackPanel>
+
+        <!-- Progress bar -->
+        <ProgressBar Grid.Row="3" Height="18" Minimum="0" Maximum="100" Value="{Binding ProgressValue}" Margin="0,0,0,4"/>
+
+        <!-- Status labels -->
+        <Grid Grid.Row="4" Margin="0,4,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="{Binding ProgressLabel}"/>
+            <TextBlock Grid.Column="1" Text="{Binding MinutesLabel}"/>
+        </Grid>
+        <Grid Grid.Row="5" Margin="0,2,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="{Binding LineTotalLabel}"/>
+            <TextBlock Grid.Column="1" Text="{Binding LinesMinLabel}"/>
+        </Grid>
+        <Grid Grid.Row="6" Margin="0,2,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="{Binding NewApsLabel}"/>
+            <TextBlock Grid.Column="1" Text="{Binding EstTimeLabel}"/>
+        </Grid>
     </Grid>
 </Window>

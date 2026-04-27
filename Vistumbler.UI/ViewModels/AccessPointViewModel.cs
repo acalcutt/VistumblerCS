@@ -26,6 +26,9 @@ public partial class AccessPointViewModel : ViewModelBase
     private int _channel;
 
     [ObservableProperty]
+    private int _frequencyMhz;
+
+    [ObservableProperty]
     private int? _signal;
 
     [ObservableProperty]
@@ -86,6 +89,7 @@ public partial class AccessPointViewModel : ViewModelBase
         if (!string.IsNullOrEmpty(accessPoint.Label) && accessPoint.Label != "Unknown") Label = accessPoint.Label;
 
         Channel = accessPoint.Channel;
+        FrequencyMhz = accessPoint.FrequencyMhz;
         Signal = accessPoint.Signal;
         Rssi = accessPoint.Rssi;
         RadioType = accessPoint.RadioType;

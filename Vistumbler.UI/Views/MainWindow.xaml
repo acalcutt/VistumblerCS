@@ -100,6 +100,10 @@
                 <MenuItem Header="Stop GPS" Command="{Binding StopGpsCommand}"/>
                 <Separator/>
                 <MenuItem Header="Update Manufacturers" Command="{Binding UpdateManufacturersCommand}"/>
+                <Separator/>
+                <MenuItem Header="2.4 GHz Channel Graph" Command="{Binding Open24GHzGraphCommand}"/>
+                <MenuItem Header="5 GHz Channel Graph"   Command="{Binding Open5GHzGraphCommand}"/>
+                <MenuItem Header="6 GHz Channel Graph"   Command="{Binding Open6GHzGraphCommand}"/>
             </MenuItem>
             <MenuItem Header="_Help">
                 <MenuItem Header="About"/>
@@ -108,15 +112,42 @@
         
         <!-- Toolbar -->
         <ToolBar Grid.Row="1" Background="{StaticResource AccentBrush}">
-            <Button Content="Scan" Command="{Binding StartScanCommand}"
-                    Background="{StaticResource ActiveBrush}"/>
-            <Button Content="Stop" Command="{Binding StopScanCommand}"
-                    Background="{StaticResource InactiveBrush}"/>
-            <Separator/>
-            <Button Content="GPS" Command="{Binding StartGpsCommand}"
-                    Background="{StaticResource ActiveBrush}"/>
-            <Button Content="Stop GPS" Command="{Binding StopGpsCommand}"
-                    Background="{StaticResource InactiveBrush}"/>
+
+            <!-- Scan toggle: red=inactive, green=active, text changes -->
+            <Button Command="{Binding ToggleScanCommand}" Width="90" Height="45" Padding="4">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Content" Value="Scan APs"/>
+                        <Setter Property="Background" Value="{StaticResource InactiveBrush}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsScanning}" Value="True">
+                                <Setter Property="Content" Value="Stop Scan"/>
+                                <Setter Property="Background" Value="{StaticResource ActiveBrush}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+
+            <!-- GPS toggle: red=inactive, green=active, text changes -->
+            <Button Command="{Binding ToggleGpsCommand}" Width="90" Height="45" Padding="4">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Content" Value="Use GPS"/>
+                        <Setter Property="Background" Value="{StaticResource InactiveBrush}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsGpsActive}" Value="True">
+                                <Setter Property="Content" Value="Stop GPS"/>
+                                <Setter Property="Background" Value="{StaticResource ActiveBrush}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+
+            <Button Content="Save &amp; Clear" Command="{Binding SaveAndClearCommand}"
+                    Width="90" Height="45" Padding="4"/>
+
             <Separator/>
             <TextBlock Text="Active APs:"/>
             <TextBlock Text="{Binding ActiveApCount}" FontWeight="Bold"/>
@@ -144,7 +175,7 @@
         <!-- Signal Graph (visible only when Graph1/Graph2 active) -->
         <controls:SignalGraphControl
             Grid.Row="2"
-            Height="100"
+            Height="300"
             Margin="10,10,10,0"
             Mode="{Binding GraphMode}"
             UseRssi="{Binding UseRssiInGraphs}"
@@ -155,13 +186,14 @@
         <!-- Main Content -->
         <Grid Grid.Row="3" Margin="10">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="180" MinWidth="100"/>
+                <ColumnDefinition Width="Auto" MinWidth="0"/>
                 <ColumnDefinition Width="5"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- NetStumbler-style Filter TreeView -->
-            <Border Grid.Column="0" Background="White" BorderBrush="Gray" BorderThickness="1">
+            <!-- NetStumbler-style Filter TreeView (hidden in graph mode) -->
+            <Border Grid.Column="0" Width="180" Background="White" BorderBrush="Gray" BorderThickness="1"
+                    Visibility="{Binding IsTreeViewVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                 <TreeView ItemsSource="{Binding TreeviewRoots}"
                           SelectedItemChanged="TreeView_SelectedItemChanged"
                           Background="White">
@@ -180,7 +212,8 @@
                 </TreeView>
             </Border>
 
-            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"
+                          Visibility="{Binding IsTreeViewVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
             
             <!-- Access Points List -->
             <DataGrid Grid.Column="2"

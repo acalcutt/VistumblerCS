@@ -17,6 +17,7 @@
             <!-- Global Converters -->
             <conv:EnumToBooleanConverter x:Key="EnumBoolConverter"/>
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+            <conv:HexColorToBrushConverter x:Key="HexColorToBrush"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

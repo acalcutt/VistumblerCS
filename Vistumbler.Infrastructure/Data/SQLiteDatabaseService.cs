@@ -254,6 +254,43 @@ public class SQLiteDatabaseService : IDatabaseService
         await _connection.ExecuteAsync(sql, new { MacPrefix = macPrefix.ToUpper(), Manufacturer = manufacturer });
     }
 
+    public async Task<List<(string MacPrefix, string Manufacturer)>> GetAllManufacturersAsync()
+    {
+        if (_connection == null)
+            throw new InvalidOperationException("Database not initialized");
+
+        var rows = await _connection.QueryAsync<(string MacPrefix, string Manufacturer)>(
+            "SELECT MacPrefix, Manufacturer FROM Manufacturers ORDER BY MacPrefix");
+        return rows.ToList();
+    }
+
+    public async Task DeleteManufacturerAsync(string macPrefix)
+    {
+        if (_connection == null)
+            throw new InvalidOperationException("Database not initialized");
+
+        await _connection.ExecuteAsync(
+            "DELETE FROM Manufacturers WHERE MacPrefix = @Prefix",
+            new { Prefix = macPrefix.ToUpper() });
+    }
+
+    public async Task BulkUpsertManufacturersAsync(IEnumerable<(string MacPrefix, string Manufacturer)> entries)
+    {
+        if (_connection == null)
+            throw new InvalidOperationException("Database not initialized");
+
+        const string sql = @"
+            INSERT INTO Manufacturers (MacPrefix, Manufacturer)
+            VALUES (@MacPrefix, @Manufacturer)
+            ON CONFLICT(MacPrefix) DO UPDATE SET Manufacturer = @Manufacturer";
+
+        using var transaction = _connection.BeginTransaction();
+        await _connection.ExecuteAsync(sql,
+            entries.Select(e => new { MacPrefix = e.MacPrefix.ToUpper(), e.Manufacturer }),
+            transaction);
+        transaction.Commit();
+    }
+
     public async Task<string?> GetLabelAsync(string bssid)
     {
         if (_connection == null)
@@ -275,6 +312,26 @@ public class SQLiteDatabaseService : IDatabaseService
         ";
 
         await _connection.ExecuteAsync(sql, new { Bssid = bssid.ToUpper(), Label = label });
+    }
+
+    public async Task<List<(string Bssid, string Label)>> GetAllLabelsAsync()
+    {
+        if (_connection == null)
+            throw new InvalidOperationException("Database not initialized");
+
+        var rows = await _connection.QueryAsync<(string Bssid, string Label)>(
+            "SELECT Bssid, Label FROM Labels ORDER BY Bssid");
+        return rows.ToList();
+    }
+
+    public async Task DeleteLabelAsync(string bssid)
+    {
+        if (_connection == null)
+            throw new InvalidOperationException("Database not initialized");
+
+        await _connection.ExecuteAsync(
+            "DELETE FROM Labels WHERE Bssid = @Bssid",
+            new { Bssid = bssid.ToUpper() });
     }
 
     public async Task CloseAsync()

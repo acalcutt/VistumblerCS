@@ -56,6 +56,21 @@ public interface IDatabaseService
     /// Add or update manufacturer
     /// </summary>
     Task UpsertManufacturerAsync(string macPrefix, string manufacturer);
+
+    /// <summary>
+    /// Get all manufacturers
+    /// </summary>
+    Task<List<(string MacPrefix, string Manufacturer)>> GetAllManufacturersAsync();
+
+    /// <summary>
+    /// Delete manufacturer by MAC prefix
+    /// </summary>
+    Task DeleteManufacturerAsync(string macPrefix);
+
+    /// <summary>
+    /// Bulk upsert manufacturers from IEEE OUI data (replaces existing entries with matching prefix)
+    /// </summary>
+    Task BulkUpsertManufacturersAsync(IEnumerable<(string MacPrefix, string Manufacturer)> entries);
     
     /// <summary>
     /// Get label for BSSID
@@ -66,6 +81,16 @@ public interface IDatabaseService
     /// Add or update label
     /// </summary>
     Task UpsertLabelAsync(string bssid, string label);
+
+    /// <summary>
+    /// Get all labels
+    /// </summary>
+    Task<List<(string Bssid, string Label)>> GetAllLabelsAsync();
+
+    /// <summary>
+    /// Delete label by BSSID
+    /// </summary>
+    Task DeleteLabelAsync(string bssid);
     
     /// <summary>
     /// Close database connection

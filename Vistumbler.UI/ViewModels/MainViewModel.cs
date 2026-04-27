@@ -109,7 +109,9 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ExportNs1Command { get; }
     public ICommand ExportNetXmlCommand { get; }
     public ICommand ExportKismetDbCommand { get; }
+    public ICommand UpdateManufacturersCommand { get; }
     public ICommand OpenSettingsCommand { get; }
+    public ICommand OpenSettingsAtTabCommand { get; }
     public ICommand ToggleGraph1Command { get; }
     public ICommand ToggleGraph2Command { get; }
     public ICommand ToggleUseRssiCommand { get; }
@@ -166,8 +168,10 @@ public partial class MainViewModel : ViewModelBase
         ExportGpxCommand = new AsyncRelayCommand(ExportGpx);
         ExportNs1Command = new AsyncRelayCommand(ExportNs1);
         ExportNetXmlCommand    = new AsyncRelayCommand(ExportNetXml);
-        ExportKismetDbCommand   = new AsyncRelayCommand(ExportKismetDb);
-        OpenSettingsCommand     = new RelayCommand(OpenSettingsWindow);
+        ExportKismetDbCommand      = new AsyncRelayCommand(ExportKismetDb);
+        UpdateManufacturersCommand = new AsyncRelayCommand(UpdateManufacturersAsync);
+        OpenSettingsCommand        = new RelayCommand(OpenSettingsWindow);
+        OpenSettingsAtTabCommand = new RelayCommand<string>(s => OpenSettingsWindowAt(int.TryParse(s, out int i) ? i : 0));
         ToggleGraph1Command     = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Line   ? GraphMode.Hidden : GraphMode.Line);
         ToggleGraph2Command     = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Bar    ? GraphMode.Hidden : GraphMode.Bar);
         ToggleUseRssiCommand    = new RelayCommand(() => UseRssiInGraphs = !UseRssiInGraphs);
@@ -445,9 +449,12 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    private void OpenSettingsWindow()
+    private void OpenSettingsWindow() => OpenSettingsWindowAt(0);
+
+    private void OpenSettingsWindowAt(int tabIndex = 0)
     {
-        var vm     = _serviceProvider.GetRequiredService<SettingsViewModel>();
+        var vm = _serviceProvider.GetRequiredService<SettingsViewModel>();
+        vm.SelectedTabIndex = tabIndex;
         var window = new Views.SettingsWindow(vm) { Owner = Application.Current.MainWindow };
         window.ShowDialog();
     }
@@ -867,6 +874,45 @@ public partial class MainViewModel : ViewModelBase
         {
             await _exportService.ExportToKismetDbAsync(dialog.FileName, GetAccessPointsModels());
             StatusMessage = "Exported to KismetDB";
+        }
+    }
+
+    private async Task UpdateManufacturersAsync()
+    {
+        const string ouiUrl = "https://standards-oui.ieee.org/oui/oui.txt";
+        StatusMessage = "Downloading IEEE OUI data...";
+        try
+        {
+            var response = await _httpClient.GetAsync(ouiUrl);
+            response.EnsureSuccessStatusCode();
+            var content = await response.Content.ReadAsStringAsync();
+
+            StatusMessage = "Parsing OUI data...";
+            var entries = new List<(string MacPrefix, string Manufacturer)>();
+            foreach (var line in content.Split('\n'))
+            {
+                if (!line.Contains("(base 16)")) continue;
+                var parts = line.Split(new[] { "(base 16)" }, StringSplitOptions.None);
+                if (parts.Length < 2) continue;
+                var prefix = parts[0].Trim();
+                var manu   = parts[1].Trim();
+                if (prefix.Length == 6)
+                    entries.Add((prefix, manu));
+            }
+
+            StatusMessage = $"Updating {entries.Count} manufacturer entries...";
+            await _databaseService.BulkUpsertManufacturersAsync(entries);
+            StatusMessage = $"Updated {entries.Count} manufacturers.";
+            MessageBox.Show(
+                $"Successfully updated {entries.Count} manufacturer entries from the IEEE OUI database.",
+                "Update Manufacturers", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Manufacturer update failed.";
+            MessageBox.Show(
+                $"Failed to update manufacturers:\n{ex.Message}",
+                "Update Manufacturers", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 }

@@ -79,7 +79,17 @@
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="_Options">
-                <MenuItem Header="Settings" Command="{Binding OpenSettingsCommand}"/>
+                <MenuItem Header="Misc Settings"              Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="0"/>
+                <MenuItem Header="Save Settings"              Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="1"/>
+                <MenuItem Header="GPS Settings"               Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="2"/>
+                <MenuItem Header="Set Language"               Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="3"/>
+                <MenuItem Header="Set Manufactures by Mac"    Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="4"/>
+                <MenuItem Header="Set Labels by Mac"          Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="5"/>
+                <MenuItem Header="Set Column Widths"          Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="6"/>
+                <MenuItem Header="Auto KML / AutoSort"        Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="7"/>
+                <MenuItem Header="Sound"                      Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="8"/>
+                <MenuItem Header="WifiDB"                     Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="9"/>
+                <MenuItem Header="Set Cameras"                Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="10"/>
                 <MenuItem Header="Auto Sort"/>
             </MenuItem>
             <MenuItem Header="_Extra">
@@ -88,6 +98,8 @@
                 <Separator/>
                 <MenuItem Header="Use GPS" Command="{Binding StartGpsCommand}"/>
                 <MenuItem Header="Stop GPS" Command="{Binding StopGpsCommand}"/>
+                <Separator/>
+                <MenuItem Header="Update Manufacturers" Command="{Binding UpdateManufacturersCommand}"/>
             </MenuItem>
             <MenuItem Header="_Help">
                 <MenuItem Header="About"/>

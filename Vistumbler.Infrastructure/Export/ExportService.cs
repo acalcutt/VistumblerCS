@@ -171,28 +171,28 @@ public class ExportService : IExportService
 
             using (var cmd = new SQLiteCommand(connection))
             {
-                // Create Schema
+                // Create Schema (idempotent: IF NOT EXISTS / INSERT OR REPLACE)
                 cmd.CommandText = @"
-                    CREATE TABLE KISMET (kismet_version TEXT, db_version INTEGER, db_module TEXT);
-                    INSERT INTO KISMET (kismet_version, db_version, db_module) VALUES ('2023-07', 10, 'kismetlog');
+                    CREATE TABLE IF NOT EXISTS KISMET (kismet_version TEXT, db_version INTEGER, db_module TEXT);
+                    INSERT OR REPLACE INTO KISMET (kismet_version, db_version, db_module) VALUES ('2023-07', 10, 'kismetlog');
 
-                    CREATE TABLE alerts (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, devmac TEXT, lat REAL, lon REAL, header TEXT, json BLOB);
+                    CREATE TABLE IF NOT EXISTS alerts (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, devmac TEXT, lat REAL, lon REAL, header TEXT, json BLOB);
                     
-                    CREATE TABLE data (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, devmac TEXT, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, datasource TEXT, type TEXT, json BLOB, signal INTEGER);
+                    CREATE TABLE IF NOT EXISTS data (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, devmac TEXT, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, datasource TEXT, type TEXT, json BLOB, signal INTEGER);
                     
-                    CREATE TABLE datasources (uuid TEXT, typestring TEXT, definition TEXT, name TEXT, interface TEXT, json BLOB, UNIQUE(uuid) ON CONFLICT REPLACE);
-                    INSERT INTO datasources (uuid, typestring, definition, name, interface, json) VALUES ('00000000-0000-0000-0000-000000000000', 'vistumbler', 'vistumbler', 'vistumbler', 'vistumbler', '{}');
+                    CREATE TABLE IF NOT EXISTS datasources (uuid TEXT, typestring TEXT, definition TEXT, name TEXT, interface TEXT, json BLOB, UNIQUE(uuid) ON CONFLICT REPLACE);
+                    INSERT OR REPLACE INTO datasources (uuid, typestring, definition, name, interface, json) VALUES ('00000000-0000-0000-0000-000000000000', 'vistumbler', 'vistumbler', 'vistumbler', 'vistumbler', '{}');
 
-                    CREATE TABLE devices (first_time INTEGER, last_time INTEGER, devkey TEXT, phyname TEXT, devmac TEXT, strongest_signal INTEGER, min_lat REAL, min_lon REAL, max_lat REAL, max_lon REAL, avg_lat REAL, avg_lon REAL, bytes_data INTEGER, type TEXT, device BLOB, UNIQUE(phyname, devmac) ON CONFLICT REPLACE);
-                    CREATE INDEX idx_devices_devkey ON devices(devkey);
-                    CREATE INDEX idx_devices_devmac ON devices(devmac);
+                    CREATE TABLE IF NOT EXISTS devices (first_time INTEGER, last_time INTEGER, devkey TEXT, phyname TEXT, devmac TEXT, strongest_signal INTEGER, min_lat REAL, min_lon REAL, max_lat REAL, max_lon REAL, avg_lat REAL, avg_lon REAL, bytes_data INTEGER, type TEXT, device BLOB, UNIQUE(phyname, devmac) ON CONFLICT REPLACE);
+                    CREATE INDEX IF NOT EXISTS idx_devices_devkey ON devices(devkey);
+                    CREATE INDEX IF NOT EXISTS idx_devices_devmac ON devices(devmac);
 
-                    CREATE TABLE messages (ts_sec INTEGER, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, msgtype TEXT, message TEXT);
+                    CREATE TABLE IF NOT EXISTS messages (ts_sec INTEGER, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, msgtype TEXT, message TEXT);
 
-                    CREATE TABLE packets (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, sourcemac TEXT, destmac TEXT, transmac TEXT, frequency REAL, devkey TEXT, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, packet_len INTEGER, signal INTEGER, datasource TEXT, dlt INTEGER, packet BLOB, error INTEGER, tags TEXT, datarate REAL, hash INTEGER, packetid INTEGER, packet_full_len INTEGER);
-                    CREATE INDEX idx_packets_sourcemac ON packets(sourcemac);
+                    CREATE TABLE IF NOT EXISTS packets (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, sourcemac TEXT, destmac TEXT, transmac TEXT, frequency REAL, devkey TEXT, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, packet_len INTEGER, signal INTEGER, datasource TEXT, dlt INTEGER, packet BLOB, error INTEGER, tags TEXT, datarate REAL, hash INTEGER, packetid INTEGER, packet_full_len INTEGER);
+                    CREATE INDEX IF NOT EXISTS idx_packets_sourcemac ON packets(sourcemac);
 
-                    CREATE TABLE snapshots (ts_sec INTEGER, ts_usec INTEGER, lat REAL, lon REAL, snaptype TEXT, json TEXT);
+                    CREATE TABLE IF NOT EXISTS snapshots (ts_sec INTEGER, ts_usec INTEGER, lat REAL, lon REAL, snaptype TEXT, json TEXT);
                 ";
                 cmd.ExecuteNonQuery();
             }
@@ -688,22 +688,75 @@ public class ExportService : IExportService
     {
         using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
         
-        // Write Wigle Header
-        await writer.WriteLineAsync("WigleWifi-1.4,appRelease=VistumblerCS,model=PC,release=1.0,device=PC,display=,board=,brand=");
-        await writer.WriteLineAsync("MAC,SSID,AuthMode,FirstSeen,Channel,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,Type");
+        // WigleCSV v1.6 header
+        await writer.WriteLineAsync("WigleWifi-1.6,appRelease=VistumblerCS,model=PC,release=1.0,device=PC,display=,board=,brand=");
+        await writer.WriteLineAsync("MAC,SSID,AuthMode,FirstSeen,Channel,Frequency,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,Type");
 
         foreach (var ap in accessPoints)
         {
-            // Map Auth/Enc to Wigle Strings somewhat
-            string auth = "[ESS]";
-            if (ap.Encryption == EncryptionType.WEP) auth = "[WEP][ESS]";
-            if (ap.Authentication == AuthenticationType.WPA) auth = "[WPA-PSK-?][ESS]"; 
-            if (ap.Authentication == AuthenticationType.WPA2) auth = "[WPA2-PSK-?][ESS]";
-            // This is a simplified mapping.
-            
-            var line = $"{ap.Bssid},{EscapeCsv(ap.Ssid)},{auth},{ap.FirstSeen:yyyy-MM-dd HH:mm:ss},{ap.Channel},{ap.Rssi},{ap.Latitude},{ap.Longitude},0,0,WIFI";
+            string authMode = BuildWigleAuthMode(ap.Authentication, ap.Encryption, ap.NetworkType);
+            int freq = GetFreqFromChannel(ap.Channel);
+
+            var line = string.Join(",",
+                EscapeCsv(ap.Bssid),
+                EscapeCsv(ap.Ssid),
+                authMode,
+                ap.FirstSeen.ToString("yyyy-MM-dd HH:mm:ss"),
+                ap.Channel,
+                freq,
+                ap.Rssi?.ToString() ?? "",
+                ap.Latitude?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+                ap.Longitude?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+                "0",
+                "0",
+                "WIFI");
             await writer.WriteLineAsync(line);
         }
+    }
+
+    /// <summary>
+    /// Converts Vistumbler Authentication/Encryption/NetworkType to WiGLE AuthMode capability flags.
+    /// Port of _WigleCSV_BuildAuthMode from WigleCSV.au3.
+    /// </summary>
+    private string BuildWigleAuthMode(AuthenticationType auth, EncryptionType encr, NetworkType netType)
+    {
+        // Normalize encryption: GCMP-256 → GCMP, CCMP-256 → CCMP
+        string encrNorm;
+        if (encr == EncryptionType.GCMP || encr == EncryptionType.GCMP_256)
+            encrNorm = "GCMP";
+        else if (encr == EncryptionType.CCMP || encr == EncryptionType.CCMP_256 || encr == EncryptionType.AES)
+            encrNorm = "CCMP";
+        else
+            encrNorm = encr.ToLegacyString();
+
+        string flags;
+        if (auth == AuthenticationType.WPA3_Enterprise || auth == AuthenticationType.WPA3_Enterprise_192)
+            flags = $"[WPA3-EAP-{encrNorm}]";
+        else if (auth == AuthenticationType.WPA3_PSK || auth == AuthenticationType.WPA3)
+            flags = $"[WPA3-SAE-{encrNorm}]";
+        else if (auth == AuthenticationType.WPA2_Enterprise)
+            flags = $"[WPA2-EAP-{encrNorm}]";
+        else if (auth == AuthenticationType.WPA2_PSK || auth == AuthenticationType.WPA2)
+            flags = $"[WPA2-PSK-{encrNorm}]";
+        else if (auth == AuthenticationType.WPA_Enterprise)
+            flags = $"[WPA-EAP-{encrNorm}]";
+        else if (auth == AuthenticationType.WPA_PSK || auth == AuthenticationType.WPA)
+            flags = $"[WPA-PSK-{encrNorm}]";
+        else if (auth == AuthenticationType.OWE)
+            flags = "[OWE]";
+        else if ((auth == AuthenticationType.Open || auth == AuthenticationType.Shared) && encr == EncryptionType.WEP)
+            flags = "[WEP]";
+        else if (auth == AuthenticationType.Open && encr == EncryptionType.None)
+            return "";
+        else
+            flags = "";
+
+        if (flags != "")
+        {
+            flags += netType == NetworkType.Adhoc ? "[IBSS]" : "[ESS]";
+        }
+
+        return flags;
     }
 
     public async Task ExportToVs1Async(string filePath, List<AccessPoint> accessPoints)

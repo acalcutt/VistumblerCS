@@ -21,3 +21,14 @@ public enum SpeakSoundType
     Sapi             = 2,   // Microsoft SAPI text-to-speech
     Midi             = 3    // MIDI note whose pitch represents signal strength
 }
+
+/// <summary>
+/// Signal graph display mode.
+/// Mirrors Vistumbler's $Graph variable: 0=hidden, 1=line (Graph1), 2=bar (Graph2).
+/// </summary>
+public enum GraphMode
+{
+    Hidden = 0,
+    Line   = 1,   // Graph1 – line chart, last 50 points
+    Bar    = 2    // Graph2 – bar chart, one bar per pixel of width
+}

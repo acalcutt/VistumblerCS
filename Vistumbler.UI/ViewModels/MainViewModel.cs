@@ -11,6 +11,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
+using Vistumbler.Core.Enums;
 using Vistumbler.Core.Models;
 using Vistumbler.Core.Services;
 
@@ -31,6 +32,21 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private AccessPointViewModel? _selectedAccessPoint;
+
+    // ── NetStumbler-style filter treeview ─────────────────────────────────────
+
+    /// <summary>The five category root nodes shown in the left-hand treeview.</summary>
+    public ObservableCollection<TreeNodeViewModel> TreeviewRoots { get; } = new();
+
+    [ObservableProperty]
+    private TreeNodeViewModel? _selectedTreeviewNode;
+
+    // The five fixed root nodes
+    private readonly TreeNodeViewModel _authRoot       = new() { Name = "Authentication" };
+    private readonly TreeNodeViewModel _channelRoot    = new() { Name = "Channel" };
+    private readonly TreeNodeViewModel _encryptionRoot = new() { Name = "Encryption" };
+    private readonly TreeNodeViewModel _networkRoot    = new() { Name = "Network Type" };
+    private readonly TreeNodeViewModel _ssidRoot       = new() { Name = "SSID" };
 
     [ObservableProperty]
     private bool _isScanning;
@@ -53,6 +69,31 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private double _loopTime;
 
+    // ── Graph ────────────────────────────────────────────────────────
+
+    [ObservableProperty]
+    private GraphMode _graphMode = GraphMode.Hidden;
+
+    [ObservableProperty]
+    private bool _useRssiInGraphs = false;
+
+    [ObservableProperty]
+    private bool _graphDeadTime = true;
+
+    public bool IsGraphVisible => GraphMode != GraphMode.Hidden;
+
+    partial void OnGraphModeChanged(GraphMode value) => OnPropertyChanged(nameof(IsGraphVisible));
+
+    partial void OnSelectedAccessPointChanged(AccessPointViewModel? value)
+    {
+        ((RelayCommand)OpenSignalHistoryCommand).NotifyCanExecuteChanged();
+        ((RelayCommand)CopyApInfoCommand).NotifyCanExecuteChanged();
+        ((AsyncRelayCommand)AddManufacturerCommand).NotifyCanExecuteChanged();
+        ((AsyncRelayCommand)AddLabelCommand).NotifyCanExecuteChanged();
+        ((RelayCommand)OpenGeonamesCommand).NotifyCanExecuteChanged();
+        ((AsyncRelayCommand)FindApInWifiDbCommand).NotifyCanExecuteChanged();
+    }
+
     public ICommand StartScanCommand { get; }
     public ICommand StopScanCommand { get; }
     public ICommand StartGpsCommand { get; }
@@ -68,6 +109,19 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ExportNs1Command { get; }
     public ICommand ExportNetXmlCommand { get; }
     public ICommand ExportKismetDbCommand { get; }
+    public ICommand OpenSettingsCommand { get; }
+    public ICommand ToggleGraph1Command { get; }
+    public ICommand ToggleGraph2Command { get; }
+    public ICommand ToggleUseRssiCommand { get; }
+    public ICommand ToggleGraphDeadTimeCommand { get; }
+    public ICommand OpenSignalHistoryCommand { get; }
+
+    // ── Context-menu commands (right-click on AP row) ─────────────────────
+    public ICommand CopyApInfoCommand { get; }
+    public ICommand AddManufacturerCommand { get; }
+    public ICommand AddLabelCommand { get; }
+    public ICommand OpenGeonamesCommand { get; }
+    public ICommand FindApInWifiDbCommand { get; }
 
     public MainViewModel(
         IWiFiScannerService wifiScanner,
@@ -83,6 +137,13 @@ public partial class MainViewModel : ViewModelBase
         _importService = importService;
         _exportService = exportService;
         _serviceProvider = serviceProvider;
+
+        // Populate treeview root nodes (order matches original Vistumbler)
+        TreeviewRoots.Add(_authRoot);
+        TreeviewRoots.Add(_channelRoot);
+        TreeviewRoots.Add(_encryptionRoot);
+        TreeviewRoots.Add(_networkRoot);
+        TreeviewRoots.Add(_ssidRoot);
 
         // Subscribe to events
         _wifiScanner.AccessPointsDetected += OnAccessPointsDetected;
@@ -104,8 +165,19 @@ public partial class MainViewModel : ViewModelBase
         ExportKmlCommand = new AsyncRelayCommand(ExportKml);
         ExportGpxCommand = new AsyncRelayCommand(ExportGpx);
         ExportNs1Command = new AsyncRelayCommand(ExportNs1);
-        ExportNetXmlCommand = new AsyncRelayCommand(ExportNetXml);
-        ExportKismetDbCommand = new AsyncRelayCommand(ExportKismetDb);
+        ExportNetXmlCommand    = new AsyncRelayCommand(ExportNetXml);
+        ExportKismetDbCommand   = new AsyncRelayCommand(ExportKismetDb);
+        OpenSettingsCommand     = new RelayCommand(OpenSettingsWindow);
+        ToggleGraph1Command     = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Line   ? GraphMode.Hidden : GraphMode.Line);
+        ToggleGraph2Command     = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Bar    ? GraphMode.Hidden : GraphMode.Bar);
+        ToggleUseRssiCommand    = new RelayCommand(() => UseRssiInGraphs = !UseRssiInGraphs);
+        ToggleGraphDeadTimeCommand = new RelayCommand(() => GraphDeadTime = !GraphDeadTime);
+        OpenSignalHistoryCommand = new RelayCommand(OpenSignalHistoryWindow, () => SelectedAccessPoint != null);
+        CopyApInfoCommand     = new RelayCommand(CopyApInfo,         () => SelectedAccessPoint != null);
+        AddManufacturerCommand = new AsyncRelayCommand(AddManufacturerAsync, () => SelectedAccessPoint != null);
+        AddLabelCommand       = new AsyncRelayCommand(AddLabelAsync,        () => SelectedAccessPoint != null);
+        OpenGeonamesCommand   = new RelayCommand(OpenGeonames,       () => SelectedAccessPoint != null);
+        FindApInWifiDbCommand = new AsyncRelayCommand(FindApInWifiDb, () => SelectedAccessPoint != null);
 
         // Initialize database
         InitializeDatabaseAsync();
@@ -198,14 +270,342 @@ public partial class MainViewModel : ViewModelBase
         {
             await _databaseService.ClearAllAccessPointsAsync();
             AccessPoints.Clear();
+            ClearTreeview();
             ActiveApCount = 0;
             StatusMessage = "All access points cleared";
         }
     }
 
+    // ── Context-menu handlers ────────────────────────────────────────────────
+
+    // Persisted between dialog openings (mirrors Vistumbler $Copy_* Dim variables)
+    private static readonly CopyFieldSelection _copyFields = new();
+
+    private void CopyApInfo()
+    {
+        if (SelectedAccessPoint is not { } ap) return;
+
+        var dialog = new Views.CopyApDialog(_copyFields)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        var parts = new List<string>();
+
+        void Add(string value) => parts.Add(value);
+
+        if (_copyFields.LineNumber)       Add(ap.ApId.ToString());
+        if (_copyFields.Bssid)            Add(ap.Bssid);
+        if (_copyFields.Ssid)             Add(ap.Ssid);
+        if (_copyFields.Channel)          Add(ap.Channel.ToString());
+        if (_copyFields.Authentication)   Add(ap.AuthenticationDisplay);
+        if (_copyFields.Encryption)       Add(ap.EncryptionDisplay);
+        if (_copyFields.NetworkType)      Add(ap.NetworkTypeDisplay);
+        if (_copyFields.RadioType)        Add(ap.RadioType);
+        if (_copyFields.Signal)           Add(ap.DisplaySignal);
+        if (_copyFields.HighSignal)       Add(ap.HighestSignal.HasValue ? $"{ap.HighestSignal}%" : "N/A");
+        if (_copyFields.Rssi)             Add(ap.DisplayRssi);
+        if (_copyFields.HighRssi)         Add(ap.HighestRssi.HasValue ? $"{ap.HighestRssi} dBm" : "N/A");
+        if (_copyFields.Manufacturer)     Add(ap.Manufacturer);
+        if (_copyFields.Label)            Add(ap.Label);
+
+        if (_copyFields.Latitude)
+            Add(ap.Latitude.HasValue  ? ap.Latitude.Value.ToString("F6")  : "");
+        if (_copyFields.Longitude)
+            Add(ap.Longitude.HasValue ? ap.Longitude.Value.ToString("F6") : "");
+        if (_copyFields.LatitudeDms)
+            Add(ap.Latitude.HasValue  ? GpsToDms(ap.Latitude.Value,  isLat: true)  : "");
+        if (_copyFields.LongitudeDms)
+            Add(ap.Longitude.HasValue ? GpsToDms(ap.Longitude.Value, isLat: false) : "");
+        if (_copyFields.LatitudeDmm)
+            Add(ap.Latitude.HasValue  ? GpsToDmm(ap.Latitude.Value,  isLat: true)  : "");
+        if (_copyFields.LongitudeDmm)
+            Add(ap.Longitude.HasValue ? GpsToDmm(ap.Longitude.Value, isLat: false) : "");
+
+        if (_copyFields.BasicTransferRates)  Add("");   // not yet in model
+        if (_copyFields.OtherTransferRates)  Add("");   // not yet in model
+
+        if (_copyFields.FirstActive)  Add(ap.FirstSeen.ToString("yyyy-MM-dd HH:mm:ss"));
+        if (_copyFields.LastActive)   Add(ap.LastSeen.ToString("yyyy-MM-dd HH:mm:ss"));
+
+        if (parts.Count == 0) return;
+
+        System.Windows.Clipboard.SetText(string.Join("|", parts));
+        StatusMessage = $"Copied {parts.Count} field(s) for {ap.Bssid}";
+    }
+
+    // Decimal degrees → Degrees Minutes Seconds  (e.g. "N 51°30'26.5\"")
+    private static string GpsToDms(double dd, bool isLat)
+    {
+        var hem = isLat ? (dd >= 0 ? "N" : "S") : (dd >= 0 ? "E" : "W");
+        var abs = Math.Abs(dd);
+        var d   = (int)abs;
+        var m   = (int)((abs - d) * 60);
+        var s   = ((abs - d) * 60 - m) * 60;
+        return FormattableString.Invariant($"{hem} {d:D2}°{m:D2}'{s:F1}\"");
+    }
+
+    // Decimal degrees → Degrees Decimal Minutes  (e.g. "N 5130.4417")
+    private static string GpsToDmm(double dd, bool isLat)
+    {
+        var hem = isLat ? (dd >= 0 ? "N" : "S") : (dd >= 0 ? "E" : "W");
+        var abs = Math.Abs(dd);
+        var d   = (int)abs;
+        var m   = (abs - d) * 60;
+        return FormattableString.Invariant($"{hem} {d:D2}{m:F4}");
+    }
+
+    private async Task AddManufacturerAsync()
+    {
+        if (SelectedAccessPoint is not { } ap) return;
+        var macPrefix = ap.Bssid.Length >= 8 ? ap.Bssid[..8].Replace(":", "").ToUpperInvariant() : ap.Bssid;
+        var dialog = new Views.InputDialog("Add Manufacturer",
+            $"Enter manufacturer name for {ap.Bssid}:", ap.Manufacturer)
+        { Owner = Application.Current.MainWindow };
+        if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.Value)) return;
+        await _databaseService.UpsertManufacturerAsync(macPrefix, dialog.Value.Trim());
+        ap.Manufacturer = dialog.Value.Trim();
+        StatusMessage = $"Manufacturer updated for {ap.Bssid}";
+    }
+
+    private async Task AddLabelAsync()
+    {
+        if (SelectedAccessPoint is not { } ap) return;
+        var dialog = new Views.InputDialog("Add Label",
+            $"Enter label for {ap.Ssid} ({ap.Bssid}):", ap.Label)
+        { Owner = Application.Current.MainWindow };
+        if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.Value)) return;
+        await _databaseService.UpsertLabelAsync(ap.Bssid, dialog.Value.Trim());
+        ap.Label = dialog.Value.Trim();
+        StatusMessage = $"Label updated for {ap.Bssid}";
+    }
+
+    private void OpenGeonames()
+    {
+        // Mirrors _GeonamesInfo() in Vistumbler.au3 — shows stored geonames fields from the AP record.
+        // The fields (CountryCode, CountryName, AdminName, etc.) are populated by the WifiDB locate API
+        // and will be added to the model in a future update.  For now show what is available.
+        if (SelectedAccessPoint is not { } ap) return;
+        var msg = $"BSSID: {ap.Bssid}\nSSID: {ap.Ssid}\n\n" +
+                  "Country Code: Not Available\n" +
+                  "Country Name: Not Available\n" +
+                  "Admin Code: Not Available\n" +
+                  "Admin Name: Not Available\n" +
+                  "Admin2 Name: Not Available\n" +
+                  "Area Name: Not Available\n" +
+                  "Accuracy (miles): Not Available\n" +
+                  "Accuracy (km): Not Available\n\n" +
+                  "(Geonames data is populated after a successful WifiDB locate lookup.)";
+        MessageBox.Show(msg, "Geonames Info", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    // Shared HttpClient — reused across calls (best practice)
+    private static readonly System.Net.Http.HttpClient _httpClient = new();
+
+    private async Task FindApInWifiDb()
+    {
+        // Mirrors _LocateAPInWifidb() in Vistumbler.au3:
+        // POSTs to https://api.wifidb.net/import.php and shows the result.
+        if (SelectedAccessPoint is not { } ap) return;
+
+        const string apiUrl = "https://api.wifidb.net/import.php";
+        StatusMessage = $"Searching WifiDB for {ap.Bssid}\u2026";
+
+        try
+        {
+            using var content = new System.Net.Http.MultipartFormDataContent();
+            content.Add(new System.Net.Http.StringContent(ap.Ssid),                "ssid");
+            content.Add(new System.Net.Http.StringContent(ap.Bssid),               "mac");
+            content.Add(new System.Net.Http.StringContent(ap.RadioType),           "radio");
+            content.Add(new System.Net.Http.StringContent(ap.Channel.ToString()),  "chan");
+            content.Add(new System.Net.Http.StringContent(ap.AuthenticationDisplay), "auth");
+            content.Add(new System.Net.Http.StringContent(ap.EncryptionDisplay),   "encry");
+
+            var response = await _httpClient.PostAsync(apiUrl, content);
+            var body     = await response.Content.ReadAsStringAsync();
+
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                MessageBox.Show("No results returned from WifiDB.", "Find AP in WifiDB",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show(body, $"WifiDB — {ap.Bssid}",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            StatusMessage = $"WifiDB lookup complete for {ap.Bssid}";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"WifiDB request failed:\n{ex.Message}", "WifiDB Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "WifiDB lookup failed";
+        }
+    }
+
+    private void OpenSettingsWindow()
+    {
+        var vm     = _serviceProvider.GetRequiredService<SettingsViewModel>();
+        var window = new Views.SettingsWindow(vm) { Owner = Application.Current.MainWindow };
+        window.ShowDialog();
+    }
+
+    private void OpenSignalHistoryWindow()
+    {
+        if (SelectedAccessPoint == null) return;
+        var window = new Views.SignalHistoryWindow(SelectedAccessPoint)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        window.Show();
+    }
+
     private void Exit()
     {
         Application.Current.Shutdown();
+    }
+
+    // ── Treeview selection handler ────────────────────────────────────────────
+
+    /// <summary>
+    /// When a leaf (AP) node is selected in the treeview, sync the DataGrid selection.
+    /// </summary>
+    partial void OnSelectedTreeviewNodeChanged(TreeNodeViewModel? value)
+    {
+        if (value?.AccessPoint is { } ap)
+            SelectedAccessPoint = ap;
+    }
+
+    // ── Treeview manipulation helpers ─────────────────────────────────────────
+
+    /// <summary>
+    /// Adds an AP to all five category trees.
+    /// Must be called on the UI thread (inside Dispatcher.Invoke).
+    /// </summary>
+    private void AddApToTreeview(AccessPointViewModel ap)
+    {
+        AddApToCategory(_authRoot,       ap.AuthenticationDisplay, ap);
+        AddApToCategory(_channelRoot,    $"{ap.Channel:000}",      ap);
+        AddApToCategory(_encryptionRoot, ap.EncryptionDisplay,     ap);
+        AddApToCategory(_networkRoot,    ap.NetworkTypeDisplay,    ap);
+        AddApToCategory(_ssidRoot,       string.IsNullOrEmpty(ap.Ssid) ? "<hidden>" : ap.Ssid, ap);
+    }
+
+    private static void AddApToCategory(TreeNodeViewModel root, string groupKey, AccessPointViewModel ap)
+    {
+        var group = root.Children.FirstOrDefault(c => c.GroupKey == groupKey);
+        if (group == null)
+        {
+            group = new TreeNodeViewModel { Name = groupKey, GroupKey = groupKey };
+            // Insert in sorted order
+            int insertAt = 0;
+            while (insertAt < root.Children.Count &&
+                   string.Compare(root.Children[insertAt].GroupKey, groupKey, StringComparison.OrdinalIgnoreCase) < 0)
+                insertAt++;
+            root.Children.Insert(insertAt, group);
+        }
+
+        // Avoid duplicate leaves (e.g. after a reload)
+        if (!group.Children.Any(c => c.AccessPoint?.Bssid == ap.Bssid))
+        {
+            group.Children.Add(new TreeNodeViewModel
+            {
+                Name        = string.IsNullOrEmpty(ap.Ssid) ? ap.Bssid : $"{ap.Ssid} ({ap.Bssid})",
+                GroupKey    = groupKey,
+                AccessPoint = ap
+            });
+        }
+    }
+
+    /// <summary>
+    /// Updates an existing AP's leaf nodes in-place.
+    /// Only moves a leaf to a different group when the category key actually changed
+    /// (e.g. the channel or auth type was updated). For normal signal updates nothing
+    /// is moved, preventing constant visual reordering on every scan loop.
+    /// Must be called on the UI thread.
+    /// </summary>
+    private void UpdateApInTreeview(AccessPointViewModel ap)
+    {
+        UpdateApInCategory(_authRoot,       ap.AuthenticationDisplay,                                ap);
+        UpdateApInCategory(_channelRoot,    $"{ap.Channel:000}",                                    ap);
+        UpdateApInCategory(_encryptionRoot, ap.EncryptionDisplay,                                   ap);
+        UpdateApInCategory(_networkRoot,    ap.NetworkTypeDisplay,                                  ap);
+        UpdateApInCategory(_ssidRoot,       string.IsNullOrEmpty(ap.Ssid) ? "<hidden>" : ap.Ssid,  ap);
+    }
+
+    private static void UpdateApInCategory(TreeNodeViewModel root, string newGroupKey, AccessPointViewModel ap)
+    {
+        // Locate the existing leaf for this AP
+        TreeNodeViewModel? existingGroup = null;
+        TreeNodeViewModel? existingLeaf  = null;
+
+        foreach (var group in root.Children)
+        {
+            var leaf = group.Children.FirstOrDefault(c => c.AccessPoint?.Bssid == ap.Bssid);
+            if (leaf != null)
+            {
+                existingGroup = group;
+                existingLeaf  = leaf;
+                break;
+            }
+        }
+
+        if (existingLeaf == null)
+        {
+            // AP not yet in this tree – just add it
+            AddApToCategory(root, newGroupKey, ap);
+            return;
+        }
+
+        // Always keep the display name current (SSID can be discovered after first scan)
+        existingLeaf.Name = string.IsNullOrEmpty(ap.Ssid) ? ap.Bssid : $"{ap.Ssid} ({ap.Bssid})";
+
+        // Group key unchanged – nothing structural to do
+        if (existingGroup!.GroupKey == newGroupKey)
+            return;
+
+        // Category value changed – move the leaf to the correct group
+        existingGroup.Children.Remove(existingLeaf);
+        if (existingGroup.Children.Count == 0)
+            root.Children.Remove(existingGroup);
+
+        AddApToCategory(root, newGroupKey, ap);
+    }
+
+    private void RemoveApFromTreeview(AccessPointViewModel ap)
+    {
+        RemoveApFromCategory(_authRoot,       ap);
+        RemoveApFromCategory(_channelRoot,    ap);
+        RemoveApFromCategory(_encryptionRoot, ap);
+        RemoveApFromCategory(_networkRoot,    ap);
+        RemoveApFromCategory(_ssidRoot,       ap);
+    }
+
+    private static void RemoveApFromCategory(TreeNodeViewModel root, AccessPointViewModel ap)
+    {
+        foreach (var group in root.Children.ToList())
+        {
+            var leaf = group.Children.FirstOrDefault(c => c.AccessPoint?.Bssid == ap.Bssid);
+            if (leaf != null)
+            {
+                group.Children.Remove(leaf);
+                if (group.Children.Count == 0)
+                    root.Children.Remove(group);
+                return;
+            }
+        }
+    }
+
+    /// <summary>Clears all group nodes from every category root.</summary>
+    private void ClearTreeview()
+    {
+        _authRoot.Children.Clear();
+        _channelRoot.Children.Clear();
+        _encryptionRoot.Children.Clear();
+        _networkRoot.Children.Clear();
+        _ssidRoot.Children.Clear();
     }
 
     private async void OnAccessPointsDetected(object? sender, AccessPointsDetectedEventArgs e)
@@ -231,14 +631,40 @@ public partial class MainViewModel : ViewModelBase
             if (IsGpsActive && _gpsService.CurrentGpsData != null)
             {
                 var gpsId = await _databaseService.AddGpsDataAsync(_gpsService.CurrentGpsData);
-                
-                await _databaseService.AddSignalHistoryAsync(new SignalHistory
+
+                var histEntry = new SignalHistory
                 {
                     ApId = apId,
                     GpsId = gpsId,
                     Signal = ap.Signal ?? 0,
                     Rssi = ap.Rssi ?? 0,
                     Timestamp = DateTime.Now
+                };
+                await _databaseService.AddSignalHistoryAsync(histEntry);
+
+                // Keep the VM's in-memory history up-to-date for the graph
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    var apVm = AccessPoints.FirstOrDefault(x => x.Bssid == ap.Bssid);
+                    apVm?.AddSignalHistoryEntry(histEntry);
+                });
+            }
+            else
+            {
+                // Still record a history entry for the graph even without GPS
+                var histEntry = new SignalHistory
+                {
+                    ApId = apId,
+                    Signal = ap.Signal ?? 0,
+                    Rssi = ap.Rssi ?? 0,
+                    Timestamp = DateTime.Now
+                };
+                await _databaseService.AddSignalHistoryAsync(histEntry);
+
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    var apVm = AccessPoints.FirstOrDefault(x => x.Bssid == ap.Bssid);
+                    apVm?.AddSignalHistoryEntry(histEntry);
                 });
             }
 
@@ -249,10 +675,13 @@ public partial class MainViewModel : ViewModelBase
                 if (existingAp != null)
                 {
                     existingAp.UpdateFrom(ap);
+                    UpdateApInTreeview(existingAp);
                 }
                 else
                 {
-                    AccessPoints.Add(new AccessPointViewModel(ap));
+                    var newVm = new AccessPointViewModel(ap);
+                    AccessPoints.Add(newVm);
+                    AddApToTreeview(newVm);
                 }
             });
         }
@@ -313,9 +742,12 @@ public partial class MainViewModel : ViewModelBase
             Application.Current.Dispatcher.Invoke(() =>
             {
                 AccessPoints.Clear();
+                ClearTreeview();
                 foreach (var ap in aps)
                 {
-                    AccessPoints.Add(new AccessPointViewModel(ap));
+                    var vm = new AccessPointViewModel(ap);
+                    AccessPoints.Add(vm);
+                    AddApToTreeview(vm);
                 }
                 ActiveApCount = AccessPoints.Count(ap => ap.IsActive);
                 StatusMessage = $"Loaded {AccessPoints.Count} access points.";

@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using System.Collections.ObjectModel;
 using Vistumbler.Core.Models;
 using Vistumbler.Core.Extensions;
 
@@ -128,4 +129,18 @@ public partial class AccessPointViewModel : ViewModelBase
     public string AuthenticationDisplay => Authentication.ToLegacyString();
     public string EncryptionDisplay => Encryption.ToLegacyString();
     public string ActiveDisplay => IsActive ? "Active" : "Dead";
+
+    /// <summary>
+    /// Signal history for this AP – newest first. Updated each scan cycle by MainViewModel.
+    /// Bound to SignalGraphControl.SignalHistory.
+    /// </summary>
+    public ObservableCollection<SignalHistory> SignalHistoryItems { get; } = new();
+
+    public void AddSignalHistoryEntry(SignalHistory entry)
+    {
+        SignalHistoryItems.Insert(0, entry);
+        // Keep a reasonable cap so the list doesn't grow forever in memory
+        while (SignalHistoryItems.Count > 500)
+            SignalHistoryItems.RemoveAt(SignalHistoryItems.Count - 1);
+    }
 }

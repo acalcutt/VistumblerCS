@@ -1,0 +1,62 @@
+<Window x:Class="Vistumbler.UI.Views.CopyApDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        mc:Ignorable="d"
+        Title="Copy" Width="510" SizeToContent="Height"
+        ResizeMode="NoResize" WindowStartupLocation="CenterOwner">
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <GroupBox Header="Select what you want to copy" Grid.Row="0" Padding="10,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left column -->
+                <StackPanel Grid.Column="0">
+                    <CheckBox Content="#"                    IsChecked="{Binding LineNumber}"/>
+                    <CheckBox Content="Mac Address"          IsChecked="{Binding Bssid}"/>
+                    <CheckBox Content="SSID"                 IsChecked="{Binding Ssid}"/>
+                    <CheckBox Content="Channel"              IsChecked="{Binding Channel}"/>
+                    <CheckBox Content="Authentication"       IsChecked="{Binding Authentication}"/>
+                    <CheckBox Content="Encryption"           IsChecked="{Binding Encryption}"/>
+                    <CheckBox Content="Network Type"         IsChecked="{Binding NetworkType}"/>
+                    <CheckBox Content="Radio Type"           IsChecked="{Binding RadioType}"/>
+                    <CheckBox Content="Signal"               IsChecked="{Binding Signal}"/>
+                    <CheckBox Content="High Signal"          IsChecked="{Binding HighSignal}"/>
+                    <CheckBox Content="RSSI"                 IsChecked="{Binding Rssi}"/>
+                    <CheckBox Content="High RSSI"            IsChecked="{Binding HighRssi}"/>
+                </StackPanel>
+
+                <!-- Right column -->
+                <StackPanel Grid.Column="1">
+                    <CheckBox Content="Manufacturer"         IsChecked="{Binding Manufacturer}"/>
+                    <CheckBox Content="Label"                IsChecked="{Binding Label}"/>
+                    <CheckBox Content="Latitude"             IsChecked="{Binding Latitude}"/>
+                    <CheckBox Content="Longitude"            IsChecked="{Binding Longitude}"/>
+                    <CheckBox Content="Latitude (DDMMSS)"    IsChecked="{Binding LatitudeDms}"/>
+                    <CheckBox Content="Longitude (DDMMSS)"   IsChecked="{Binding LongitudeDms}"/>
+                    <CheckBox Content="Latitude (DDMMMM)"    IsChecked="{Binding LatitudeDmm}"/>
+                    <CheckBox Content="Longitude (DDMMMM)"   IsChecked="{Binding LongitudeDmm}"/>
+                    <CheckBox Content="Basic Transfer Rates"  IsChecked="{Binding BasicTransferRates}"/>
+                    <CheckBox Content="Other Transfer Rates"  IsChecked="{Binding OtherTransferRates}"/>
+                    <CheckBox Content="First Active"         IsChecked="{Binding FirstActive}"/>
+                    <CheckBox Content="Last Active"          IsChecked="{Binding LastActive}"/>
+                </StackPanel>
+            </Grid>
+        </GroupBox>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+            <Button Content="Ok"     Width="100" IsDefault="True" Click="Ok_Click"     Margin="0,0,16,0"/>
+            <Button Content="Cancel" Width="100" IsCancel="True"  Click="Cancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

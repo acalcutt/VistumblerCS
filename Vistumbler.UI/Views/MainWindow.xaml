@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Vistumbler.UI.ViewModels"
+        xmlns:controls="clr-namespace:Vistumbler.UI.Controls"
         mc:Ignorable="d"
         Title="Vistumbler CS - WiFi Scanner" Height="800" Width="1400"
         Background="{StaticResource PrimaryBrush}">
@@ -23,6 +24,7 @@
     
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -56,10 +58,28 @@
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="GPS Details"/>
-                <MenuItem Header="Signal Graph"/>
+                <MenuItem Header="Graph">
+                    <MenuItem Header="Line Graph (Graph1)" Command="{Binding ToggleGraph1Command}"
+                              IsCheckable="True"
+                              IsChecked="{Binding GraphMode,
+                                Converter={StaticResource EnumBoolConverter},
+                                ConverterParameter=Line, Mode=OneWay}"/>
+                    <MenuItem Header="Bar Graph (Graph2)" Command="{Binding ToggleGraph2Command}"
+                              IsCheckable="True"
+                              IsChecked="{Binding GraphMode,
+                                Converter={StaticResource EnumBoolConverter},
+                                ConverterParameter=Bar, Mode=OneWay}"/>
+                    <Separator/>
+                    <MenuItem Header="Use RSSI in Graphs" Command="{Binding ToggleUseRssiCommand}"
+                              IsCheckable="True"
+                              IsChecked="{Binding UseRssiInGraphs, Mode=OneWay}"/>
+                    <MenuItem Header="Graph Dead Time" Command="{Binding ToggleGraphDeadTimeCommand}"
+                              IsCheckable="True"
+                              IsChecked="{Binding GraphDeadTime, Mode=OneWay}"/>
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="_Options">
-                <MenuItem Header="Settings"/>
+                <MenuItem Header="Settings" Command="{Binding OpenSettingsCommand}"/>
                 <MenuItem Header="Auto Sort"/>
             </MenuItem>
             <MenuItem Header="_Extra">
@@ -96,18 +116,62 @@
             <Separator/>
             <TextBlock Text="Loop Time:"/>
             <TextBlock Text="{Binding LoopTime, StringFormat={}{0:F0} ms}" FontWeight="Bold"/>
+            <Separator/>
+            <ToggleButton Content="Graph1" Padding="8,4"
+                          IsChecked="{Binding GraphMode,
+                            Converter={StaticResource EnumBoolConverter},
+                            ConverterParameter=Line, Mode=TwoWay}"
+                          Command="{Binding ToggleGraph1Command}" ToolTip="Line Graph"/>
+            <ToggleButton Content="Graph2" Padding="8,4"
+                          IsChecked="{Binding GraphMode,
+                            Converter={StaticResource EnumBoolConverter},
+                            ConverterParameter=Bar, Mode=TwoWay}"
+                          Command="{Binding ToggleGraph2Command}" ToolTip="Bar Graph"/>
         </ToolBar>
         
+        <!-- Signal Graph (visible only when Graph1/Graph2 active) -->
+        <controls:SignalGraphControl
+            Grid.Row="2"
+            Height="100"
+            Margin="10,10,10,0"
+            Mode="{Binding GraphMode}"
+            UseRssi="{Binding UseRssiInGraphs}"
+            GraphDeadTime="{Binding GraphDeadTime}"
+            SignalHistory="{Binding SelectedAccessPoint.SignalHistoryItems}"
+            Visibility="{Binding IsGraphVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
         <!-- Main Content -->
-        <Grid Grid.Row="2" Margin="10">
+        <Grid Grid.Row="3" Margin="10">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="180" MinWidth="100"/>
                 <ColumnDefinition Width="5"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
+
+            <!-- NetStumbler-style Filter TreeView -->
+            <Border Grid.Column="0" Background="White" BorderBrush="Gray" BorderThickness="1">
+                <TreeView ItemsSource="{Binding TreeviewRoots}"
+                          SelectedItemChanged="TreeView_SelectedItemChanged"
+                          Background="White">
+                    <TreeView.Resources>
+                        <HierarchicalDataTemplate DataType="{x:Type vm:TreeNodeViewModel}"
+                                                  ItemsSource="{Binding Children}">
+                            <TextBlock Text="{Binding Name}" Padding="2,1"/>
+                        </HierarchicalDataTemplate>
+                    </TreeView.Resources>
+                    <TreeView.ItemContainerStyle>
+                        <Style TargetType="TreeViewItem">
+                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                        </Style>
+                    </TreeView.ItemContainerStyle>
+                </TreeView>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
             
             <!-- Access Points List -->
-            <DataGrid Grid.Column="0"
+            <DataGrid Grid.Column="2"
                       ItemsSource="{Binding AccessPoints}"
                       SelectedItem="{Binding SelectedAccessPoint}"
                       AutoGenerateColumns="False"
@@ -116,6 +180,20 @@
                       GridLinesVisibility="All"
                       AlternatingRowBackground="LightGray"
                       Background="White">
+                <DataGrid.ContextMenu>
+                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
+                                              RelativeSource={RelativeSource Self}}">
+                        <MenuItem Header="Copy" Command="{Binding CopyApInfoCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="Add New Manufacturer" Command="{Binding AddManufacturerCommand}"/>
+                        <MenuItem Header="Add New Label"        Command="{Binding AddLabelCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="View Signal History"  Command="{Binding OpenSignalHistoryCommand}"/>
+                        <Separator/>
+                        <MenuItem Header="Geonames Info"        Command="{Binding OpenGeonamesCommand}"/>
+                        <MenuItem Header="Find AP in WifiDB"    Command="{Binding FindApInWifiDbCommand}"/>
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Active" Binding="{Binding ActiveDisplay}" Width="60"/>
                     <DataGridTextColumn Header="BSSID" Binding="{Binding Bssid}" Width="120"/>
@@ -132,48 +210,10 @@
                     <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>
-            
-            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
-            
-            <!-- Details Panel -->
-            <Border Grid.Column="2" Background="White" BorderBrush="Gray" BorderThickness="1" Padding="10">
-                <StackPanel>
-                    <TextBlock Text="Access Point Details" FontWeight="Bold" FontSize="14" Margin="0,0,0,10"/>
-                    
-                    <TextBlock Text="BSSID:"/>
-                    <TextBlock Text="{Binding SelectedAccessPoint.Bssid}" FontWeight="Bold" Margin="0,0,0,5"/>
-                    
-                    <TextBlock Text="SSID:"/>
-                    <TextBlock Text="{Binding SelectedAccessPoint.Ssid}" FontWeight="Bold" Margin="0,0,0,5"/>
-                    
-                    <TextBlock Text="Manufacturer:"/>
-                    <TextBlock Text="{Binding SelectedAccessPoint.Manufacturer}" FontWeight="Bold" Margin="0,0,0,5"/>
-                    
-                    <TextBlock Text="Signal Strength:"/>
-                    <TextBlock Text="{Binding SelectedAccessPoint.DisplaySignal}" FontWeight="Bold" Margin="0,0,0,5"/>
-                    
-                    <TextBlock Text="RSSI:"/>
-                    <TextBlock Text="{Binding SelectedAccessPoint.DisplayRssi}" FontWeight="Bold" Margin="0,0,0,5"/>
-                    
-                    <TextBlock Text="Channel:"/>
-                    <TextBlock Text="{Binding SelectedAccessPoint.Channel}" FontWeight="Bold" Margin="0,0,0,5"/>
-                    
-                    <TextBlock Text="First Seen:"/>
-                    <TextBlock Text="{Binding SelectedAccessPoint.FirstSeen, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" 
-                               FontWeight="Bold" Margin="0,0,0,5"/>
-                    
-                    <TextBlock Text="Last Seen:"/>
-                    <TextBlock Text="{Binding SelectedAccessPoint.LastSeen, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" 
-                               FontWeight="Bold" Margin="0,0,0,5"/>
-                    
-                    <Button Content="View Signal History" Margin="0,10,0,0"/>
-                    <Button Content="Show on Map" Margin="0,5,0,0"/>
-                </StackPanel>
-            </Border>
         </Grid>
         
         <!-- Status Bar -->
-        <StatusBar Grid.Row="3" Background="{StaticResource AccentBrush}">
+        <StatusBar Grid.Row="4" Background="{StaticResource AccentBrush}">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusMessage}"/>
             </StatusBarItem>

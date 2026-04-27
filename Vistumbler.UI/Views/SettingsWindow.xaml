@@ -1,0 +1,171 @@
+<Window x:Class="Vistumbler.UI.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:vm="clr-namespace:Vistumbler.UI.ViewModels"
+        mc:Ignorable="d"
+        Title="Vistumbler Settings" Height="520" Width="500"
+        ResizeMode="NoResize" WindowStartupLocation="CenterOwner">
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TabControl Grid.Row="0">
+
+            <!-- ── Misc ── -->
+            <TabItem Header="Misc">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Scan Refresh (ms):" VerticalAlignment="Center" Margin="0,6"/>
+                    <TextBox Grid.Column="1" Text="{Binding RefreshInterval, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,4" Padding="4,2"/>
+
+                    <TextBlock Grid.Row="1" Text="Dead Time (loops):" VerticalAlignment="Center" Margin="0,6"/>
+                    <TextBox Grid.Row="1" Grid.Column="1"
+                             Text="{Binding TimeBeforeMarkingDead, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,4" Padding="4,2"/>
+
+                    <TextBlock Grid.Row="2" Text="Save Directory:" VerticalAlignment="Center" Margin="0,6"/>
+                    <Grid Grid.Row="2" Grid.Column="1" Margin="0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding SaveDirectory}" IsReadOnly="True" Padding="4,2"
+                                 VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <Button Grid.Column="1" Content="..." Padding="8,2"
+                                Click="BrowseSaveDir_Click"/>
+                    </Grid>
+
+                    <CheckBox Grid.Row="3" Grid.ColumnSpan="2" Content="Auto Scan on start"
+                              IsChecked="{Binding AutoScan}" Margin="0,8"/>
+                </Grid>
+            </TabItem>
+
+            <!-- ── GPS ── -->
+            <TabItem Header="GPS">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="100"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="COM Port:" VerticalAlignment="Center" Margin="0,6"/>
+                    <TextBox Grid.Column="1" Text="{Binding ComPort, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,4" Padding="4,2"/>
+
+                    <TextBlock Grid.Row="1" Text="Baud Rate:" VerticalAlignment="Center" Margin="0,6"/>
+                    <TextBox Grid.Row="1" Grid.Column="1"
+                             Text="{Binding BaudRate, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,4" Padding="4,2"/>
+                </Grid>
+            </TabItem>
+
+            <!-- ── Sound ── -->
+            <TabItem Header="Sound">
+                <StackPanel Margin="10">
+                    <GroupBox Header="Play sound on new AP" Padding="8,4">
+                        <StackPanel>
+                            <CheckBox Content="Play sound on new AP"
+                                      IsChecked="{Binding PlaySound}" Margin="0,4"/>
+                            <RadioButton Content="Once per loop"
+                                         IsChecked="{Binding SoundPerApMode,
+                                             Converter={StaticResource EnumBoolConverter},
+                                             ConverterParameter=OncePerLoop}" Margin="0,2"/>
+                            <RadioButton Content="Once per AP"
+                                         IsChecked="{Binding SoundPerApMode,
+                                             Converter={StaticResource EnumBoolConverter},
+                                             ConverterParameter=OncePerAp}" Margin="0,2"/>
+                            <RadioButton Content="Once per AP with volume based on signal"
+                                         IsChecked="{Binding SoundPerApMode,
+                                             Converter={StaticResource EnumBoolConverter},
+                                             ConverterParameter=OncePerApSigBased}" Margin="0,2"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <GroupBox Header="Speak Signal" Margin="0,8,0,0" Padding="8,4">
+                        <StackPanel>
+                            <CheckBox Content="Speak Signal"
+                                      IsChecked="{Binding SpeakSignal}" Margin="0,4"/>
+                            <RadioButton Content="Use Vistumbler Sound Files"
+                                         IsChecked="{Binding SpeakType,
+                                             Converter={StaticResource EnumBoolConverter},
+                                             ConverterParameter=VistumblerSounds}" Margin="0,2"/>
+                            <RadioButton Content="Use Microsoft Sound API"
+                                         IsChecked="{Binding SpeakType,
+                                             Converter={StaticResource EnumBoolConverter},
+                                             ConverterParameter=Sapi}" Margin="0,2"/>
+                            <RadioButton Content="MIDI"
+                                         IsChecked="{Binding SpeakType,
+                                             Converter={StaticResource EnumBoolConverter},
+                                             ConverterParameter=Midi}" Margin="0,2"/>
+                            <Grid Margin="0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="160"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Speak Refresh Time (ms):" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding SpeakSignalIntervalMs, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="4,2"/>
+                            </Grid>
+                            <CheckBox Content="Say &quot;Percent&quot; after signal"
+                                      IsChecked="{Binding SpeakSignalSayPercent}" Margin="0,4"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <GroupBox Header="MIDI" Margin="0,8,0,0" Padding="8,4">
+                        <StackPanel>
+                            <CheckBox Content="Play MIDI sounds for all active APs"
+                                      IsChecked="{Binding PlayMidiForActiveAps}" Margin="0,4"/>
+                            <Grid Margin="0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="160"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="MIDI Instrument #:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding MidiInstrument, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="4,2"/>
+                                <TextBlock Grid.Row="1" Text="MIDI Play Time (ms):" VerticalAlignment="Center" Margin="0,4"/>
+                                <TextBox Grid.Row="1" Grid.Column="1"
+                                         Text="{Binding MidiPlayTimeMs, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="4,2" Margin="0,4"/>
+                            </Grid>
+                        </StackPanel>
+                    </GroupBox>
+                </StackPanel>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- OK / Cancel -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Ok" Width="80" IsDefault="True" Click="Ok_Click" Margin="0,0,8,0"/>
+            <Button Content="Cancel" Width="80" IsCancel="True" Click="Cancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

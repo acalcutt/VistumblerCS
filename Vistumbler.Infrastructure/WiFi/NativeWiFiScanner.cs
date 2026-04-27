@@ -252,17 +252,17 @@ public class NativeWiFiScanner : IWiFiScannerService
     {
         return algo switch
         {
-            AuthenticationAlgorithm.Open => AuthenticationType.Open,
-            AuthenticationAlgorithm.Shared => AuthenticationType.Shared,
-            AuthenticationAlgorithm.WPA => AuthenticationType.WPA,
-            AuthenticationAlgorithm.WPA_PSK => AuthenticationType.WPA_PSK,
-            // AuthenticationAlgorithm.WPA_None => AuthenticationType.WPA, // Not available in this version
-            AuthenticationAlgorithm.RSNA => AuthenticationType.WPA2,
-            AuthenticationAlgorithm.RSNA_PSK => AuthenticationType.WPA2_PSK,
-            // AuthenticationAlgorithm.WPA3 => AuthenticationType.WPA3, // Not available
-            AuthenticationAlgorithm.WPA3_ENT_192 => AuthenticationType.WPA3_Enterprise,
-            AuthenticationAlgorithm.WPA3_SAE => AuthenticationType.WPA3_PSK,
-            AuthenticationAlgorithm.OWE => AuthenticationType.Open,
+            AuthenticationAlgorithm.Open         => AuthenticationType.Open,
+            AuthenticationAlgorithm.Shared       => AuthenticationType.Shared,
+            AuthenticationAlgorithm.WPA          => AuthenticationType.WPA,
+            AuthenticationAlgorithm.WPA_PSK      => AuthenticationType.WPA_PSK,
+            AuthenticationAlgorithm.WPA_NONE     => AuthenticationType.WPA_None,
+            AuthenticationAlgorithm.RSNA         => AuthenticationType.WPA2,
+            AuthenticationAlgorithm.RSNA_PSK     => AuthenticationType.WPA2_PSK,
+            AuthenticationAlgorithm.WPA3_ENT_192 => AuthenticationType.WPA3_Enterprise_192,
+            AuthenticationAlgorithm.WPA3_ENT     => AuthenticationType.WPA3_Enterprise,
+            AuthenticationAlgorithm.WPA3_SAE     => AuthenticationType.WPA3_PSK,
+            AuthenticationAlgorithm.OWE          => AuthenticationType.OWE,
             _ => AuthenticationType.Unknown
         };
     }
@@ -271,13 +271,19 @@ public class NativeWiFiScanner : IWiFiScannerService
     {
         return cipher switch
         {
-            CipherAlgorithm.None => Vistumbler.Core.Models.EncryptionType.None,
-            // CipherAlgorithm.WEP40 => Vistumbler.Core.Models.EncryptionType.WEP, // Not available
-            // CipherAlgorithm.WEP104 => Vistumbler.Core.Models.EncryptionType.WEP, // Not available
-            CipherAlgorithm.WEP => Vistumbler.Core.Models.EncryptionType.WEP,
-            CipherAlgorithm.TKIP => Vistumbler.Core.Models.EncryptionType.TKIP,
-            CipherAlgorithm.CCMP => Vistumbler.Core.Models.EncryptionType.CCMP,
-            CipherAlgorithm.GCMP => Vistumbler.Core.Models.EncryptionType.CCMP, // Map to similar strength or add new enum
+            CipherAlgorithm.None          => Vistumbler.Core.Models.EncryptionType.None,
+            CipherAlgorithm.WEP           => Vistumbler.Core.Models.EncryptionType.WEP,
+            CipherAlgorithm.WEP_40        => Vistumbler.Core.Models.EncryptionType.WEP,
+            CipherAlgorithm.WEP_104       => Vistumbler.Core.Models.EncryptionType.WEP,
+            CipherAlgorithm.TKIP          => Vistumbler.Core.Models.EncryptionType.TKIP,
+            CipherAlgorithm.CCMP          => Vistumbler.Core.Models.EncryptionType.CCMP,
+            CipherAlgorithm.CCMP_256      => Vistumbler.Core.Models.EncryptionType.CCMP_256,
+            CipherAlgorithm.BIP           => Vistumbler.Core.Models.EncryptionType.BIP,
+            CipherAlgorithm.GCMP          => Vistumbler.Core.Models.EncryptionType.GCMP,
+            CipherAlgorithm.GCMP_256      => Vistumbler.Core.Models.EncryptionType.GCMP_256,
+            CipherAlgorithm.BIP_GMAC_128  => Vistumbler.Core.Models.EncryptionType.BIP_GMAC_128,
+            CipherAlgorithm.BIP_GMAC_256  => Vistumbler.Core.Models.EncryptionType.BIP_GMAC_256,
+            CipherAlgorithm.BIP_CMAC_256  => Vistumbler.Core.Models.EncryptionType.BIP_CMAC_256,
             _ => Vistumbler.Core.Models.EncryptionType.Unknown
         };
     }
@@ -296,7 +302,7 @@ public class NativeWiFiScanner : IWiFiScannerService
             PhyType.Vht => "802.11ac",
             PhyType.Dmg => "802.11ad",
             PhyType.He => "802.11ax",
-            // (PhyType)11 => "802.11be", // Unreachable or already handled
+            PhyType.Eht => "802.11be",
             _ => "Unknown"
         };
     }

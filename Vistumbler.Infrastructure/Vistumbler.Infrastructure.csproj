@@ -16,6 +16,7 @@
     <PackageReference Include="ManagedNativeWifi" Version="3.0.2" />
     <PackageReference Include="Dapper" Version="2.1.28" />
     <PackageReference Include="System.Data.OleDb" Version="8.0.0" />
+    <PackageReference Include="System.Speech" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

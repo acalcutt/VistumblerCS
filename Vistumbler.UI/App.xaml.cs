@@ -6,6 +6,7 @@ using Vistumbler.Infrastructure.Data;
 using Vistumbler.Infrastructure.Export;
 using Vistumbler.Infrastructure.Gps;
 using Vistumbler.Infrastructure.Import;
+using Vistumbler.Infrastructure.Sound;
 using Vistumbler.Infrastructure.WiFi;
 using Vistumbler.UI.ViewModels;
 using Vistumbler.UI.Views;
@@ -27,6 +28,7 @@ public partial class App : Application
                 services.AddSingleton<IDatabaseService, SQLiteDatabaseService>();
                 services.AddSingleton<IExportService, ExportService>();
                 services.AddSingleton<IImportService, ImportService>();
+                services.AddSingleton<ISoundService, SoundService>();
 
                 // Register ViewModels
                 services.AddSingleton<MainViewModel>();

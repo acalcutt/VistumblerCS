@@ -41,6 +41,11 @@ public interface IWiFiScannerService
     /// Check if currently scanning
     /// </summary>
     bool IsScanning { get; }
+
+    /// <summary>
+    /// Delay between scans in milliseconds (default 1000)
+    /// </summary>
+    int ScanIntervalMs { get; set; }
     
     /// <summary>
     /// Get the currently connected access point BSSID

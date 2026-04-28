@@ -10,7 +10,8 @@ public class NativeWiFiScanner : IWiFiScannerService
     private bool _isScanning;
     private CancellationTokenSource? _cancellationTokenSource;
     private string? _activeAdapterId;
-    private const int ScanIntervalMs = 1000;
+
+    public int ScanIntervalMs { get; set; } = 1000;
 
     public event EventHandler<AccessPointsDetectedEventArgs>? AccessPointsDetected;
     public event EventHandler<ScanErrorEventArgs>? ScanError;
@@ -141,84 +142,103 @@ public class NativeWiFiScanner : IWiFiScannerService
     {
         while (!cancellationToken.IsCancellationRequested)
         {
+            var loopStart = DateTime.UtcNow;
             try
             {
-                var accessPoints = await ScanNetworksAsync();
+                var accessPoints = await ScanNetworksAsync(cancellationToken);
                 OnAccessPointsDetected(new AccessPointsDetectedEventArgs { AccessPoints = accessPoints });
-                await Task.Delay(ScanIntervalMs, cancellationToken);
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
                 OnScanError(new ScanErrorEventArgs { ErrorMessage = "Error in scan loop", Exception = ex });
-                await Task.Delay(ScanIntervalMs, cancellationToken);
             }
+
+            // Throttle: wait only the remaining time so total cycle >= ScanIntervalMs
+            var elapsed = (int)(DateTime.UtcNow - loopStart).TotalMilliseconds;
+            var remaining = ScanIntervalMs - elapsed;
+            if (remaining > 0)
+                await Task.Delay(remaining, cancellationToken);
         }
     }
 
-    private async Task<List<AccessPoint>> ScanNetworksAsync()
+    private async Task<List<AccessPoint>> ScanNetworksAsync(CancellationToken cancellationToken = default)
     {
-        return await Task.Run(async () =>
+        // Trigger the RF scan once for all adapters.
+        // Cap the wait to half the scan interval so a slow driver notification
+        // never dominates the full cycle — BSS cache is read regardless of whether
+        // the notification arrived in time.
+        using var scanCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        scanCts.CancelAfter(Math.Max(ScanIntervalMs / 2, 500));
+        try
+        {
+            await NativeWifi.ScanNetworksAsync(TimeSpan.FromSeconds(4), scanCts.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Scan notification didn't arrive within the cap — proceed with cached BSS data.
+        }
+
+        // Resolve active adapter GUID for filtering (null = all adapters)
+        Guid? activeGuid = _activeAdapterId != null && Guid.TryParse(_activeAdapterId, out var parsed)
+            ? parsed
+            : (Guid?)null;
+
+        return await Task.Run(() =>
         {
             var accessPoints = new List<AccessPoint>();
 
             try
             {
-                foreach (var interfaceInfo in NativeWifi.EnumerateInterfaces())
+                // Filter to the selected adapter if one is set.
+                // EnumerateAvailableNetworks / EnumerateBssNetworks return results from ALL adapters.
+                var availableNetworks = NativeWifi.EnumerateAvailableNetworks()
+                    .Where(x => !activeGuid.HasValue || x.Interface.Id == activeGuid.Value)
+                    .GroupBy(x => x.Ssid.ToString())
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                // Deduplicate by BSSID in case two adapters report the same AP.
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var bss in NativeWifi.EnumerateBssNetworks()
+                    .Where(b => !activeGuid.HasValue || b.Interface.Id == activeGuid.Value))
                 {
-                    if (_activeAdapterId != null && interfaceInfo.Id.ToString() != _activeAdapterId)
-                        continue;
+                    var ssid  = Encoding.UTF8.GetString(bss.Ssid.ToBytes()).TrimEnd('\0');
+                    var bssid = Convert.ToHexString(bss.Bssid.ToBytes())
+                        .Insert(2, ":").Insert(5, ":").Insert(8, ":").Insert(11, ":").Insert(14, ":");
 
-                    try
+                    if (!seen.Add(bssid)) continue;
+
+                    var (channel, freqMhz) = GetChannelAndFreq(bss.Frequency);
+
+                    var ap = new AccessPoint
                     {
-                        // FIX: ScanNetworksAsync takes TimeSpan as first parameter
-                        await NativeWifi.ScanNetworksAsync(TimeSpan.FromSeconds(4));
-                    }
-                    catch { /* Scan may fail if already in progress */ }
+                        Bssid       = bssid,
+                        Ssid        = ssid,
+                        Signal      = bss.LinkQuality,
+                        Channel     = channel,
+                        FrequencyMhz = freqMhz,
+                        RadioType   = MapPhyType(bss.PhyType),
+                        NetworkType = bss.BssType == BssType.Infrastructure ? NetworkType.Infrastructure : NetworkType.Adhoc,
+                        FirstSeen   = DateTime.Now,
+                        LastSeen    = DateTime.Now,
+                        IsActive    = true
+                    };
 
-                    // We need AvailableNetworks to get Auth/Cipher info
-                    var availableNetworks = NativeWifi.EnumerateAvailableNetworks()
-                        .GroupBy(x => x.Ssid.ToString())
-                        .ToDictionary(g => g.Key, g => g.First());
+                    ap.Rssi = -100 + ap.Signal.GetValueOrDefault();
 
-                    var bssNetworks = NativeWifi.EnumerateBssNetworks();
+                    // Default to Unknown
+                    ap.Authentication = AuthenticationType.Unknown;
+                    ap.Encryption     = Vistumbler.Core.Models.EncryptionType.Unknown;
 
-                    foreach (var bss in bssNetworks)
+                    // Try to find matching Available Network for security info
+                    if (availableNetworks.TryGetValue(ssid, out var availableNetwork))
                     {
-                        var ssid = Encoding.UTF8.GetString(bss.Ssid.ToBytes()).TrimEnd('\0');
-                        var bssid = Convert.ToHexString(bss.Bssid.ToBytes()).Insert(2, ":").Insert(5, ":").Insert(8, ":").Insert(11, ":").Insert(14, ":");
-
-                        var (channel, freqMhz) = GetChannelAndFreq(bss.Frequency);
-
-                        var ap = new AccessPoint
-                        {
-                            Bssid = bssid,
-                            Ssid = ssid,
-                            Signal = bss.LinkQuality,
-                            Channel = channel,
-                            FrequencyMhz = freqMhz,
-                            RadioType = MapPhyType(bss.PhyType),
-                            NetworkType = bss.BssType == BssType.Infrastructure ? NetworkType.Infrastructure : NetworkType.Adhoc,
-                            FirstSeen = DateTime.Now,
-                            LastSeen = DateTime.Now,
-                            IsActive = true
-                        };
-
-                        ap.Rssi = -100 + ap.Signal.GetValueOrDefault();
-                        
-                        // Default to Unknown
-                        ap.Authentication = AuthenticationType.Unknown;
-                        ap.Encryption = Vistumbler.Core.Models.EncryptionType.Unknown;
-
-                        // Try to find matching Available Network for security info
-                        if (availableNetworks.TryGetValue(ssid, out var availableNetwork))
-                        {
-                            ap.Authentication = MapAuthentication(availableNetwork.AuthenticationAlgorithm);
-                            ap.Encryption = MapEncryption(availableNetwork.CipherAlgorithm);
-                        }
-
-                        accessPoints.Add(ap);
+                        ap.Authentication = MapAuthentication(availableNetwork.AuthenticationAlgorithm);
+                        ap.Encryption     = MapEncryption(availableNetwork.CipherAlgorithm);
                     }
+
+                    accessPoints.Add(ap);
                 }
             }
             catch (Exception ex)
@@ -227,7 +247,7 @@ public class NativeWiFiScanner : IWiFiScannerService
             }
 
             return accessPoints;
-        });
+        }, cancellationToken);
     }
 
     // --- Helper and Event Methods ---

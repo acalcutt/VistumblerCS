@@ -60,7 +60,7 @@
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="GPS Details"/>
-                <MenuItem Header="Graph">
+                <MenuItem Header="Graph" IsEnabled="{Binding IsGraphButtonsEnabled}">
                     <MenuItem Header="Line Graph (Graph1)" Command="{Binding ToggleGraph1Command}"
                               IsCheckable="True"
                               IsChecked="{Binding GraphMode,
@@ -79,6 +79,13 @@
                               IsCheckable="True"
                               IsChecked="{Binding GraphDeadTime, Mode=OneWay}"/>
                 </MenuItem>
+                <Separator/>
+                <MenuItem Header="Show Treeview" Command="{Binding ToggleTreeViewCommand}"
+                          IsEnabled="{Binding IsTreeToggleEnabled}"
+                          IsCheckable="True" IsChecked="{Binding ShowTreeView, Mode=OneWay}"/>
+                <MenuItem Header="Minimal GUI" Command="{Binding ToggleListViewCommand}"
+                          IsCheckable="True"
+                          IsChecked="{Binding IsMinimalGuiMode, Mode=OneWay}"/>
             </MenuItem>
             <MenuItem Header="_Settings">
                 <MenuItem Header="Misc Settings"              Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="0"/>
@@ -93,6 +100,11 @@
                 <MenuItem Header="WifiDB"                     Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="9"/>
                 <MenuItem Header="Set Cameras"                Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="10"/>
                 <MenuItem Header="Auto Sort"/>
+            </MenuItem>
+            <MenuItem Header="_Interface" x:Name="InterfaceMenu">
+                <MenuItem Header="Refresh Interfaces" Command="{Binding RefreshInterfacesCommand}"/>
+                <Separator/>
+                <!-- Adapter items are added dynamically in code-behind -->
             </MenuItem>
             <MenuItem Header="_Extra">
                 <MenuItem Header="Scan APs" Command="{Binding StartScanCommand}"/>
@@ -112,67 +124,103 @@
             </MenuItem>
         </Menu>
         
-        <!-- Toolbar -->
-        <ToolBar Grid.Row="1" Background="{StaticResource AccentBrush}">
+        <!-- Toolbar: two rows via ToolBarTray -->
+        <ToolBarTray Grid.Row="1" Background="{StaticResource AccentBrush}" IsLocked="True">
 
-            <!-- Scan toggle: red=inactive, green=active, text changes -->
-            <Button Command="{Binding ToggleScanCommand}" Width="90" Height="45" Padding="4">
-                <Button.Style>
-                    <Style TargetType="Button">
-                        <Setter Property="Content" Value="Scan APs"/>
-                        <Setter Property="Background" Value="{StaticResource InactiveBrush}"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsScanning}" Value="True">
-                                <Setter Property="Content" Value="Stop Scan"/>
-                                <Setter Property="Background" Value="{StaticResource ActiveBrush}"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-            </Button>
+            <!-- Row 1: Scan / GPS / Save + status info -->
+            <ToolBar Band="0" BandIndex="0" Background="{StaticResource AccentBrush}">
 
-            <!-- GPS toggle: red=inactive, green=active, text changes -->
-            <Button Command="{Binding ToggleGpsCommand}" Width="90" Height="45" Padding="4">
-                <Button.Style>
-                    <Style TargetType="Button">
-                        <Setter Property="Content" Value="Use GPS"/>
-                        <Setter Property="Background" Value="{StaticResource InactiveBrush}"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsGpsActive}" Value="True">
-                                <Setter Property="Content" Value="Stop GPS"/>
-                                <Setter Property="Background" Value="{StaticResource ActiveBrush}"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Button.Style>
-            </Button>
+                <!-- Scan toggle -->
+                <Button Command="{Binding ToggleScanCommand}" Height="30" Padding="8,2">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Content" Value="Scan APs"/>
+                            <Setter Property="Background" Value="{StaticResource InactiveBrush}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsScanning}" Value="True">
+                                    <Setter Property="Content" Value="Stop Scan"/>
+                                    <Setter Property="Background" Value="{StaticResource ActiveBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
 
-            <Button Content="Save &amp; Clear" Command="{Binding SaveAndClearCommand}"
-                    Width="90" Height="45" Padding="4"/>
+                <!-- GPS toggle -->
+                <Button Command="{Binding ToggleGpsCommand}" Height="30" Padding="8,2">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Content" Value="Use GPS"/>
+                            <Setter Property="Background" Value="{StaticResource InactiveBrush}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsGpsActive}" Value="True">
+                                    <Setter Property="Content" Value="Stop GPS"/>
+                                    <Setter Property="Background" Value="{StaticResource ActiveBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
 
-            <Separator/>
-            <TextBlock Text="Active APs:"/>
-            <TextBlock Text="{Binding ActiveApCount}" FontWeight="Bold"/>
-            <Separator/>
-            <TextBlock Text="Latitude:"/>
-            <TextBlock Text="{Binding CurrentLatitude}" FontWeight="Bold" MinWidth="100"/>
-            <TextBlock Text="Longitude:"/>
-            <TextBlock Text="{Binding CurrentLongitude}" FontWeight="Bold" MinWidth="100"/>
-            <Separator/>
-            <TextBlock Text="Loop Time:"/>
-            <TextBlock Text="{Binding LoopTime, StringFormat={}{0:F0} ms}" FontWeight="Bold"/>
-            <Separator/>
-            <ToggleButton Content="Graph1" Padding="8,4"
-                          IsChecked="{Binding GraphMode,
-                            Converter={StaticResource EnumBoolConverter},
-                            ConverterParameter=Line, Mode=TwoWay}"
-                          Command="{Binding ToggleGraph1Command}" ToolTip="Line Graph"/>
-            <ToggleButton Content="Graph2" Padding="8,4"
-                          IsChecked="{Binding GraphMode,
-                            Converter={StaticResource EnumBoolConverter},
-                            ConverterParameter=Bar, Mode=TwoWay}"
-                          Command="{Binding ToggleGraph2Command}" ToolTip="Bar Graph"/>
-        </ToolBar>
+                <Button Content="Save &amp; Clear" Command="{Binding SaveAndClearCommand}" Height="30" Padding="8,2"/>
+
+                <Separator/>
+                <TextBlock Text="Active APs:" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding ActiveApCount}" FontWeight="Bold" Margin="2,0,6,0" VerticalAlignment="Center"/>
+                <Separator/>
+                <TextBlock Text="Lat:" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding CurrentLatitude}"  FontWeight="Bold" Margin="2,0,6,0" MinWidth="80" VerticalAlignment="Center"/>
+                <TextBlock Text="Lon:" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding CurrentLongitude}" FontWeight="Bold" Margin="2,0,6,0" MinWidth="80" VerticalAlignment="Center"/>
+                <Separator/>
+                <TextBlock Text="Loop:" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding LoopTime, StringFormat={}{0:F0} ms}" FontWeight="Bold" Margin="2,0,6,0" VerticalAlignment="Center"/>
+            </ToolBar>
+
+            <!-- Row 2: Graph view toggles + show/hide panels -->
+            <ToolBar Band="1" BandIndex="0" Background="{StaticResource AccentBrush}">
+
+                <!-- Graph toggles: Command-only (no conflicting TwoWay binding) -->
+                <ToggleButton Command="{Binding ToggleGraphOffCommand}"
+                              IsChecked="{Binding GraphMode, Converter={StaticResource EnumBoolConverter}, ConverterParameter=Hidden, Mode=OneWay}"
+                              IsEnabled="{Binding IsGraphButtonsEnabled}"
+                              ToolTip="Hide Graph" Height="24" Padding="6,1">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#x274C;" FontSize="9" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="No Graph" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton Command="{Binding ToggleGraph1Command}"
+                              IsChecked="{Binding GraphMode, Converter={StaticResource EnumBoolConverter}, ConverterParameter=Line, Mode=OneWay}"
+                              IsEnabled="{Binding IsGraphButtonsEnabled}"
+                              ToolTip="Line Graph" Height="24" Padding="6,1">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#x1F4C8;" FontSize="11" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Line Graph" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton Command="{Binding ToggleGraph2Command}"
+                              IsChecked="{Binding GraphMode, Converter={StaticResource EnumBoolConverter}, ConverterParameter=Bar, Mode=OneWay}"
+                              IsEnabled="{Binding IsGraphButtonsEnabled}"
+                              ToolTip="Bar Graph" Height="24" Padding="6,1">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#x1F4CA;" FontSize="11" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Bar Graph" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </ToggleButton>
+                <Separator/>
+
+                <!-- Panel toggles -->
+                <ToggleButton Content="Tree" Command="{Binding ToggleTreeViewCommand}"
+                              IsChecked="{Binding ShowTreeView, Mode=OneWay}"
+                              IsEnabled="{Binding IsTreeToggleEnabled}"
+                              ToolTip="Show/Hide Treeview" Height="24" Padding="6,1"/>
+                <ToggleButton Content="Mini" Command="{Binding ToggleListViewCommand}"
+                              IsChecked="{Binding IsMinimalGuiMode, Mode=OneWay}"
+                              ToolTip="Minimal GUI Mode (hides AP list, treeview and graph)" Height="24" Padding="6,1"/>
+            </ToolBar>
+
+        </ToolBarTray>
         
         <!-- Signal Graph (visible only when Graph1/Graph2 active) -->
         <controls:SignalGraphControl
@@ -182,18 +230,20 @@
             Mode="{Binding GraphMode}"
             UseRssi="{Binding UseRssiInGraphs}"
             GraphDeadTime="{Binding GraphDeadTime}"
+            DeadTimeSeconds="{Binding Settings.GraphGapThresholdSeconds}"
             SignalHistory="{Binding SelectedAccessPoint.SignalHistoryItems}"
             Visibility="{Binding IsGraphVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
-        <!-- Main Content -->
-        <Grid Grid.Row="3" Margin="10">
+        <!-- Main Content: hidden entirely in Minimal GUI mode -->
+        <Grid Grid.Row="3" Margin="10"
+              Visibility="{Binding IsContentVisible, Converter={StaticResource BoolToVisibilityConverter}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" MinWidth="0"/>
                 <ColumnDefinition Width="5"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- NetStumbler-style Filter TreeView (hidden in graph mode) -->
+            <!-- NetStumbler-style Filter TreeView -->
             <Border Grid.Column="0" Width="180" Background="White" BorderBrush="Gray" BorderThickness="1"
                     Visibility="{Binding IsTreeViewVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                 <TreeView ItemsSource="{Binding TreeviewRoots}"
@@ -251,7 +301,22 @@
                     </ContextMenu>
                 </DataGrid.ContextMenu>
                 <DataGrid.Columns>
-                    <DataGridTextColumn x:Name="ColLineNumber"          Header="#"                    Binding="{Binding LineNumber}"             Width="60"/>
+                    <DataGridTemplateColumn x:Name="ColLineNumber" Header="#" Width="60" CanUserSort="True" SortMemberPath="LineNumber">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0">
+                                    <Grid Width="18" Height="18">
+                                        <Ellipse Fill="{Binding Signal, Converter={StaticResource SignalColorConverter}}"/>
+                                        <TextBlock Text="{Binding Authentication, Converter={StaticResource AuthLockConverter}}"
+                                                   FontFamily="Segoe MDL2 Assets" FontSize="9"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="White"/>
+                                    </Grid>
+                                    <TextBlock Text="{Binding LineNumber}" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTextColumn x:Name="ColActive"              Header="Active"               Binding="{Binding ActiveDisplay}"          Width="60"/>
                     <DataGridTextColumn x:Name="ColSsid"                Header="SSID"                 Binding="{Binding Ssid}"                   Width="150"/>
                     <DataGridTextColumn x:Name="ColMacAddress"          Header="Mac Address"          Binding="{Binding Bssid}"                  Width="110"/>

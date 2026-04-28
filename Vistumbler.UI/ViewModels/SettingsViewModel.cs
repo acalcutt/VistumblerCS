@@ -21,12 +21,22 @@ public partial class SettingsViewModel : ViewModelBase
     // ── Misc tab ──────────────────────────────────────────────────────────
     [ObservableProperty] private bool _autoCheckForUpdates = true;
     [ObservableProperty] private bool _checkForBetaUpdates = false;
-    [ObservableProperty] private int  _refreshLoopTimeMs   = 1000;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GraphGapThresholdSeconds))]
+    private int  _refreshLoopTimeMs   = 1000;
+
     [ObservableProperty] private int  _maxSignalDbm        = -30;
     [ObservableProperty] private int  _disassociationSignalDbm = -85;
-    [ObservableProperty] private int  _timeBeforeMarkingDeadS  = 5;
+    [ObservableProperty] private int  _timeBeforeMarkingDeadS  = 10;
     [ObservableProperty] private bool _autoRefreshNetworks      = true;
     [ObservableProperty] private int  _autoRefreshNetworksTimeS = 1;
+
+    /// <summary>
+    /// Gap threshold for the signal graph line break (4× scan interval).
+    /// Prevents false gaps from Windows' ~6 s BSS cache refresh cycle.
+    /// </summary>
+    public double GraphGapThresholdSeconds => Math.Max(RefreshLoopTimeMs / 1000.0 * 4.0, 15.0);
     // Colors: 6-char hex (no '#')
     [ObservableProperty] private string _backgroundColorHex     = "99B4A1";
     [ObservableProperty] private string _controlColorHex        = "D7E4C2";

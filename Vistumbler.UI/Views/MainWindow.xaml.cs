@@ -1,12 +1,17 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using Vistumbler.Core.Services;
 using Vistumbler.UI.ViewModels;
 
 namespace Vistumbler.UI.Views;
 
 public partial class MainWindow : Window
 {
+    private double _savedHeight;
+    private double _savedMinHeight;
+
     public MainWindow(MainViewModel viewModel)
     {
         InitializeComponent();
@@ -14,6 +19,64 @@ public partial class MainWindow : Window
 
         viewModel.Settings.PropertyChanged += OnSettingsChanged;
         ApplyColumnSettings(viewModel.Settings);
+
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        _savedHeight = Height;
+        _savedMinHeight = MinHeight;
+
+        // Rebuild the Interface menu when the adapter list or active adapter changes
+        viewModel.AvailableAdapters.CollectionChanged += (_, _) => RebuildInterfaceMenu();
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.ActiveAdapter))
+                RebuildInterfaceMenu();
+        };
+    }
+
+    // ── Interface menu (dynamic adapter items) ─────────────────────────────────
+
+    /// <summary>
+    /// Rebuilds the adapter items in the Interface menu. The first two items
+    /// (Refresh Interfaces + Separator) are declared in XAML and kept in place.
+    /// </summary>
+    private void RebuildInterfaceMenu()
+    {
+        var vm = (MainViewModel)DataContext!;
+
+        // Remove old adapter items (everything after the XAML separator at index 1)
+        while (InterfaceMenu.Items.Count > 2)
+            InterfaceMenu.Items.RemoveAt(2);
+
+        foreach (var adapter in vm.AvailableAdapters)
+        {
+            var item = new MenuItem
+            {
+                Header      = adapter.Name,
+                IsCheckable = true,
+                IsChecked   = adapter == vm.ActiveAdapter
+            };
+            item.Click += (_, _) => vm.SelectAdapterCommand.Execute(adapter);
+            InterfaceMenu.Items.Add(item);
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MainViewModel.IsMinimalGuiMode)) return;
+        var vm = (MainViewModel)DataContext!;
+        if (vm.IsMinimalGuiMode)
+        {
+            _savedHeight = Height;
+            _savedMinHeight = MinHeight;
+            MinHeight = 0;
+            SizeToContent = SizeToContent.Height;
+        }
+        else
+        {
+            SizeToContent = SizeToContent.Manual;
+            MinHeight = _savedMinHeight;
+            Height = _savedHeight;
+        }
     }
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)

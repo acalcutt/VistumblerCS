@@ -26,33 +26,41 @@ public partial class AccessPointViewModel : ViewModelBase
     private int _channel;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FrequencyDisplay))]
     private int _frequencyMhz;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplaySignal))]
     private int? _signal;
 
     [ObservableProperty]
     private int? _highestSignal;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayRssi))]
     private int? _rssi;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HighRssiDisplay))]
     private int? _highestRssi;
 
     [ObservableProperty]
     private string _radioType = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NetworkTypeDisplay))]
     private NetworkType _networkType;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AuthenticationDisplay))]
     private AuthenticationType _authentication;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EncryptionDisplay))]
     private EncryptionType _encryption;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActiveDisplay))]
     private bool _isActive;
 
     [ObservableProperty]
@@ -64,9 +72,15 @@ public partial class AccessPointViewModel : ViewModelBase
     private DateTime _lastSeen;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LatitudeDisplay))]
+    [NotifyPropertyChangedFor(nameof(LatitudeDdmmssDisplay))]
+    [NotifyPropertyChangedFor(nameof(LatitudeDdmmmmDisplay))]
     private double? _latitude;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LongitudeDisplay))]
+    [NotifyPropertyChangedFor(nameof(LongitudeDdmmssDisplay))]
+    [NotifyPropertyChangedFor(nameof(LongitudeDdmmmmDisplay))]
     private double? _longitude;
 
     [ObservableProperty]
@@ -99,18 +113,21 @@ public partial class AccessPointViewModel : ViewModelBase
             
         if (!string.IsNullOrEmpty(accessPoint.Label) && accessPoint.Label != "Unknown") Label = accessPoint.Label;
 
-        Channel = accessPoint.Channel;
-        FrequencyMhz = accessPoint.FrequencyMhz;
+        // Guard stable fields: skip setter call entirely when value hasn't changed.
+        // These rarely change after the AP is first seen, so skipping saves PropertyChanged overhead.
+        if (Channel != accessPoint.Channel) Channel = accessPoint.Channel;
+        if (FrequencyMhz != accessPoint.FrequencyMhz) FrequencyMhz = accessPoint.FrequencyMhz;
+        if (RadioType != accessPoint.RadioType) RadioType = accessPoint.RadioType;
+        if (NetworkType != accessPoint.NetworkType) NetworkType = accessPoint.NetworkType;
+
         Signal = accessPoint.Signal;
         Rssi = accessPoint.Rssi;
-        RadioType = accessPoint.RadioType;
-        NetworkType = accessPoint.NetworkType;
         
         // Critical: Do NOT overwrite known Auth/Encryption with Unknown
-        if (accessPoint.Authentication != AuthenticationType.Unknown)
+        if (accessPoint.Authentication != AuthenticationType.Unknown && Authentication != accessPoint.Authentication)
             Authentication = accessPoint.Authentication;
             
-        if (accessPoint.Encryption != EncryptionType.Unknown)
+        if (accessPoint.Encryption != EncryptionType.Unknown && Encryption != accessPoint.Encryption)
             Encryption = accessPoint.Encryption;
             
         IsActive = accessPoint.IsActive;
@@ -137,9 +154,9 @@ public partial class AccessPointViewModel : ViewModelBase
         if (FirstSeen == default)
             FirstSeen = accessPoint.FirstSeen;
 
-        if (!string.IsNullOrEmpty(accessPoint.BasicTransferRates))
+        if (!string.IsNullOrEmpty(accessPoint.BasicTransferRates) && BasicTransferRates != accessPoint.BasicTransferRates)
             BasicTransferRates = accessPoint.BasicTransferRates;
-        if (!string.IsNullOrEmpty(accessPoint.OtherTransferRates))
+        if (!string.IsNullOrEmpty(accessPoint.OtherTransferRates) && OtherTransferRates != accessPoint.OtherTransferRates)
             OtherTransferRates = accessPoint.OtherTransferRates;
     }
 

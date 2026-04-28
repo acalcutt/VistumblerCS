@@ -18,6 +18,8 @@
             <conv:EnumToBooleanConverter x:Key="EnumBoolConverter"/>
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <conv:HexColorToBrushConverter x:Key="HexColorToBrush"/>
+            <conv:SignalToColorConverter x:Key="SignalColorConverter"/>
+            <conv:AuthToLockGlyphConverter x:Key="AuthLockConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

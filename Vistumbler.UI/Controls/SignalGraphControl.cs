@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
@@ -35,6 +36,10 @@ public class SignalGraphControl : FrameworkElement
         DependencyProperty.Register(nameof(GraphDeadTime), typeof(bool), typeof(SignalGraphControl),
             new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty DeadTimeSecondsProperty =
+        DependencyProperty.Register(nameof(DeadTimeSeconds), typeof(double), typeof(SignalGraphControl),
+            new FrameworkPropertyMetadata(10.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty SignalHistoryProperty =
         DependencyProperty.Register(nameof(SignalHistory), typeof(IReadOnlyList<SignalHistory>),
             typeof(SignalGraphControl),
@@ -55,11 +60,36 @@ public class SignalGraphControl : FrameworkElement
         get => (bool)GetValue(GraphDeadTimeProperty);
         set => SetValue(GraphDeadTimeProperty, value);
     }
+    /// <summary>
+    /// Seconds of silence before a gap is drawn in the graph (matches TimeBeforeMarkingDeadS setting).
+    /// </summary>
+    public double DeadTimeSeconds
+    {
+        get => (double)GetValue(DeadTimeSecondsProperty);
+        set => SetValue(DeadTimeSecondsProperty, value);
+    }
     public IReadOnlyList<SignalHistory>? SignalHistory
     {
         get => (IReadOnlyList<SignalHistory>?)GetValue(SignalHistoryProperty);
         set => SetValue(SignalHistoryProperty, value);
     }
+
+    // ── Collection change tracking (auto-update when items added) ─────────────
+
+    protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (e.Property == SignalHistoryProperty)
+        {
+            if (e.OldValue is INotifyCollectionChanged oldColl)
+                oldColl.CollectionChanged -= OnHistoryChanged;
+            if (e.NewValue is INotifyCollectionChanged newColl)
+                newColl.CollectionChanged += OnHistoryChanged;
+        }
+    }
+
+    private void OnHistoryChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        => InvalidateVisual();
 
     // ── Layout ────────────────────────────────────────────────────────────────
 
@@ -143,11 +173,17 @@ public class SignalGraphControl : FrameworkElement
 
     // ── Y-axis grid ───────────────────────────────────────────────────────────
 
+    /// <summary>Pixels reserved at top and bottom so 100%/0% lines don't touch the border.</summary>
+    private const double DataInset = 3.0;
+
+    private double DataY(double plotY, double plotH, double fraction)
+        => plotY + DataInset + (plotH - DataInset * 2) * fraction;
+
     private void DrawYGrid(DrawingContext dc, double plotX, double plotY, double plotW, double plotH)
     {
         for (int i = 0; i <= 10; i++)
         {
-            double y    = plotY + plotH * (i / 10.0);
+            double y    = DataY(plotY, plotH, i / 10.0);
             bool   major = (i % 2 == 0);
             dc.DrawLine(major ? GridMajor : GridMinor,
                 new Point(plotX, y), new Point(plotX + plotW, y));
@@ -163,7 +199,7 @@ public class SignalGraphControl : FrameworkElement
 
         for (int i = 0; i <= 10; i++)
         {
-            double y = plotY + plotH * (i / 10.0);
+            double y = DataY(plotY, plotH, i / 10.0);
 
             // Tick mark outside the plot border
             dc.DrawLine(TickPen, new Point(plotX - 4, y), new Point(plotX, y));
@@ -233,13 +269,8 @@ public class SignalGraphControl : FrameworkElement
             if (i > 0 && GraphDeadTime && prevTime.HasValue)
             {
                 double gap = (prevTime.Value - entry.Timestamp).TotalSeconds;
-                if (gap >= 2)
-                {
-                    double deadY = plotY + plotH;
-                    if (prev.HasValue)
-                        dc.DrawLine(DeadLine, prev.Value, new Point(x, deadY));
-                    prev = new Point(x, deadY);
-                }
+                if (gap >= DeadTimeSeconds)
+                    prev = null;   // lift pen — don't connect across the gap
             }
 
             var pt = new Point(x, y);
@@ -273,7 +304,7 @@ public class SignalGraphControl : FrameworkElement
             if (i > 0 && GraphDeadTime && prevTime.HasValue)
             {
                 double gap = (prevTime.Value - entry.Timestamp).TotalSeconds;
-                if (gap >= 2) gapOffset += (int)gap;
+                if (gap >= DeadTimeSeconds) gapOffset += (int)gap;
             }
 
             int col = i + gapOffset;
@@ -298,7 +329,7 @@ public class SignalGraphControl : FrameworkElement
         double fraction = UseRssi
             ? Math.Clamp((entry.Rssi + 100.0) / 100.0, 0, 1)
             : Math.Clamp(entry.Signal / 100.0, 0, 1);
-        return plotY + plotH * (1.0 - fraction);
+        return DataY(plotY, plotH, 1.0 - fraction);
     }
 
     private static FormattedText MakeText(string text, double size, Brush fg, double ppd)

@@ -72,6 +72,30 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private double _loopTime;
 
+    private DateTime _lastScanTime = DateTime.MinValue;
+
+    // ── Adapter / Interface selection ─────────────────────────────────────────
+    public ObservableCollection<WiFiAdapter> AvailableAdapters { get; } = new();
+
+    [ObservableProperty]
+    private WiFiAdapter? _activeAdapter;
+
+    partial void OnActiveAdapterChanged(WiFiAdapter? value)
+    {
+        if (value != null)
+            _wifiScanner.SetActiveAdapter(value.Id);
+    }
+
+    // Manufacturer cache: keyed by normalized 6-char MAC prefix (e.g. "AABBCC").
+    // Populated on first AP scan; cleared and re-populated when user updates manufacturers.
+    private readonly Dictionary<string, string> _manufacturerCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static string NormalizeMacPrefix(string bssid)
+    {
+        var hex = System.Text.RegularExpressions.Regex.Replace(bssid, "[^0-9A-Fa-f]", "");
+        return hex.Length >= 6 ? hex[..6].ToUpperInvariant() : hex.ToUpperInvariant();
+    }
+
     // ── Graph ────────────────────────────────────────────────────────
 
     [ObservableProperty]
@@ -83,13 +107,31 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private bool _graphDeadTime = true;
 
-    public bool IsGraphVisible => GraphMode != GraphMode.Hidden;
-    public bool IsTreeViewVisible => GraphMode == GraphMode.Hidden;
+    [ObservableProperty]
+    private bool _showTreeView = true;
+
+    [ObservableProperty]
+    private bool _isMinimalGuiMode = false;
+
+    public bool IsGraphVisible        => !IsMinimalGuiMode && GraphMode != GraphMode.Hidden;
+    public bool IsTreeViewVisible     => !IsMinimalGuiMode && ShowTreeView;
+    public bool IsContentVisible      => !IsMinimalGuiMode;
+    public bool IsGraphButtonsEnabled => !IsMinimalGuiMode;
+    public bool IsTreeToggleEnabled   => !IsMinimalGuiMode;
 
     partial void OnGraphModeChanged(GraphMode value)
+        => OnPropertyChanged(nameof(IsGraphVisible));
+
+    partial void OnShowTreeViewChanged(bool value)
+        => OnPropertyChanged(nameof(IsTreeViewVisible));
+
+    partial void OnIsMinimalGuiModeChanged(bool value)
     {
+        OnPropertyChanged(nameof(IsContentVisible));
         OnPropertyChanged(nameof(IsGraphVisible));
         OnPropertyChanged(nameof(IsTreeViewVisible));
+        OnPropertyChanged(nameof(IsGraphButtonsEnabled));
+        OnPropertyChanged(nameof(IsTreeToggleEnabled));
     }
 
     partial void OnSelectedAccessPointChanged(AccessPointViewModel? value)
@@ -102,6 +144,8 @@ public partial class MainViewModel : ViewModelBase
         ((AsyncRelayCommand)FindApInWifiDbCommand).NotifyCanExecuteChanged();
     }
 
+    public ICommand SelectAdapterCommand { get; }
+    public ICommand RefreshInterfacesCommand { get; }
     public ICommand StartScanCommand { get; }
     public ICommand StopScanCommand { get; }
     public ICommand ToggleScanCommand { get; }
@@ -125,8 +169,11 @@ public partial class MainViewModel : ViewModelBase
     public ICommand OpenSettingsAtTabCommand { get; }
     public ICommand ToggleGraph1Command { get; }
     public ICommand ToggleGraph2Command { get; }
+    public ICommand ToggleGraphOffCommand { get; }
     public ICommand ToggleUseRssiCommand { get; }
     public ICommand ToggleGraphDeadTimeCommand { get; }
+    public ICommand ToggleTreeViewCommand { get; }
+    public ICommand ToggleListViewCommand { get; }
     public ICommand OpenSignalHistoryCommand { get; }
     public ICommand Open24GHzGraphCommand { get; }
     public ICommand Open5GHzGraphCommand  { get; }
@@ -193,10 +240,13 @@ public partial class MainViewModel : ViewModelBase
         UpdateManufacturersCommand = new AsyncRelayCommand(UpdateManufacturersAsync);
         OpenSettingsCommand        = new RelayCommand(OpenSettingsWindow);
         OpenSettingsAtTabCommand = new RelayCommand<string>(s => OpenSettingsWindowAt(int.TryParse(s, out int i) ? i : 0));
-        ToggleGraph1Command     = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Line   ? GraphMode.Hidden : GraphMode.Line);
-        ToggleGraph2Command     = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Bar    ? GraphMode.Hidden : GraphMode.Bar);
-        ToggleUseRssiCommand    = new RelayCommand(() => UseRssiInGraphs = !UseRssiInGraphs);
-        ToggleGraphDeadTimeCommand = new RelayCommand(() => GraphDeadTime = !GraphDeadTime);
+        ToggleGraph1Command        = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Line ? GraphMode.Hidden : GraphMode.Line);
+        ToggleGraph2Command        = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Bar  ? GraphMode.Hidden : GraphMode.Bar);
+        ToggleGraphOffCommand      = new RelayCommand(() => GraphMode = GraphMode.Hidden);
+        ToggleUseRssiCommand       = new RelayCommand(() => UseRssiInGraphs = !UseRssiInGraphs);
+        ToggleGraphDeadTimeCommand = new RelayCommand(() => GraphDeadTime   = !GraphDeadTime);
+        ToggleTreeViewCommand      = new RelayCommand(() => ShowTreeView     = !ShowTreeView);
+        ToggleListViewCommand      = new RelayCommand(() => IsMinimalGuiMode = !IsMinimalGuiMode);
         OpenSignalHistoryCommand = new RelayCommand(OpenSignalHistoryWindow, () => SelectedAccessPoint != null);
         Open24GHzGraphCommand = new RelayCommand(() => OpenChannelGraph(Controls.GraphBand.TwoPointFourGHz));
         Open5GHzGraphCommand  = new RelayCommand(() => OpenChannelGraph(Controls.GraphBand.FiveGHz));
@@ -206,8 +256,10 @@ public partial class MainViewModel : ViewModelBase
         AddLabelCommand       = new AsyncRelayCommand(AddLabelAsync,        () => SelectedAccessPoint != null);
         OpenGeonamesCommand   = new RelayCommand(OpenGeonames,       () => SelectedAccessPoint != null);
         FindApInWifiDbCommand = new AsyncRelayCommand(FindApInWifiDb, () => SelectedAccessPoint != null);
+        SelectAdapterCommand    = new RelayCommand<WiFiAdapter>(SelectAdapter);
+        RefreshInterfacesCommand = new AsyncRelayCommand(LoadAdaptersAsync);
 
-        // Initialize database
+        // Initialize database then load adapters once DB is ready
         InitializeDatabaseAsync();
     }
 
@@ -222,13 +274,38 @@ public partial class MainViewModel : ViewModelBase
 
             Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
             await _databaseService.InitializeAsync(dbPath);
-            
+
             StatusMessage = "Database initialized";
         }
         catch (Exception ex)
         {
             StatusMessage = $"Database error: {ex.Message}";
         }
+
+        // Load adapters after DB is initialised (fire-and-forget on startup)
+        await LoadAdaptersAsync();
+    }
+
+    private async Task LoadAdaptersAsync()
+    {
+        var adapters = await _wifiScanner.GetAvailableAdaptersAsync();
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            var previousId = ActiveAdapter?.Id;
+            AvailableAdapters.Clear();
+            foreach (var a in adapters)
+                AvailableAdapters.Add(a);
+
+            // Re-select previously selected adapter, or default to the first one
+            ActiveAdapter = AvailableAdapters.FirstOrDefault(a => a.Id == previousId)
+                         ?? AvailableAdapters.FirstOrDefault();
+        });
+    }
+
+    private void SelectAdapter(WiFiAdapter? adapter)
+    {
+        if (adapter != null)
+            ActiveAdapter = adapter;
     }
 
     private async Task StartScanAsync()
@@ -238,7 +315,10 @@ public partial class MainViewModel : ViewModelBase
             IsScanning = true;
             _scanCancellationTokenSource = new CancellationTokenSource();
             StatusMessage = "Scanning for networks...";
-            
+
+            // Apply scan interval from settings
+            _wifiScanner.ScanIntervalMs = _settings.RefreshLoopTimeMs;
+
             await _wifiScanner.StartScanningAsync(_scanCancellationTokenSource.Token);
         }
         catch (Exception ex)
@@ -449,6 +529,7 @@ public partial class MainViewModel : ViewModelBase
         { Owner = Application.Current.MainWindow };
         if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.Value)) return;
         await _databaseService.UpsertManufacturerAsync(macPrefix, dialog.Value.Trim());
+        _manufacturerCache[NormalizeMacPrefix(ap.Bssid)] = dialog.Value.Trim();
         ap.Manufacturer = dialog.Value.Trim();
         StatusMessage = $"Manufacturer updated for {ap.Bssid}";
     }
@@ -706,13 +787,24 @@ public partial class MainViewModel : ViewModelBase
 
     private async void OnAccessPointsDetected(object? sender, AccessPointsDetectedEventArgs e)
     {
-        var startTime = DateTime.Now;
+        var scanTime = DateTime.Now;
+        if (_lastScanTime != DateTime.MinValue)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+                LoopTime = (scanTime - _lastScanTime).TotalMilliseconds);
+        }
+        _lastScanTime = scanTime;
 
         foreach (var ap in e.AccessPoints)
         {
-            // Get or add manufacturer
-            var macPrefix = ap.Bssid.Substring(0, Math.Min(8, ap.Bssid.Length));
-            ap.Manufacturer = await _databaseService.GetManufacturerAsync(macPrefix);
+            // Get manufacturer from cache; only hit the DB the first time this prefix is seen
+            var macPrefix = NormalizeMacPrefix(ap.Bssid);
+            if (!_manufacturerCache.TryGetValue(macPrefix, out var manufacturer))
+            {
+                manufacturer = await _databaseService.GetManufacturerAsync(macPrefix);
+                _manufacturerCache[macPrefix] = manufacturer;
+            }
+            ap.Manufacturer = manufacturer;
 
             // Get or add label
             var label = await _databaseService.GetLabelAsync(ap.Bssid);
@@ -739,6 +831,7 @@ public partial class MainViewModel : ViewModelBase
                 {
                     ApId = apId,
                     GpsId = gpsId,
+                    GpsData = _gpsService.CurrentGpsData,
                     Signal = ap.Signal ?? 0,
                     Rssi = ap.Rssi ?? 0,
                     Timestamp = DateTime.Now
@@ -790,11 +883,26 @@ public partial class MainViewModel : ViewModelBase
             });
         }
 
-        // Update counts and timing
+        // Mark APs dead if they haven't been seen within the timeout window
+        var deadThreshold = TimeSpan.FromSeconds(_settings.TimeBeforeMarkingDeadS);
+        var now = DateTime.Now;
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            foreach (var apVm in AccessPoints)
+            {
+                if (apVm.IsActive && (now - apVm.LastSeen) > deadThreshold)
+                {
+                    apVm.IsActive = false;
+                    apVm.Signal   = 0;
+                    apVm.Rssi     = 0;
+                }
+            }
+        });
+
+        // Update counts
         Application.Current.Dispatcher.Invoke(() =>
         {
             ActiveApCount = AccessPoints.Count(ap => ap.IsActive);
-            LoopTime = (DateTime.Now - startTime).TotalMilliseconds;
         });
     }
 
@@ -1020,6 +1128,20 @@ public partial class MainViewModel : ViewModelBase
             StatusMessage = $"Updating {entries.Count} manufacturer entries...";
             await _databaseService.BulkUpsertManufacturersAsync(entries);
             StatusMessage = $"Updated {entries.Count} manufacturers.";
+
+            // Refresh manufacturer display for all currently loaded APs
+            _manufacturerCache.Clear();
+            foreach (var apVm in AccessPoints.ToList())
+            {
+                var prefix = NormalizeMacPrefix(apVm.Bssid);
+                if (!_manufacturerCache.TryGetValue(prefix, out var mfr))
+                {
+                    mfr = await _databaseService.GetManufacturerAsync(prefix);
+                    _manufacturerCache[prefix] = mfr;
+                }
+                apVm.Manufacturer = mfr;
+            }
+
             MessageBox.Show(
                 $"Successfully updated {entries.Count} manufacturer entries from the IEEE OUI database.",
                 "Update Manufacturers", MessageBoxButton.OK, MessageBoxImage.Information);

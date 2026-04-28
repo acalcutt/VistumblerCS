@@ -175,12 +175,23 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private string _sortBy                = "SSID";
     [ObservableProperty] private string _sortDirection         = "Ascending";
     [ObservableProperty] private int    _sortEverySeconds      = 60;
+    // View-menu quick-toggles
+    [ObservableProperty] private bool   _autoSelectConnectedAp    = false;
+    [ObservableProperty] private bool   _autoSelectHighSignal      = false;
+    [ObservableProperty] private bool   _addNewApsToTop            = false;
+    [ObservableProperty] private bool   _autoScrollToBottom        = false;
+    [ObservableProperty] private bool   _batchListviewInsert       = false;
+    // Debug submenu
+    [ObservableProperty] private bool   _debugCom                  = false;
+    // Active filter (persisted by ID; -1 = none)
+    [ObservableProperty] private int    _activeFilterId            = -1;
     public static IReadOnlyList<string> AltModeOptions      { get; } = new[] { "clampToGround","relativeToGround","absolute" };
     public static IReadOnlyList<string> SortByOptions       { get; } = new[] { "SSID","Mac Address","Signal","High Signal","RSSI","Channel","Authentication","Encryption","Radio Type","Network Type","Manufacturer","Label","Latitude","Longitude","First Active","Last Active" };
     public static IReadOnlyList<string> SortDirectionOptions { get; } = new[] { "Ascending","Descending" };
 
     // ── Sound tab ────────────────────────────────────────────────────────
     [ObservableProperty] private bool _playSound = true;
+    [ObservableProperty] private bool _playGpsSound = false;
     [ObservableProperty] private SoundPerApMode _soundPerApMode  = SoundPerApMode.OncePerLoop;
     [ObservableProperty] private bool _speakSignal               = false;
     [ObservableProperty] private SpeakSoundType _speakType       = SpeakSoundType.Sapi;
@@ -245,6 +256,13 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private bool   _enableCameraTrigger        = false;
     [ObservableProperty] private string _cameraTriggerScript        = string.Empty;
     [ObservableProperty] private int    _cameraTriggerRefreshTimeMs = 10000;
+
+    // ── Misc options (Options menu quick-toggles) ─────────────────────────
+    [ObservableProperty] private bool _autoScanOnLaunch         = false;
+    [ObservableProperty] private bool _saveGpsWhenNoApsActive   = true;
+    [ObservableProperty] private bool _downloadImages           = false;
+    [ObservableProperty] private bool _portableMode             = false;
+    [ObservableProperty] private bool _debugMode                = false;
 
     // ── Constructor ───────────────────────────────────────────────────────
     public SettingsViewModel(IDatabaseService db, ISettingsService ini)
@@ -347,8 +365,17 @@ public partial class SettingsViewModel : ViewModelBase
         var sortDirRaw = V("AutoSort", "AscDecDefault", "0");
         SortDirection = sortDirRaw == "1" ? "Descending" : "Ascending";
 
+        AutoSelectConnectedAp  = B("Vistumbler", "AutoSelect",            false);
+        AutoSelectHighSignal   = B("Vistumbler", "AutoSelectHS",          false);
+        AddNewApsToTop         = B("Vistumbler", "AddDirection",          false);
+        AutoScrollToBottom     = B("Vistumbler", "AutoScrollToBottom",    false);
+        BatchListviewInsert    = B("Vistumbler", "BatchListviewInsert",   false);
+        DebugCom               = B("Vistumbler", "DebugCom",              false);
+        ActiveFilterId         = I("Vistumbler", "DefFiltID",             -1);
+
         // Sound
         PlaySound               = B("Sound", "PlaySoundOnNewAP",   true);
+        PlayGpsSound            = B("Sound", "PlaySoundOnNewGPS",  false);
         SoundPerApMode = V("Sound", "SoundPerAP", "0") == "1"
             ? SoundPerApMode.OncePerAp : SoundPerApMode.OncePerLoop;
         SpeakSignal             = B("MIDI", "SpeakSignal",         false);
@@ -375,6 +402,13 @@ public partial class SettingsViewModel : ViewModelBase
         EnableCameraTrigger        = B("Cam", "CamTrigger",      false);
         CameraTriggerScript        = V("Cam", "CamTriggerScript", "");
         CameraTriggerRefreshTimeMs = I("Cam", "CamTriggerTime",  10000);
+
+        // Options-menu quick-toggles
+        AutoScanOnLaunch       = B("Vistumbler", "AutoScanOnLaunch",       false);
+        SaveGpsWhenNoApsActive = B("Vistumbler", "SaveGPSNoAPs",           true);
+        DownloadImages         = B("Vistumbler", "DownloadImages",         false);
+        PortableMode           = B("Vistumbler", "PortableMode",           false);
+        DebugMode              = B("Vistumbler", "Debug",                  false);
 
         // Columns – show/hide (0 = hidden in original means shown in original's column order; -1 = hidden)
         // The original stores the column position; -1 means hidden. We map >=0 → visible.
@@ -507,9 +541,17 @@ public partial class SettingsViewModel : ViewModelBase
         W ("AutoSort", "SortCombo",        SortBy);
         WI("AutoSort", "AutoSortTime",     SortEverySeconds);
         W ("AutoSort", "AscDecDefault",    SortDirection == "Descending" ? "1" : "0");
+        WB("Vistumbler", "AutoSelect",           AutoSelectConnectedAp);
+        WB("Vistumbler", "AutoSelectHS",         AutoSelectHighSignal);
+        WB("Vistumbler", "AddDirection",         AddNewApsToTop);
+        WB("Vistumbler", "AutoScrollToBottom",   AutoScrollToBottom);
+        WB("Vistumbler", "BatchListviewInsert",  BatchListviewInsert);
+        WB("Vistumbler", "DebugCom",             DebugCom);
+        WI("Vistumbler", "DefFiltID",            ActiveFilterId);
 
         // Sound
         WB("Sound", "PlaySoundOnNewAP",       PlaySound);
+        WB("Sound", "PlaySoundOnNewGPS",      PlayGpsSound);
         W ("Sound", "SoundPerAP",             SoundPerApMode == SoundPerApMode.OncePerAp ? "1" : "0");
         WB("MIDI",  "SpeakSignal",            SpeakSignal);
         WI("MIDI",  "SpeakSigTime",           SpeakSignalIntervalMs);
@@ -534,6 +576,13 @@ public partial class SettingsViewModel : ViewModelBase
         WB("Cam", "CamTrigger",       EnableCameraTrigger);
         W ("Cam", "CamTriggerScript", CameraTriggerScript);
         WI("Cam", "CamTriggerTime",   CameraTriggerRefreshTimeMs);
+
+        // Options-menu quick-toggles
+        WB("Vistumbler", "AutoScanOnLaunch",       AutoScanOnLaunch);
+        WB("Vistumbler", "SaveGPSNoAPs",           SaveGpsWhenNoApsActive);
+        WB("Vistumbler", "DownloadImages",         DownloadImages);
+        WB("Vistumbler", "PortableMode",           PortableMode);
+        WB("Vistumbler", "Debug",                  DebugMode);
 
         // Columns – store position (0-based index when shown, -1 when hidden)
         WI("Columns", "Column_Line",               ShowLineNumber     ? 0  : -1);

@@ -31,6 +31,43 @@ public partial class MainWindow : Window
             if (e.PropertyName == nameof(MainViewModel.ActiveAdapter))
                 RebuildInterfaceMenu();
         };
+
+        // Rebuild the Filters menu when the filter list or active filter changes
+        viewModel.AvailableFilters.CollectionChanged += (_, _) => RebuildFilterMenu();
+        viewModel.Settings.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SettingsViewModel.ActiveFilterId))
+                RebuildFilterMenu();
+        };
+    }
+
+    // ── Filter menu (dynamic filter items) ─────────────────────────────────────
+
+    /// <summary>
+    /// Rebuilds the filter items in the View > Filters menu. The first two XAML items
+    /// (Add/Remove Filters, Refresh Filters) and the separator are preserved.
+    /// Dynamic filter items are appended after the separator.
+    /// </summary>
+    private void RebuildFilterMenu()
+    {
+        var vm = (MainViewModel)DataContext!;
+
+        // Static XAML items: index 0 = "Add / Remove Filters", 1 = "Refresh Filters", 2 = Separator
+        const int staticCount = 3;
+        while (FilterMenu.Items.Count > staticCount)
+            FilterMenu.Items.RemoveAt(staticCount);
+
+        foreach (var filter in vm.AvailableFilters)
+        {
+            var item = new MenuItem
+            {
+                Header      = filter.FiltName,
+                IsCheckable = true,
+                IsChecked   = filter.FiltId == vm.Settings.ActiveFilterId
+            };
+            item.Click += (_, _) => vm.SelectFilterCommand.Execute(filter);
+            FilterMenu.Items.Add(item);
+        }
     }
 
     // ── Interface menu (dynamic adapter items) ─────────────────────────────────

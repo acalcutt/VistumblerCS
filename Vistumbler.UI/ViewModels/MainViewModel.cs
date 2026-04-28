@@ -174,6 +174,38 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ToggleGraphDeadTimeCommand { get; }
     public ICommand ToggleTreeViewCommand { get; }
     public ICommand ToggleListViewCommand { get; }
+    // ── Options-menu toggle commands ──────────────────────────────
+    public ICommand ToggleAutoRefreshNetworksCommand { get; }
+    public ICommand ToggleAutoRecoveryCommand        { get; }
+    public ICommand ToggleAutoSaveAndClearCommand    { get; }
+    public ICommand ToggleAutoKmlCommand             { get; }
+    public ICommand ToggleAutoScanOnLaunchCommand    { get; }
+    public ICommand TogglePlaySoundCommand           { get; }
+    public ICommand TogglePlayGpsSoundCommand        { get; }
+    public ICommand ToggleSpeakSignalCommand         { get; }
+    public ICommand TogglePlayMidiCommand            { get; }
+    public ICommand ToggleSaveGpsWhenNoApsCommand    { get; }
+    public ICommand ToggleDownloadImagesCommand      { get; }
+    public ICommand ToggleCameraTriggerCommand       { get; }
+    public ICommand TogglePortableModeCommand        { get; }
+    public ICommand ToggleDebugModeCommand           { get; }
+    // ── View-menu toggle commands ─────────────────────────────────────────
+    public ICommand ToggleAutoSortCommand            { get; }
+    public ICommand ToggleAutoSelectCommand          { get; }
+    public ICommand ToggleAutoSelectHighSignalCommand { get; }
+    public ICommand ToggleAddNewApsToTopCommand      { get; }
+    public ICommand ToggleAutoScrollToBottomCommand  { get; }
+    public ICommand ToggleBatchListviewInsertCommand { get; }
+    // Debug submenu
+    public ICommand ToggleDebugComCommand            { get; }
+    // Edit menu
+    public ICommand SortTreeCommand                  { get; }
+    public ICommand SelectConnectedApCommand         { get; }
+    // Filters
+    public ObservableCollection<FilterRecord> AvailableFilters { get; } = new();
+    public ICommand SelectFilterCommand              { get; }
+    public ICommand AddRemoveFiltersCommand          { get; }
+    public ICommand RefreshFiltersCommand            { get; }
     public ICommand OpenSignalHistoryCommand { get; }
     public ICommand Open24GHzGraphCommand { get; }
     public ICommand Open5GHzGraphCommand  { get; }
@@ -247,6 +279,36 @@ public partial class MainViewModel : ViewModelBase
         ToggleGraphDeadTimeCommand = new RelayCommand(() => GraphDeadTime   = !GraphDeadTime);
         ToggleTreeViewCommand      = new RelayCommand(() => ShowTreeView     = !ShowTreeView);
         ToggleListViewCommand      = new RelayCommand(() => IsMinimalGuiMode = !IsMinimalGuiMode);
+        ToggleAutoRefreshNetworksCommand = new RelayCommand(() => _settings.AutoRefreshNetworks    = !_settings.AutoRefreshNetworks);
+        ToggleAutoRecoveryCommand        = new RelayCommand(() => _settings.AutoRecovery           = !_settings.AutoRecovery);
+        ToggleAutoSaveAndClearCommand    = new RelayCommand(() => _settings.AutoSaveAndClear       = !_settings.AutoSaveAndClear);
+        ToggleAutoKmlCommand             = new RelayCommand(() => _settings.AutoKml                = !_settings.AutoKml);
+        ToggleAutoScanOnLaunchCommand    = new RelayCommand(() => _settings.AutoScanOnLaunch       = !_settings.AutoScanOnLaunch);
+        TogglePlaySoundCommand           = new RelayCommand(() => _settings.PlaySound              = !_settings.PlaySound);
+        TogglePlayGpsSoundCommand        = new RelayCommand(() => _settings.PlayGpsSound           = !_settings.PlayGpsSound);
+        ToggleSpeakSignalCommand         = new RelayCommand(() => _settings.SpeakSignal            = !_settings.SpeakSignal);
+        TogglePlayMidiCommand            = new RelayCommand(() => _settings.PlayMidiForActiveAps   = !_settings.PlayMidiForActiveAps);
+        ToggleSaveGpsWhenNoApsCommand    = new RelayCommand(() => _settings.SaveGpsWhenNoApsActive = !_settings.SaveGpsWhenNoApsActive);
+        ToggleDownloadImagesCommand      = new RelayCommand(() => _settings.DownloadImages         = !_settings.DownloadImages);
+        ToggleCameraTriggerCommand       = new RelayCommand(() => _settings.EnableCameraTrigger    = !_settings.EnableCameraTrigger);
+        TogglePortableModeCommand        = new RelayCommand(() => _settings.PortableMode           = !_settings.PortableMode);
+        ToggleDebugModeCommand           = new RelayCommand(() => _settings.DebugMode              = !_settings.DebugMode);
+        // View-menu toggles
+        ToggleAutoSortCommand            = new RelayCommand(() => _settings.AutoSort               = !_settings.AutoSort);
+        ToggleAutoSelectCommand          = new RelayCommand(() => _settings.AutoSelectConnectedAp  = !_settings.AutoSelectConnectedAp);
+        ToggleAutoSelectHighSignalCommand = new RelayCommand(() => _settings.AutoSelectHighSignal  = !_settings.AutoSelectHighSignal);
+        ToggleAddNewApsToTopCommand      = new RelayCommand(() => _settings.AddNewApsToTop         = !_settings.AddNewApsToTop);
+        ToggleAutoScrollToBottomCommand  = new RelayCommand(() => _settings.AutoScrollToBottom     = !_settings.AutoScrollToBottom);
+        ToggleBatchListviewInsertCommand = new RelayCommand(() => _settings.BatchListviewInsert    = !_settings.BatchListviewInsert);
+        // Debug submenu
+        ToggleDebugComCommand            = new RelayCommand(() => _settings.DebugCom               = !_settings.DebugCom);
+        // Edit menu
+        SortTreeCommand       = new RelayCommand(SortTree);
+        SelectConnectedApCommand = new RelayCommand(SelectConnectedAp);
+        // Filters
+        SelectFilterCommand   = new RelayCommand<FilterRecord?>(SelectFilter);
+        AddRemoveFiltersCommand = new AsyncRelayCommand(OpenAddRemoveFiltersAsync);
+        RefreshFiltersCommand  = new AsyncRelayCommand(LoadFiltersAsync);
         OpenSignalHistoryCommand = new RelayCommand(OpenSignalHistoryWindow, () => SelectedAccessPoint != null);
         Open24GHzGraphCommand = new RelayCommand(() => OpenChannelGraph(Controls.GraphBand.TwoPointFourGHz));
         Open5GHzGraphCommand  = new RelayCommand(() => OpenChannelGraph(Controls.GraphBand.FiveGHz));
@@ -284,6 +346,7 @@ public partial class MainViewModel : ViewModelBase
 
         // Load adapters after DB is initialised (fire-and-forget on startup)
         await LoadAdaptersAsync();
+        await LoadFiltersAsync();
     }
 
     private async Task LoadAdaptersAsync()
@@ -306,6 +369,54 @@ public partial class MainViewModel : ViewModelBase
     {
         if (adapter != null)
             ActiveAdapter = adapter;
+    }
+
+    // ── Filters ───────────────────────────────────────────────────────────
+
+    public async Task LoadFiltersAsync()
+    {
+        var filters = await _databaseService.GetAllFiltersAsync();
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            AvailableFilters.Clear();
+            foreach (var f in filters) AvailableFilters.Add(f);
+        });
+    }
+
+    private void SelectFilter(FilterRecord? filter)
+    {
+        // Selecting the already-active filter deselects it (toggle off)
+        var newId = (filter != null && _settings.ActiveFilterId != filter.FiltId) ? filter.FiltId : -1;
+        _settings.ActiveFilterId = newId;
+    }
+
+    private Task OpenAddRemoveFiltersAsync()
+    {
+        // TODO: open the Add/Remove Filters dialog when it is built
+        System.Windows.MessageBox.Show(
+            "The Add/Remove Filters dialog is not yet implemented.",
+            "Filters", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+        return Task.CompletedTask;
+    }
+
+    // ── Edit-menu helpers ─────────────────────────────────────────────────
+
+    private void SortTree()
+    {
+        // Sort alphabetically by SSID within each treeview root
+        foreach (var root in TreeviewRoots)
+        {
+            var sorted = root.Children.OrderBy(c => c.Name).ToList();
+            root.Children.Clear();
+            foreach (var c in sorted) root.Children.Add(c);
+        }
+    }
+
+    private void SelectConnectedAp()
+    {
+        // Find the AP whose BSSID matches the currently connected network
+        // (placeholder — requires NativeWifi connected-network query)
+        StatusMessage = "Select Connected AP: not yet implemented";
     }
 
     private async Task StartScanAsync()

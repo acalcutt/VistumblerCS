@@ -92,6 +92,19 @@ public interface IDatabaseService
     /// </summary>
     Task DeleteLabelAsync(string bssid);
     
+    // ── Filters ────────────────────────────────────────────────────────────
+
+    /// <summary>Get all saved filters.</summary>
+    Task<List<FilterRecord>> GetAllFiltersAsync();
+
+    /// <summary>Add or update a filter (FiltId == 0 → insert, else update).</summary>
+    Task<int> UpsertFilterAsync(FilterRecord filter);
+
+    /// <summary>Delete a filter by id.</summary>
+    Task DeleteFilterAsync(int filtId);
+
+    // ───────────────────────────────────────────────────────────────────────
+
     /// <summary>
     /// Close database connection
     /// </summary>

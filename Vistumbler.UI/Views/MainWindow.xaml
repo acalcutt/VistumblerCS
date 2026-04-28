@@ -56,10 +56,74 @@
                 <MenuItem Header="E_xit" Command="{Binding ExitCommand}"/>
             </MenuItem>
             <MenuItem Header="_Edit">
+                <MenuItem Header="_Copy AP Info" Command="{Binding CopyApInfoCommand}"/>
                 <MenuItem Header="Clear All" Command="{Binding ClearAllCommand}"/>
+                <MenuItem Header="Sort Tree" Command="{Binding SortTreeCommand}"/>
+                <MenuItem Header="Select Connected AP" Command="{Binding SelectConnectedApCommand}"/>
+            </MenuItem>
+            <MenuItem Header="_Options">
+                <MenuItem Header="Scan APs" Command="{Binding ToggleScanCommand}"/>
+                <Separator/>
+                <MenuItem Header="Auto Refresh Networks" IsCheckable="True"
+                          Command="{Binding ToggleAutoRefreshNetworksCommand}"
+                          IsChecked="{Binding Settings.AutoRefreshNetworks, Mode=OneWay}"/>
+                <MenuItem Header="Auto Recovery VS1" IsCheckable="True"
+                          Command="{Binding ToggleAutoRecoveryCommand}"
+                          IsChecked="{Binding Settings.AutoRecovery, Mode=OneWay}"/>
+                <MenuItem Header="Auto Save And Clear" IsCheckable="True"
+                          Command="{Binding ToggleAutoSaveAndClearCommand}"
+                          IsChecked="{Binding Settings.AutoSaveAndClear, Mode=OneWay}"/>
+                <MenuItem Header="Auto KML" IsCheckable="True"
+                          Command="{Binding ToggleAutoKmlCommand}"
+                          IsChecked="{Binding Settings.AutoKml, Mode=OneWay}"/>
+                <MenuItem Header="Auto Scan APs on launch" IsCheckable="True"
+                          Command="{Binding ToggleAutoScanOnLaunchCommand}"
+                          IsChecked="{Binding Settings.AutoScanOnLaunch, Mode=OneWay}"/>
+                <Separator/>
+                <MenuItem Header="Play sound on new AP" IsCheckable="True"
+                          Command="{Binding TogglePlaySoundCommand}"
+                          IsChecked="{Binding Settings.PlaySound, Mode=OneWay}"/>
+                <MenuItem Header="Play sound on new GPS" IsCheckable="True"
+                          Command="{Binding TogglePlayGpsSoundCommand}"
+                          IsChecked="{Binding Settings.PlayGpsSound, Mode=OneWay}"/>
+                <MenuItem Header="Speak Signal" IsCheckable="True"
+                          Command="{Binding ToggleSpeakSignalCommand}"
+                          IsChecked="{Binding Settings.SpeakSignal, Mode=OneWay}"/>
+                <MenuItem Header="Play MIDI sounds for all active APs" IsCheckable="True"
+                          Command="{Binding TogglePlayMidiCommand}"
+                          IsChecked="{Binding Settings.PlayMidiForActiveAps, Mode=OneWay}"/>
+                <Separator/>
+                <MenuItem Header="Save GPS data when no APs are active" IsCheckable="True"
+                          Command="{Binding ToggleSaveGpsWhenNoApsCommand}"
+                          IsChecked="{Binding Settings.SaveGpsWhenNoApsActive, Mode=OneWay}"/>
+                <Separator/>
+                <MenuItem Header="Download Images (Experimental)" IsCheckable="True"
+                          Command="{Binding ToggleDownloadImagesCommand}"
+                          IsChecked="{Binding Settings.DownloadImages, Mode=OneWay}"/>
+                <MenuItem Header="Enable camera trigger script (Experimental)" IsCheckable="True"
+                          Command="{Binding ToggleCameraTriggerCommand}"
+                          IsChecked="{Binding Settings.EnableCameraTrigger, Mode=OneWay}"/>
+                <MenuItem Header="Portable Mode (Experimental)" IsCheckable="True"
+                          Command="{Binding TogglePortableModeCommand}"
+                          IsChecked="{Binding Settings.PortableMode, Mode=OneWay}"/>
+                <Separator/>
+                <MenuItem Header="Debug">
+                    <MenuItem Header="Display Debug" IsCheckable="True"
+                              Command="{Binding ToggleDebugModeCommand}"
+                              IsChecked="{Binding Settings.DebugMode, Mode=OneWay}"/>
+                    <MenuItem Header="Display COM Errors" IsCheckable="True"
+                              Command="{Binding ToggleDebugComCommand}"
+                              IsChecked="{Binding Settings.DebugCom, Mode=OneWay}"/>
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="_View">
-                <MenuItem Header="GPS Details"/>
+                <MenuItem Header="_Filters" x:Name="FilterMenu">
+                    <MenuItem Header="Add / Remove Filters..." Command="{Binding AddRemoveFiltersCommand}"/>
+                    <MenuItem Header="Refresh Filters" Command="{Binding RefreshFiltersCommand}"/>
+                    <Separator x:Name="FilterMenuSeparator"/>
+                    <!-- Filter items are added dynamically in code-behind -->
+                </MenuItem>
+                <Separator/>
                 <MenuItem Header="Graph" IsEnabled="{Binding IsGraphButtonsEnabled}">
                     <MenuItem Header="Line Graph (Graph1)" Command="{Binding ToggleGraph1Command}"
                               IsCheckable="True"
@@ -80,10 +144,29 @@
                               IsChecked="{Binding GraphDeadTime, Mode=OneWay}"/>
                 </MenuItem>
                 <Separator/>
+                <MenuItem Header="Auto Sort" IsCheckable="True"
+                          Command="{Binding ToggleAutoSortCommand}"
+                          IsChecked="{Binding Settings.AutoSort, Mode=OneWay}"/>
+                <MenuItem Header="Auto Select Connected AP" IsCheckable="True"
+                          Command="{Binding ToggleAutoSelectCommand}"
+                          IsChecked="{Binding Settings.AutoSelectConnectedAp, Mode=OneWay}"/>
+                <MenuItem Header="Auto Select High Signal" IsCheckable="True"
+                          Command="{Binding ToggleAutoSelectHighSignalCommand}"
+                          IsChecked="{Binding Settings.AutoSelectHighSignal, Mode=OneWay}"/>
+                <MenuItem Header="Add New APs to Top" IsCheckable="True"
+                          Command="{Binding ToggleAddNewApsToTopCommand}"
+                          IsChecked="{Binding Settings.AddNewApsToTop, Mode=OneWay}"/>
+                <MenuItem Header="Auto Scroll to Bottom" IsCheckable="True"
+                          Command="{Binding ToggleAutoScrollToBottomCommand}"
+                          IsChecked="{Binding Settings.AutoScrollToBottom, Mode=OneWay}"/>
+                <MenuItem Header="Listview Batch Insert Mode (Experimental)" IsCheckable="True"
+                          Command="{Binding ToggleBatchListviewInsertCommand}"
+                          IsChecked="{Binding Settings.BatchListviewInsert, Mode=OneWay}"/>
+                <Separator/>
                 <MenuItem Header="Show Treeview" Command="{Binding ToggleTreeViewCommand}"
                           IsEnabled="{Binding IsTreeToggleEnabled}"
                           IsCheckable="True" IsChecked="{Binding ShowTreeView, Mode=OneWay}"/>
-                <MenuItem Header="Minimal GUI" Command="{Binding ToggleListViewCommand}"
+                <MenuItem Header="Minimal GUI (Experimental)" Command="{Binding ToggleListViewCommand}"
                           IsCheckable="True"
                           IsChecked="{Binding IsMinimalGuiMode, Mode=OneWay}"/>
             </MenuItem>
@@ -99,7 +182,6 @@
                 <MenuItem Header="Sound"                      Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="8"/>
                 <MenuItem Header="WifiDB"                     Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="9"/>
                 <MenuItem Header="Set Cameras"                Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="10"/>
-                <MenuItem Header="Auto Sort"/>
             </MenuItem>
             <MenuItem Header="_Interface" x:Name="InterfaceMenu">
                 <MenuItem Header="Refresh Interfaces" Command="{Binding RefreshInterfacesCommand}"/>
@@ -107,17 +189,20 @@
                 <!-- Adapter items are added dynamically in code-behind -->
             </MenuItem>
             <MenuItem Header="_Extra">
-                <MenuItem Header="Scan APs" Command="{Binding StartScanCommand}"/>
-                <MenuItem Header="Stop Scan" Command="{Binding StopScanCommand}"/>
+                <MenuItem Header="2.4 GHz Channel Graph (Experimental)" Command="{Binding Open24GHzGraphCommand}"/>
+                <MenuItem Header="5 GHz Channel Graph (Experimental)"   Command="{Binding Open5GHzGraphCommand}"/>
+                <MenuItem Header="6 GHz Channel Graph (Experimental)"   Command="{Binding Open6GHzGraphCommand}"/>
                 <Separator/>
-                <MenuItem Header="Use GPS" Command="{Binding StartGpsCommand}"/>
-                <MenuItem Header="Stop GPS" Command="{Binding StopGpsCommand}"/>
+                <MenuItem Header="GPS Details"/>
+                <MenuItem Header="GPS Compass"/>
+                <Separator/>
+                <MenuItem Header="Open KML Network Link"/>
+                <MenuItem Header="Open Save Folder"/>
+                <Separator/>
+                <MenuItem Header="Export Settings"/>
+                <MenuItem Header="Import Settings"/>
                 <Separator/>
                 <MenuItem Header="Update Manufacturers" Command="{Binding UpdateManufacturersCommand}"/>
-                <Separator/>
-                <MenuItem Header="2.4 GHz Channel Graph" Command="{Binding Open24GHzGraphCommand}"/>
-                <MenuItem Header="5 GHz Channel Graph"   Command="{Binding Open5GHzGraphCommand}"/>
-                <MenuItem Header="6 GHz Channel Graph"   Command="{Binding Open6GHzGraphCommand}"/>
             </MenuItem>
             <MenuItem Header="_Help">
                 <MenuItem Header="About"/>

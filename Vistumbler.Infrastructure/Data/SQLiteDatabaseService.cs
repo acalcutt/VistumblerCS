@@ -107,6 +107,29 @@ public class SQLiteDatabaseService : IDatabaseService
             await _connection.ExecuteAsync("ALTER TABLE AccessPoints ADD COLUMN FrequencyMhz INTEGER DEFAULT 0");
         }
         catch { /* Column already exists — safe to ignore */ }
+
+        // Filters table
+        await _connection.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS Filters (
+                FiltId   INTEGER PRIMARY KEY AUTOINCREMENT,
+                FiltName TEXT NOT NULL,
+                FiltDesc TEXT,
+                Ssid     TEXT DEFAULT '*',
+                Bssid    TEXT DEFAULT '*',
+                Channel  TEXT DEFAULT '*',
+                Auth     TEXT DEFAULT '*',
+                Encr     TEXT DEFAULT '*',
+                RadType  TEXT DEFAULT '*',
+                NetType  TEXT DEFAULT '*',
+                Signal   TEXT DEFAULT '*',
+                HighSig  TEXT DEFAULT '*',
+                Rssi     TEXT DEFAULT '*',
+                HighRssi TEXT DEFAULT '*',
+                Btx      TEXT DEFAULT '*',
+                Otx      TEXT DEFAULT '*',
+                Active   TEXT DEFAULT '*'
+            );
+        ");
     }
 
     public async Task<int> UpsertAccessPointAsync(AccessPoint accessPoint)
@@ -366,5 +389,48 @@ public class SQLiteDatabaseService : IDatabaseService
             _connection.Dispose();
             _connection = null;
         }
+    }
+
+    // ── Filters ─────────────────────────────────────────────────────────────
+
+    public async Task<List<FilterRecord>> GetAllFiltersAsync()
+    {
+        if (_connection == null) throw new InvalidOperationException("Database not initialized");
+        var rows = await _connection.QueryAsync<FilterRecord>("SELECT * FROM Filters ORDER BY FiltId");
+        return rows.ToList();
+    }
+
+    public async Task<int> UpsertFilterAsync(FilterRecord filter)
+    {
+        if (_connection == null) throw new InvalidOperationException("Database not initialized");
+
+        if (filter.FiltId == 0)
+        {
+            var sql = @"
+                INSERT INTO Filters (FiltName, FiltDesc, Ssid, Bssid, Channel, Auth, Encr,
+                    RadType, NetType, Signal, HighSig, Rssi, HighRssi, Btx, Otx, Active)
+                VALUES (@FiltName, @FiltDesc, @Ssid, @Bssid, @Channel, @Auth, @Encr,
+                    @RadType, @NetType, @Signal, @HighSig, @Rssi, @HighRssi, @Btx, @Otx, @Active);
+                SELECT last_insert_rowid();";
+            return await _connection.ExecuteScalarAsync<int>(sql, filter);
+        }
+        else
+        {
+            var sql = @"
+                UPDATE Filters SET
+                    FiltName = @FiltName, FiltDesc = @FiltDesc, Ssid = @Ssid, Bssid = @Bssid,
+                    Channel = @Channel, Auth = @Auth, Encr = @Encr, RadType = @RadType,
+                    NetType = @NetType, Signal = @Signal, HighSig = @HighSig, Rssi = @Rssi,
+                    HighRssi = @HighRssi, Btx = @Btx, Otx = @Otx, Active = @Active
+                WHERE FiltId = @FiltId";
+            await _connection.ExecuteAsync(sql, filter);
+            return filter.FiltId;
+        }
+    }
+
+    public async Task DeleteFilterAsync(int filtId)
+    {
+        if (_connection == null) throw new InvalidOperationException("Database not initialized");
+        await _connection.ExecuteAsync("DELETE FROM Filters WHERE FiltId = @filtId", new { filtId });
     }
 }

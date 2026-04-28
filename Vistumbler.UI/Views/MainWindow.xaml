@@ -6,7 +6,9 @@
         xmlns:vm="clr-namespace:Vistumbler.UI.ViewModels"
         xmlns:controls="clr-namespace:Vistumbler.UI.Controls"
         mc:Ignorable="d"
-        Title="Vistumbler CS - WiFi Scanner" Height="800" Width="1400"
+        Title="Vistumbler CS - WiFi Scanner" Height="700" Width="1200"
+        WindowStartupLocation="CenterScreen"
+        MinHeight="500" MinWidth="800"
         Background="{StaticResource PrimaryBrush}">
     
     <Window.Resources>
@@ -216,15 +218,24 @@
                           Visibility="{Binding IsTreeViewVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
             
             <!-- Access Points List -->
-            <DataGrid Grid.Column="2"
-                      ItemsSource="{Binding AccessPoints}"
-                      SelectedItem="{Binding SelectedAccessPoint}"
-                      AutoGenerateColumns="False"
-                      IsReadOnly="True"
-                      SelectionMode="Single"
-                      GridLinesVisibility="All"
-                      AlternatingRowBackground="LightGray"
-                      Background="White">
+            <ScrollViewer x:Name="ApListScroll"
+                          Grid.Column="2"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled">
+                <DataGrid HorizontalAlignment="Left"
+                          MinWidth="{Binding ViewportWidth, ElementName=ApListScroll}"
+                          ItemsSource="{Binding AccessPoints}"
+                          SelectedItem="{Binding SelectedAccessPoint}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          SelectionMode="Single"
+                          GridLinesVisibility="All"
+                          AlternatingRowBackground="LightGray"
+                          Background="White"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                          EnableColumnVirtualization="False"
+                          EnableRowVirtualization="True">
                 <DataGrid.ContextMenu>
                     <ContextMenu DataContext="{Binding PlacementTarget.DataContext,
                                               RelativeSource={RelativeSource Self}}">
@@ -240,21 +251,35 @@
                     </ContextMenu>
                 </DataGrid.ContextMenu>
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Active" Binding="{Binding ActiveDisplay}" Width="60"/>
-                    <DataGridTextColumn Header="BSSID" Binding="{Binding Bssid}" Width="120"/>
-                    <DataGridTextColumn Header="SSID" Binding="{Binding Ssid}" Width="150"/>
-                    <DataGridTextColumn Header="Signal" Binding="{Binding DisplaySignal}" Width="70"/>
-                    <DataGridTextColumn Header="High Signal" Binding="{Binding HighestSignal, StringFormat={}{0}%}" Width="90"/>
-                    <DataGridTextColumn Header="RSSI" Binding="{Binding DisplayRssi}" Width="80"/>
-                    <DataGridTextColumn Header="Channel" Binding="{Binding Channel}" Width="70"/>
-                    <DataGridTextColumn Header="Radio Type" Binding="{Binding RadioType}" Width="90"/>
-                    <DataGridTextColumn Header="Network Type" Binding="{Binding NetworkTypeDisplay}" Width="110"/>
-                    <DataGridTextColumn Header="Auth" Binding="{Binding AuthenticationDisplay}" Width="100"/>
-                    <DataGridTextColumn Header="Encryption" Binding="{Binding EncryptionDisplay}" Width="90"/>
-                    <DataGridTextColumn Header="Manufacturer" Binding="{Binding Manufacturer}" Width="120"/>
-                    <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="100"/>
+                    <DataGridTextColumn x:Name="ColLineNumber"          Header="#"                    Binding="{Binding LineNumber}"             Width="60"/>
+                    <DataGridTextColumn x:Name="ColActive"              Header="Active"               Binding="{Binding ActiveDisplay}"          Width="60"/>
+                    <DataGridTextColumn x:Name="ColSsid"                Header="SSID"                 Binding="{Binding Ssid}"                   Width="150"/>
+                    <DataGridTextColumn x:Name="ColMacAddress"          Header="Mac Address"          Binding="{Binding Bssid}"                  Width="110"/>
+                    <DataGridTextColumn x:Name="ColSignal"              Header="Signal"               Binding="{Binding DisplaySignal}"          Width="75"/>
+                    <DataGridTextColumn x:Name="ColHighSignal"          Header="High Signal"          Binding="{Binding HighestSignal, StringFormat={}{0}%}" Width="75"/>
+                    <DataGridTextColumn x:Name="ColRssi"                Header="RSSI"                 Binding="{Binding DisplayRssi}"            Width="75"/>
+                    <DataGridTextColumn x:Name="ColHighRssi"            Header="High RSSI"            Binding="{Binding HighRssiDisplay}"        Width="75"/>
+                    <DataGridTextColumn x:Name="ColAuthentication"      Header="Authentication"       Binding="{Binding AuthenticationDisplay}"  Width="105"/>
+                    <DataGridTextColumn x:Name="ColEncryption"          Header="Encryption"           Binding="{Binding EncryptionDisplay}"      Width="105"/>
+                    <DataGridTextColumn x:Name="ColRadioType"           Header="Radio Type"           Binding="{Binding RadioType}"              Width="85"/>
+                    <DataGridTextColumn x:Name="ColNetworkType"         Header="Network Type"         Binding="{Binding NetworkTypeDisplay}"     Width="100"/>
+                    <DataGridTextColumn x:Name="ColChannel"             Header="Channel"              Binding="{Binding Channel}"                Width="70"/>
+                    <DataGridTextColumn x:Name="ColFrequency"           Header="Frequency"            Binding="{Binding FrequencyDisplay}"       Width="80"  Visibility="Collapsed"/>
+                    <DataGridTextColumn x:Name="ColManufacturer"        Header="Manufacturer"         Binding="{Binding Manufacturer}"           Width="110"/>
+                    <DataGridTextColumn x:Name="ColLabel"               Header="Label"                Binding="{Binding Label}"                  Width="110"/>
+                    <DataGridTextColumn x:Name="ColLatitude"            Header="Latitude"             Binding="{Binding LatitudeDisplay}"        Width="85"  Visibility="Collapsed"/>
+                    <DataGridTextColumn x:Name="ColLongitude"           Header="Longitude"            Binding="{Binding LongitudeDisplay}"       Width="85"  Visibility="Collapsed"/>
+                    <DataGridTextColumn x:Name="ColLatitudeDdmmss"      Header="Latitude (DDMMSS)"    Binding="{Binding LatitudeDdmmssDisplay}"  Width="115" Visibility="Collapsed"/>
+                    <DataGridTextColumn x:Name="ColLongitudeDdmmss"     Header="Longitude (DDMMSS)"   Binding="{Binding LongitudeDdmmssDisplay}" Width="115" Visibility="Collapsed"/>
+                    <DataGridTextColumn x:Name="ColLatitudeDdmmmm"      Header="Latitude (DDMMMM)"    Binding="{Binding LatitudeDdmmmmDisplay}"  Width="140" Visibility="Collapsed"/>
+                    <DataGridTextColumn x:Name="ColLongitudeDdmmmm"     Header="Longitude (DDMMMM)"   Binding="{Binding LongitudeDdmmmmDisplay}" Width="140" Visibility="Collapsed"/>
+                    <DataGridTextColumn x:Name="ColBasicTransferRates"  Header="Basic Transfer Rates" Binding="{Binding BasicTransferRates}"     Width="130" Visibility="Collapsed"/>
+                    <DataGridTextColumn x:Name="ColOtherTransferRates"  Header="Other Transfer Rates" Binding="{Binding OtherTransferRates}"     Width="130" Visibility="Collapsed"/>
+                    <DataGridTextColumn x:Name="ColFirstActive"         Header="First Active"         Binding="{Binding FirstActiveDisplay}"     Width="130" Visibility="Collapsed"/>
+                    <DataGridTextColumn x:Name="ColLastActive"          Header="Last Active"          Binding="{Binding LastActiveDisplay}"      Width="130" Visibility="Collapsed"/>
                 </DataGrid.Columns>
-            </DataGrid>
+                </DataGrid>
+            </ScrollViewer>
         </Grid>
         
         <!-- Status Bar -->

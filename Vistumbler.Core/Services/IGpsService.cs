@@ -1,3 +1,4 @@
+using Vistumbler.Core.Enums;
 using Vistumbler.Core.Models;
 
 namespace Vistumbler.Core.Services;
@@ -61,6 +62,10 @@ public class GpsErrorEventArgs : EventArgs
 
 public class GpsConfiguration
 {
+    /// <summary>Which GPS back-end to use. Default is Serial (COM port).</summary>
+    public GpsSourceType Source { get; set; } = GpsSourceType.Serial;
+
+    // ── Serial / COM settings ─────────────────────────────────────────────
     public string ComPort { get; set; } = "COM4";
     public int BaudRate { get; set; } = 4800;
     public System.IO.Ports.Parity Parity { get; set; } = System.IO.Ports.Parity.None;

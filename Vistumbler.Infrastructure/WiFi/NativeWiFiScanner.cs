@@ -199,6 +199,7 @@ public class NativeWiFiScanner : IWiFiScannerService
                             FrequencyMhz = freqMhz,
                             RadioType = MapPhyType(bss.PhyType),
                             NetworkType = bss.BssType == BssType.Infrastructure ? NetworkType.Infrastructure : NetworkType.Adhoc,
+                            FirstSeen = DateTime.Now,
                             LastSeen = DateTime.Now,
                             IsActive = true
                         };

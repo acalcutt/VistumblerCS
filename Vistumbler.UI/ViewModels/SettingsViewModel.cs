@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Vistumbler.Core.Enums;
@@ -9,7 +11,8 @@ namespace Vistumbler.UI.ViewModels;
 
 public partial class SettingsViewModel : ViewModelBase
 {
-    private readonly IDatabaseService _db;
+    private readonly IDatabaseService  _db;
+    private readonly ISettingsService  _ini;
 
     // ── Tab navigation ────────────────────────────────────────────────────
     [ObservableProperty]
@@ -48,20 +51,45 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private int    _autoRecoveryEveryMinutes     = 5;
 
     // ── GPS tab ───────────────────────────────────────────────────────────
-    [ObservableProperty] private bool   _gpsTypeKernel32       = true;
-    [ObservableProperty] private bool   _gpsTypeNetcomm        = false;
-    [ObservableProperty] private bool   _gpsTypeCommMg         = false;
-    [ObservableProperty] private int    _comPortNumber         = 4;
-    [ObservableProperty] private string _baudRate              = "4800";
-    [ObservableProperty] private string _stopBit               = "1";
-    [ObservableProperty] private string _parity                = "None";
-    [ObservableProperty] private string _dataBit               = "8";
-    [ObservableProperty] private bool   _gpsLogEnabled         = false;
-    [ObservableProperty] private bool   _gpsLogDeleteOnExit    = true;
-    [ObservableProperty] private string _gpsLogLocation        = string.Empty;
-    [ObservableProperty] private string _gpsFormat             = "ddmm.mmmm";
-    [ObservableProperty] private bool   _gpsDisconnectOnTimeout = true;
-    [ObservableProperty] private bool   _gpsResetOnNoData       = true;
+    [ObservableProperty] private GpsSourceType _gpsSource          = GpsSourceType.Serial;
+    [ObservableProperty] private int    _comPortNumber             = 4;
+    [ObservableProperty] private string _baudRate                  = "4800";
+    [ObservableProperty] private string _stopBit                   = "1";
+    [ObservableProperty] private string _parity                    = "None";
+    [ObservableProperty] private string _dataBit                   = "8";
+    [ObservableProperty] private bool   _gpsLogEnabled             = false;
+    [ObservableProperty] private bool   _gpsLogDeleteOnExit        = true;
+    [ObservableProperty] private string _gpsLogLocation            = string.Empty;
+    [ObservableProperty] private string _gpsFormat                 = "ddmm.mmmm";
+    [ObservableProperty] private bool   _gpsDisconnectOnTimeout    = true;
+    [ObservableProperty] private bool   _gpsResetOnNoData          = true;
+
+    /// <summary>Bound to the Serial radio button via EnumBoolConverter.</summary>
+    public bool GpsSourceIsSerial
+    {
+        get => GpsSource == GpsSourceType.Serial;
+        set { if (value) GpsSource = GpsSourceType.Serial; }
+    }
+
+    /// <summary>Bound to the Windows Location API radio button via EnumBoolConverter.</summary>
+    public bool GpsSourceIsWindowsLocation
+    {
+        get => GpsSource == GpsSourceType.WindowsLocation;
+        set { if (value) GpsSource = GpsSourceType.WindowsLocation; }
+    }
+
+    partial void OnGpsSourceChanged(GpsSourceType value)
+    {
+        OnPropertyChanged(nameof(GpsSourceIsSerial));
+        OnPropertyChanged(nameof(GpsSourceIsWindowsLocation));
+        OnPropertyChanged(nameof(ComSettingsVisible));
+    }
+
+    /// <summary>Hides/shows the COM Settings group based on the selected source.</summary>
+    public System.Windows.Visibility ComSettingsVisible =>
+        GpsSource == GpsSourceType.Serial
+            ? System.Windows.Visibility.Visible
+            : System.Windows.Visibility.Collapsed;
 
     public static IReadOnlyList<string> BaudRateOptions    { get; } = new[] { "1200","2400","4800","9600","19200","38400","57600","115200" };
     public static IReadOnlyList<string> StopBitOptions     { get; } = new[] { "1","1.5","2" };
@@ -105,6 +133,7 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private bool _showRadioType     = true;  [ObservableProperty] private int _radioTypeWidth     = 85;
     [ObservableProperty] private bool _showNetworkType   = true;  [ObservableProperty] private int _networkTypeWidth   = 100;
     [ObservableProperty] private bool _showChannel       = true;  [ObservableProperty] private int _channelWidth       = 70;
+    [ObservableProperty] private bool _showFrequency     = true;  [ObservableProperty] private int _frequencyWidth     = 80;
     [ObservableProperty] private bool _showManufacturer  = true;  [ObservableProperty] private int _manufacturerWidth  = 110;
     [ObservableProperty] private bool _showLabel         = true;  [ObservableProperty] private int _labelWidth         = 110;
     [ObservableProperty] private bool _showLatitude      = true;  [ObservableProperty] private int _latitudeWidth      = 85;
@@ -208,9 +237,10 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private int    _cameraTriggerRefreshTimeMs = 10000;
 
     // ── Constructor ───────────────────────────────────────────────────────
-    public SettingsViewModel(IDatabaseService db)
+    public SettingsViewModel(IDatabaseService db, ISettingsService ini)
     {
-        _db = db;
+        _db  = db;
+        _ini = ini;
         var defaultDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             "Vistumbler") + Path.DirectorySeparatorChar;
@@ -219,6 +249,339 @@ public partial class SettingsViewModel : ViewModelBase
         SaveDirAutoRecovery = defaultDir;
         SaveDirKml          = defaultDir;
         GpsLogLocation      = Path.Combine(defaultDir, "gps_nmea_log.txt");
+    }
+
+    // ── INI persistence ───────────────────────────────────────────────────
+
+    /// <summary>Populate all properties from the INI file (call on startup).</summary>
+    public void LoadSettings()
+    {
+        string V(string section, string key, string def) => _ini.Read(section, key, def);
+        bool   B(string section, string key, bool   def) => V(section, key, def ? "1" : "0") == "1";
+        int    I(string section, string key, int    def) => int.TryParse(V(section, key, def.ToString()), out var r) ? r : def;
+        double D(string section, string key, double def) => double.TryParse(V(section, key, def.ToString()), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var r) ? r : def;
+
+        var defaultDir = SaveDir; // already set to default in ctor
+
+        // Misc
+        AutoCheckForUpdates        = B("Vistumbler",  "AutoCheckForUpdates",       true);
+        CheckForBetaUpdates        = B("Vistumbler",  "CheckForBetaUpdates",       false);
+        RefreshLoopTimeMs          = I("Vistumbler",  "Sleeptime",                 1000);
+        MaxSignalDbm               = I("Vistumbler",  "dBmMaxSignal",              -30);
+        DisassociationSignalDbm    = I("Vistumbler",  "dBmDissociationSignal",     -85);
+        TimeBeforeMarkingDeadS     = I("Vistumbler",  "TimeBeforeMarkedDead",      5);
+        AutoRefreshNetworks        = B("Vistumbler",  "AutoRefreshNetworks",       true);
+        AutoRefreshNetworksTimeS   = I("Vistumbler",  "AutoRefreshTime",           1);
+        BackgroundColorHex         = V("Vistumbler",  "BackgroundColor",           "0x99B4A1").TrimStart('0', 'x').TrimStart('X');
+        ControlColorHex            = V("Vistumbler",  "ControlBackgroundColor",    "0xD7E4C2").TrimStart('0', 'x').TrimStart('X');
+        FontColorHex               = V("Vistumbler",  "TextColor",                 "0x000000").TrimStart('0', 'x').TrimStart('X');
+        ButtonActiveColorHex       = V("Vistumbler",  "ButtonActiveColor",         "0xE1F2D0").TrimStart('0', 'x').TrimStart('X');
+        ButtonInactiveColorHex     = V("Vistumbler",  "ButtonInactiveColor",       "0xF2D0D0").TrimStart('0', 'x').TrimStart('X');
+        GuiTextSize                = D("Vistumbler",  "TextSize",                  8.5);
+
+        // Save
+        SaveDir             = V("Vistumbler",      "SaveDir",             defaultDir);
+        SaveDirAuto         = V("Vistumbler",      "SaveDirAuto",         defaultDir);
+        SaveDirAutoRecovery = V("Vistumbler",      "SaveDirAutoRecovery", defaultDir);
+        SaveDirKml          = V("Vistumbler",      "SaveDirKml",          defaultDir);
+        AutoSaveAndClear          = B("AutoSaveAndClear", "AutoSaveAndClear",          false);
+        AutoSaveAndClearOnAps     = B("AutoSaveAndClear", "AutoSaveAndClearOnAPs",     true);
+        AutoSaveAndClearOnTime    = B("AutoSaveAndClear", "AutoSaveAndClearOnTime",    false);
+        AutoSaveAndClearAps       = I("AutoSaveAndClear", "AutoSaveAndClearAPs",       1000);
+        AutoSaveAndClearTimeMinutes = I("AutoSaveAndClear","AutoSaveAndClearTime",     60);
+        AutoSaveAndClearPlaySound = B("AutoSaveAndClear", "AutoSaveAndClearPlaySound", true);
+        AutoRecovery              = B("AutoRecovery",     "AutoRecovery",              true);
+        AutoRecoveryDeleteOnExit  = B("AutoRecovery",     "AutoRecoveryDel",           true);
+        AutoRecoveryEveryMinutes  = I("AutoRecovery",     "AutoRecoveryTime",          5);
+
+        // GPS
+        var gpsTypeRaw = V("GpsSettings", "GpsSource", "Serial");
+        GpsSource      = Enum.TryParse<GpsSourceType>(gpsTypeRaw, out var gs) ? gs : GpsSourceType.Serial;
+        ComPortNumber  = I("GpsSettings", "ComPort",             4);
+        BaudRate       = V("GpsSettings", "Baud",                "4800");
+        Parity         = V("GpsSettings", "Parity",              "None");
+        DataBit        = V("GpsSettings", "DataBit",             "8");
+        StopBit        = V("GpsSettings", "StopBit",             "1");
+        GpsLogEnabled       = B("GpsSettings", "GpsLogEnabled",       false);
+        GpsLogDeleteOnExit  = B("GpsSettings", "GpsLogDeleteOnExit",  true);
+        GpsLogLocation      = V("AutoKML",     "GpsLogLocation",       Path.Combine(defaultDir, "gps_nmea_log.txt"));
+        GpsDisconnectOnTimeout = B("GpsSettings", "GpsDisconnect",     true);
+        GpsResetOnNoData       = B("GpsSettings", "GpsReset",          true);
+
+        var fmtOptions = new[] { "dd.dddddd", "ddmm.mmmm", "dd mm ss.s", "dd mm.mmmm" };
+        var fmtIdxRaw  = V("GpsSettings", "GPSformat", "1");
+        GpsFormat = int.TryParse(fmtIdxRaw, out var fi) && fi >= 0 && fi < fmtOptions.Length
+            ? fmtOptions[fi]
+            : fmtIdxRaw.Contains(' ') || fmtIdxRaw.Contains('.') ? fmtIdxRaw : "ddmm.mmmm";
+
+        // Language
+        Language = V("Vistumbler", "Language", "English");
+
+        // Auto/KML
+        AutoKml                = B("AutoKML",  "AutoKML",         false);
+        AutoOpenKmlNetLink     = B("AutoKML",  "OpenKmlNetLink",  true);
+        GoogleEarthExe         = V("AutoKML",  "GoogleEarthExe",  GoogleEarthExe);
+        KmlActiveRefreshTimeS  = I("AutoKML",  "AutoKmlActiveTime", 1);
+        KmlDeadRefreshTimeS    = I("AutoKML",  "AutoKmlDeadTime",   30);
+        KmlGpsRefreshTimeS     = I("AutoKML",  "AutoKmlGpsTime",    1);
+        KmlTrackRefreshTimeS   = I("AutoKML",  "AutoKmlTrackTime",  10);
+        KmlFlyTo               = B("AutoKML",  "KmlFlyTo",         true);
+        KmlAltitudeM           = I("AutoKML",  "AutoKML_Alt",      4000);
+        KmlAltMode             = V("AutoKML",  "AutoKML_AltMode",  "clampToGround");
+        KmlRangeM              = I("AutoKML",  "AutoKML_Range",    4000);
+        KmlHeading             = I("AutoKML",  "AutoKML_Heading",  0);
+        KmlTilt                = I("AutoKML",  "AutoKML_Tilt",     0);
+        AutoSort               = B("AutoSort", "AutoSort",         false);
+        SortBy                 = V("AutoSort", "SortCombo",        "SSID");
+        SortEverySeconds       = I("AutoSort", "AutoSortTime",     60);
+        var sortDirRaw = V("AutoSort", "AscDecDefault", "0");
+        SortDirection = sortDirRaw == "1" ? "Descending" : "Ascending";
+
+        // Sound
+        PlaySound               = B("Sound", "PlaySoundOnNewAP",   true);
+        SoundPerApMode = V("Sound", "SoundPerAP", "0") == "1"
+            ? SoundPerApMode.OncePerAp : SoundPerApMode.OncePerLoop;
+        SpeakSignal             = B("MIDI", "SpeakSignal",         false);
+        SpeakSignalIntervalMs   = I("MIDI", "SpeakSigTime",        2000);
+        SpeakSignalSayPercent   = B("MIDI", "SpeakSigSayPecent",   true);
+        MidiInstrument          = I("MIDI", "Midi_Instument",      56);
+        MidiPlayTimeMs          = I("MIDI", "Midi_PlayTime",       500);
+        PlayMidiForActiveAps    = B("MIDI", "Midi_PlayForActiveAps", false);
+        var speakTypeRaw = V("MIDI", "SpeakType", "2");
+        SpeakType = speakTypeRaw == "1" ? SpeakSoundType.VistumblerSounds : SpeakSoundType.Sapi;
+
+        // WifiDB
+        WifiDbUser                    = V("WifiDbWifiTools", "WifiDb_User",               "");
+        WifiDbApiKey                  = V("WifiDbWifiTools", "WifiDb_ApiKey",              "");
+        WifiDbGraphUrl                = V("WifiDbWifiTools", "WifiDb_GRAPH_URL",           WifiDbGraphUrl);
+        WifiDbUrl                     = V("WifiDbWifiTools", "WiFiDB_URL",                 WifiDbUrl);
+        WifiDbApiUrl                  = V("WifiDbWifiTools", "WifiDB_API_URL",             WifiDbApiUrl);
+        UseWifiDbGpsLocate            = B("WifiDbWifiTools", "UseWiFiDbGpsLocate",         false);
+        WifiDbGpsLocateRefreshTimeS   = I("WifiDbWifiTools", "WiFiDbLocateRefreshTime",   5);
+        EnableAutoUpApsToWifiDb       = B("WifiDbWifiTools", "AutoUpApsToWifiDB",         false);
+        AutoUpApsToWifiDbTimeS        = I("WifiDbWifiTools", "AutoUpApsToWifiDBTime",     60);
+
+        // Camera
+        EnableCameraTrigger        = B("Cam", "CamTrigger",      false);
+        CameraTriggerScript        = V("Cam", "CamTriggerScript", "");
+        CameraTriggerRefreshTimeMs = I("Cam", "CamTriggerTime",  10000);
+
+        // Columns – show/hide (0 = hidden in original means shown in original's column order; -1 = hidden)
+        // The original stores the column position; -1 means hidden. We map >=0 → visible.
+        ShowLineNumber     = I("Columns", "Column_Line",               0)  >= 0;
+        ShowActive         = I("Columns", "Column_Active",             1)  >= 0;
+        ShowSsid           = I("Columns", "Column_SSID",               3)  >= 0;
+        ShowMacAddress     = I("Columns", "Column_BSSID",              2)  >= 0;
+        ShowSignal         = I("Columns", "Column_Signal",             4)  >= 0;
+        ShowHighSignal     = I("Columns", "Column_HighSignal",         5)  >= 0;
+        ShowRssi           = I("Columns", "Column_RSSI",               6)  >= 0;
+        ShowHighRssi       = I("Columns", "Column_HighRSSI",           7)  >= 0;
+        ShowAuthentication = I("Columns", "Column_Authentication",     9)  >= 0;
+        ShowEncryption     = I("Columns", "Column_Encryption",        10)  >= 0;
+        ShowRadioType      = I("Columns", "Column_RadioType",         16)  >= 0;
+        ShowNetworkType    = I("Columns", "Column_NetworkType",       11)  >= 0;
+        ShowChannel        = I("Columns", "Column_Channel",            8)  >= 0;
+        ShowFrequency      = I("Columns", "Column_Frequency",          12)  >= 0;
+        ShowManufacturer   = I("Columns", "Column_Manufacturer",      14)  >= 0;
+        ShowLabel          = I("Columns", "Column_Label",             15)  >= 0;
+        ShowLatitude       = I("Columns", "Column_Latitude",          12)  >= 0;
+        ShowLongitude      = I("Columns", "Column_Longitude",         13)  >= 0;
+        ShowLatitudeDdmmss  = I("Columns", "Column_LatitudeDMS",      17)  >= 0;
+        ShowLongitudeDdmmss = I("Columns", "Column_LongitudeDMS",     18)  >= 0;
+        ShowLatitudeDdmmmm  = I("Columns", "Column_LatitudeDMM",      19)  >= 0;
+        ShowLongitudeDdmmmm = I("Columns", "Column_LongitudeDMM",     20)  >= 0;
+        ShowBasicTransferRates = I("Columns", "Column_BasicTransferRates", 21) >= 0;
+        ShowOtherTransferRates = I("Columns", "Column_OtherTransferRates", 22) >= 0;
+        ShowFirstActive    = I("Columns", "Column_FirstActive",       23)  >= 0;
+        ShowLastActive     = I("Columns", "Column_LastActive",        24)  >= 0;
+
+        // Column widths
+        LineNumberWidth       = I("Column_Width", "Column_Line",               60);
+        ActiveWidth           = I("Column_Width", "Column_Active",             60);
+        SsidWidth             = I("Column_Width", "Column_SSID",              150);
+        MacAddressWidth       = I("Column_Width", "Column_BSSID",             110);
+        SignalWidth           = I("Column_Width", "Column_Signal",             75);
+        HighSignalWidth       = I("Column_Width", "Column_HighSignal",         75);
+        RssiWidth             = I("Column_Width", "Column_RSSI",               75);
+        HighRssiWidth         = I("Column_Width", "Column_HighRSSI",           75);
+        AuthenticationWidth   = I("Column_Width", "Column_Authentication",    105);
+        EncryptionWidth       = I("Column_Width", "Column_Encryption",        105);
+        RadioTypeWidth        = I("Column_Width", "Column_RadioType",          85);
+        NetworkTypeWidth      = I("Column_Width", "Column_NetworkType",       100);
+        ChannelWidth          = I("Column_Width", "Column_Channel",            70);
+        FrequencyWidth        = I("Column_Width", "Column_Frequency",          80);
+        ManufacturerWidth     = I("Column_Width", "Column_Manufacturer",      110);
+        LabelWidth            = I("Column_Width", "Column_Label",             110);
+        LatitudeWidth         = I("Column_Width", "Column_Latitude",           85);
+        LongitudeWidth        = I("Column_Width", "Column_Longitude",          85);
+        LatitudeDdmmssWidth   = I("Column_Width", "Column_LatitudeDMS",       115);
+        LongitudeDdmmssWidth  = I("Column_Width", "Column_LongitudeDMS",      115);
+        LatitudeDdmmmmWidth   = I("Column_Width", "Column_LatitudeDMM",       140);
+        LongitudeDdmmmmWidth  = I("Column_Width", "Column_LongitudeDMM",      140);
+        BasicTransferRatesWidth = I("Column_Width", "Column_BasicTransferRates", 130);
+        OtherTransferRatesWidth = I("Column_Width", "Column_OtherTransferRates", 130);
+        FirstActiveWidth      = I("Column_Width", "Column_FirstActive",       130);
+        LastActiveWidth       = I("Column_Width", "Column_LastActive",        130);
+    }
+
+    /// <summary>Write all current property values back to the INI file and flush.</summary>
+    public void SaveSettings()
+    {
+        void W(string s, string k, string v)  => _ini.Write(s, k, v);
+        void WB(string s, string k, bool v)   => _ini.Write(s, k, v ? "1" : "0");
+        void WI(string s, string k, int v)    => _ini.Write(s, k, v.ToString());
+        void WD(string s, string k, double v) => _ini.Write(s, k, v.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        // Misc
+        WB("Vistumbler", "AutoCheckForUpdates",    AutoCheckForUpdates);
+        WB("Vistumbler", "CheckForBetaUpdates",    CheckForBetaUpdates);
+        WI("Vistumbler", "Sleeptime",               RefreshLoopTimeMs);
+        WI("Vistumbler", "dBmMaxSignal",            MaxSignalDbm);
+        WI("Vistumbler", "dBmDissociationSignal",   DisassociationSignalDbm);
+        WI("Vistumbler", "TimeBeforeMarkedDead",    TimeBeforeMarkingDeadS);
+        WB("Vistumbler", "AutoRefreshNetworks",     AutoRefreshNetworks);
+        WI("Vistumbler", "AutoRefreshTime",         AutoRefreshNetworksTimeS);
+        W ("Vistumbler", "BackgroundColor",         "0x" + BackgroundColorHex);
+        W ("Vistumbler", "ControlBackgroundColor",  "0x" + ControlColorHex);
+        W ("Vistumbler", "TextColor",               "0x" + FontColorHex);
+        W ("Vistumbler", "ButtonActiveColor",       "0x" + ButtonActiveColorHex);
+        W ("Vistumbler", "ButtonInactiveColor",     "0x" + ButtonInactiveColorHex);
+        WD("Vistumbler", "TextSize",                GuiTextSize);
+        W ("Vistumbler", "Language",                Language);
+
+        // Save
+        W ("Vistumbler",       "SaveDir",              SaveDir);
+        W ("Vistumbler",       "SaveDirAuto",           SaveDirAuto);
+        W ("Vistumbler",       "SaveDirAutoRecovery",   SaveDirAutoRecovery);
+        W ("Vistumbler",       "SaveDirKml",            SaveDirKml);
+        WB("AutoSaveAndClear", "AutoSaveAndClear",      AutoSaveAndClear);
+        WB("AutoSaveAndClear", "AutoSaveAndClearOnAPs", AutoSaveAndClearOnAps);
+        WB("AutoSaveAndClear", "AutoSaveAndClearOnTime",AutoSaveAndClearOnTime);
+        WI("AutoSaveAndClear", "AutoSaveAndClearAPs",   AutoSaveAndClearAps);
+        WI("AutoSaveAndClear", "AutoSaveAndClearTime",  AutoSaveAndClearTimeMinutes);
+        WB("AutoSaveAndClear", "AutoSaveAndClearPlaySound", AutoSaveAndClearPlaySound);
+        WB("AutoRecovery",     "AutoRecovery",          AutoRecovery);
+        WB("AutoRecovery",     "AutoRecoveryDel",       AutoRecoveryDeleteOnExit);
+        WI("AutoRecovery",     "AutoRecoveryTime",      AutoRecoveryEveryMinutes);
+
+        // GPS
+        W ("GpsSettings", "GpsSource",         GpsSource.ToString());
+        WI("GpsSettings", "ComPort",            ComPortNumber);
+        W ("GpsSettings", "Baud",               BaudRate);
+        W ("GpsSettings", "Parity",             Parity);
+        W ("GpsSettings", "DataBit",            DataBit);
+        W ("GpsSettings", "StopBit",            StopBit);
+        WB("GpsSettings", "GpsLogEnabled",      GpsLogEnabled);
+        WB("GpsSettings", "GpsLogDeleteOnExit", GpsLogDeleteOnExit);
+        W ("AutoKML",     "GpsLogLocation",     GpsLogLocation);
+        WB("GpsSettings", "GpsDisconnect",      GpsDisconnectOnTimeout);
+        WB("GpsSettings", "GpsReset",           GpsResetOnNoData);
+        // Store GPS format as both the string value and its legacy index
+        W ("GpsSettings", "GPSformat",          GpsFormat);
+
+        // Auto/KML
+        WB("AutoKML",  "AutoKML",         AutoKml);
+        WB("AutoKML",  "OpenKmlNetLink",  AutoOpenKmlNetLink);
+        W ("AutoKML",  "GoogleEarthExe",  GoogleEarthExe);
+        WI("AutoKML",  "AutoKmlActiveTime", KmlActiveRefreshTimeS);
+        WI("AutoKML",  "AutoKmlDeadTime",   KmlDeadRefreshTimeS);
+        WI("AutoKML",  "AutoKmlGpsTime",    KmlGpsRefreshTimeS);
+        WI("AutoKML",  "AutoKmlTrackTime",  KmlTrackRefreshTimeS);
+        WB("AutoKML",  "KmlFlyTo",         KmlFlyTo);
+        WI("AutoKML",  "AutoKML_Alt",      KmlAltitudeM);
+        W ("AutoKML",  "AutoKML_AltMode",  KmlAltMode);
+        WI("AutoKML",  "AutoKML_Range",    KmlRangeM);
+        WI("AutoKML",  "AutoKML_Heading",  KmlHeading);
+        WI("AutoKML",  "AutoKML_Tilt",     KmlTilt);
+        WB("AutoSort", "AutoSort",         AutoSort);
+        W ("AutoSort", "SortCombo",        SortBy);
+        WI("AutoSort", "AutoSortTime",     SortEverySeconds);
+        W ("AutoSort", "AscDecDefault",    SortDirection == "Descending" ? "1" : "0");
+
+        // Sound
+        WB("Sound", "PlaySoundOnNewAP",       PlaySound);
+        W ("Sound", "SoundPerAP",             SoundPerApMode == SoundPerApMode.OncePerAp ? "1" : "0");
+        WB("MIDI",  "SpeakSignal",            SpeakSignal);
+        WI("MIDI",  "SpeakSigTime",           SpeakSignalIntervalMs);
+        WB("MIDI",  "SpeakSigSayPecent",      SpeakSignalSayPercent);
+        WI("MIDI",  "Midi_Instument",         MidiInstrument);
+        WI("MIDI",  "Midi_PlayTime",          MidiPlayTimeMs);
+        WB("MIDI",  "Midi_PlayForActiveAps",  PlayMidiForActiveAps);
+        W ("MIDI",  "SpeakType",              SpeakType == SpeakSoundType.VistumblerSounds ? "1" : SpeakType == SpeakSoundType.Midi ? "3" : "2");
+
+        // WifiDB
+        W ("WifiDbWifiTools", "WifiDb_User",                WifiDbUser);
+        W ("WifiDbWifiTools", "WifiDb_ApiKey",              WifiDbApiKey);
+        W ("WifiDbWifiTools", "WifiDb_GRAPH_URL",           WifiDbGraphUrl);
+        W ("WifiDbWifiTools", "WiFiDB_URL",                 WifiDbUrl);
+        W ("WifiDbWifiTools", "WifiDB_API_URL",             WifiDbApiUrl);
+        WB("WifiDbWifiTools", "UseWiFiDbGpsLocate",         UseWifiDbGpsLocate);
+        WI("WifiDbWifiTools", "WiFiDbLocateRefreshTime",    WifiDbGpsLocateRefreshTimeS);
+        WB("WifiDbWifiTools", "AutoUpApsToWifiDB",          EnableAutoUpApsToWifiDb);
+        WI("WifiDbWifiTools", "AutoUpApsToWifiDBTime",      AutoUpApsToWifiDbTimeS);
+
+        // Camera
+        WB("Cam", "CamTrigger",       EnableCameraTrigger);
+        W ("Cam", "CamTriggerScript", CameraTriggerScript);
+        WI("Cam", "CamTriggerTime",   CameraTriggerRefreshTimeMs);
+
+        // Columns – store position (0-based index when shown, -1 when hidden)
+        WI("Columns", "Column_Line",               ShowLineNumber     ? 0  : -1);
+        WI("Columns", "Column_Active",             ShowActive         ? 1  : -1);
+        WI("Columns", "Column_SSID",               ShowSsid           ? 3  : -1);
+        WI("Columns", "Column_BSSID",              ShowMacAddress     ? 2  : -1);
+        WI("Columns", "Column_Signal",             ShowSignal         ? 4  : -1);
+        WI("Columns", "Column_HighSignal",         ShowHighSignal     ? 5  : -1);
+        WI("Columns", "Column_RSSI",               ShowRssi           ? 6  : -1);
+        WI("Columns", "Column_HighRSSI",           ShowHighRssi       ? 7  : -1);
+        WI("Columns", "Column_Authentication",     ShowAuthentication ? 9  : -1);
+        WI("Columns", "Column_Encryption",         ShowEncryption     ? 10 : -1);
+        WI("Columns", "Column_RadioType",          ShowRadioType      ? 16 : -1);
+        WI("Columns", "Column_NetworkType",        ShowNetworkType    ? 11 : -1);
+        WI("Columns", "Column_Channel",            ShowChannel        ? 8  : -1);
+        WI("Columns", "Column_Frequency",          ShowFrequency      ? 12 : -1);
+        WI("Columns", "Column_Manufacturer",       ShowManufacturer   ? 14 : -1);
+        WI("Columns", "Column_Label",              ShowLabel          ? 15 : -1);
+        WI("Columns", "Column_Latitude",           ShowLatitude       ? 12 : -1);
+        WI("Columns", "Column_Longitude",          ShowLongitude      ? 13 : -1);
+        WI("Columns", "Column_LatitudeDMS",        ShowLatitudeDdmmss  ? 17 : -1);
+        WI("Columns", "Column_LongitudeDMS",       ShowLongitudeDdmmss ? 18 : -1);
+        WI("Columns", "Column_LatitudeDMM",        ShowLatitudeDdmmmm  ? 19 : -1);
+        WI("Columns", "Column_LongitudeDMM",       ShowLongitudeDdmmmm ? 20 : -1);
+        WI("Columns", "Column_BasicTransferRates", ShowBasicTransferRates ? 21 : -1);
+        WI("Columns", "Column_OtherTransferRates", ShowOtherTransferRates ? 22 : -1);
+        WI("Columns", "Column_FirstActive",        ShowFirstActive    ? 23 : -1);
+        WI("Columns", "Column_LastActive",         ShowLastActive     ? 24 : -1);
+
+        // Column widths
+        WI("Column_Width", "Column_Line",               LineNumberWidth);
+        WI("Column_Width", "Column_Active",             ActiveWidth);
+        WI("Column_Width", "Column_SSID",               SsidWidth);
+        WI("Column_Width", "Column_BSSID",              MacAddressWidth);
+        WI("Column_Width", "Column_Signal",             SignalWidth);
+        WI("Column_Width", "Column_HighSignal",         HighSignalWidth);
+        WI("Column_Width", "Column_RSSI",               RssiWidth);
+        WI("Column_Width", "Column_HighRSSI",           HighRssiWidth);
+        WI("Column_Width", "Column_Authentication",     AuthenticationWidth);
+        WI("Column_Width", "Column_Encryption",         EncryptionWidth);
+        WI("Column_Width", "Column_RadioType",          RadioTypeWidth);
+        WI("Column_Width", "Column_NetworkType",        NetworkTypeWidth);
+        WI("Column_Width", "Column_Channel",            ChannelWidth);
+        WI("Column_Width", "Column_Frequency",          FrequencyWidth);
+        WI("Column_Width", "Column_Manufacturer",       ManufacturerWidth);
+        WI("Column_Width", "Column_Label",              LabelWidth);
+        WI("Column_Width", "Column_Latitude",           LatitudeWidth);
+        WI("Column_Width", "Column_Longitude",          LongitudeWidth);
+        WI("Column_Width", "Column_LatitudeDMS",        LatitudeDdmmssWidth);
+        WI("Column_Width", "Column_LongitudeDMS",       LongitudeDdmmssWidth);
+        WI("Column_Width", "Column_LatitudeDMM",        LatitudeDdmmmmWidth);
+        WI("Column_Width", "Column_LongitudeDMM",       LongitudeDdmmmmWidth);
+        WI("Column_Width", "Column_BasicTransferRates", BasicTransferRatesWidth);
+        WI("Column_Width", "Column_OtherTransferRates", OtherTransferRatesWidth);
+        WI("Column_Width", "Column_FirstActive",        FirstActiveWidth);
+        WI("Column_Width", "Column_LastActive",         LastActiveWidth);
+
+        _ini.Save();
     }
 
     // ── Manufacturer commands ─────────────────────────────────────────────

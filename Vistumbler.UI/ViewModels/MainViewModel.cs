@@ -25,6 +25,9 @@ public partial class MainViewModel : ViewModelBase
     private readonly IImportService _importService;
     private readonly IExportService _exportService;
     private readonly IServiceProvider _serviceProvider;
+    private readonly SettingsViewModel _settings;
+
+    public SettingsViewModel Settings => _settings;
     private CancellationTokenSource? _scanCancellationTokenSource;
 
     [ObservableProperty]
@@ -142,7 +145,8 @@ public partial class MainViewModel : ViewModelBase
         IDatabaseService databaseService,
         IImportService importService,
         IExportService exportService,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        SettingsViewModel settingsViewModel)
     {
         _wifiScanner = wifiScanner;
         _gpsService = gpsService;
@@ -150,6 +154,7 @@ public partial class MainViewModel : ViewModelBase
         _importService = importService;
         _exportService = exportService;
         _serviceProvider = serviceProvider;
+        _settings = settingsViewModel;
 
         // Populate treeview root nodes (order matches original Vistumbler)
         TreeviewRoots.Add(_authRoot);
@@ -255,15 +260,38 @@ public partial class MainViewModel : ViewModelBase
     {
         try
         {
-            var config = new GpsConfiguration
+            var s = _settings;
+
+            var parity = s.Parity switch
             {
-                ComPort = "COM4",
-                BaudRate = 4800
+                "Odd"   => System.IO.Ports.Parity.Odd,
+                "Even"  => System.IO.Ports.Parity.Even,
+                "Mark"  => System.IO.Ports.Parity.Mark,
+                "Space" => System.IO.Ports.Parity.Space,
+                _       => System.IO.Ports.Parity.None,
+            };
+            var stopBits = s.StopBit switch
+            {
+                "1.5" => System.IO.Ports.StopBits.OnePointFive,
+                "2"   => System.IO.Ports.StopBits.Two,
+                _     => System.IO.Ports.StopBits.One,
             };
 
-            IsGpsActive = true;
-            StatusMessage = "Starting GPS...";
-            
+            var config = new GpsConfiguration
+            {
+                Source   = s.GpsSource,
+                ComPort  = $"COM{s.ComPortNumber}",
+                BaudRate = int.TryParse(s.BaudRate, out int baud) ? baud : 4800,
+                DataBits = int.TryParse(s.DataBit,  out int db)   ? db   : 8,
+                Parity   = parity,
+                StopBits = stopBits,
+            };
+
+            IsGpsActive   = true;
+            StatusMessage = s.GpsSource == Core.Enums.GpsSourceType.WindowsLocation
+                ? "Starting GPS (Windows Location API)..."
+                : $"Starting GPS on COM{s.ComPortNumber}...";
+
             await _gpsService.StartAsync(config);
             StatusMessage = "GPS active";
         }
@@ -691,6 +719,13 @@ public partial class MainViewModel : ViewModelBase
             if (label != null)
                 ap.Label = label;
 
+            // Stamp current GPS position onto the AP before upsert
+            if (IsGpsActive && _gpsService.CurrentGpsData is { } gpsSnap)
+            {
+                ap.Latitude  = gpsSnap.Latitude;
+                ap.Longitude = gpsSnap.Longitude;
+            }
+
             // Update or add to database
             var apId = await _databaseService.UpsertAccessPointAsync(ap);
             ap.ApId = apId;
@@ -748,6 +783,7 @@ public partial class MainViewModel : ViewModelBase
                 else
                 {
                     var newVm = new AccessPointViewModel(ap);
+                    newVm.LineNumber = AccessPoints.Count + 1;
                     AccessPoints.Add(newVm);
                     AddApToTreeview(newVm);
                 }
@@ -774,9 +810,28 @@ public partial class MainViewModel : ViewModelBase
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            CurrentLatitude = $"{e.GpsData.Latitude:F6}";
-            CurrentLongitude = $"{e.GpsData.Longitude:F6}";
+            CurrentLatitude  = FormatCoordinate(e.GpsData.Latitude,  isLat: true,  _settings.GpsFormat);
+            CurrentLongitude = FormatCoordinate(e.GpsData.Longitude, isLat: false, _settings.GpsFormat);
         });
+    }
+
+    private static string FormatCoordinate(double deg, bool isLat, string format)
+    {
+        char dir   = deg >= 0 ? (isLat ? 'N' : 'E') : (isLat ? 'S' : 'W');
+        double abs = Math.Abs(deg);
+        int d      = (int)abs;
+        double mf  = (abs - d) * 60.0;
+        int m      = (int)mf;
+        double s   = (mf - m) * 60.0;
+        string ds  = isLat ? $"{d:D2}" : $"{d:D3}";
+
+        return format switch
+        {
+            "ddmm.mmmm"  => $"{dir} {ds}{mf:00.0000}",
+            "dd mm ss.s" => $"{dir} {ds} {m:D2} {s:00.0}",
+            "dd mm.mmmm" => $"{dir} {ds} {mf:00.0000}",
+            _            => deg.ToString("F6"),  // dd.dddddd
+        };
     }
 
     private void OnGpsError(object? sender, GpsErrorEventArgs e)
@@ -814,6 +869,7 @@ public partial class MainViewModel : ViewModelBase
                 foreach (var ap in aps)
                 {
                     var vm = new AccessPointViewModel(ap);
+                    vm.LineNumber = AccessPoints.Count + 1;
                     AccessPoints.Add(vm);
                     AddApToTreeview(vm);
                 }

@@ -20,9 +20,18 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void Ok_Click(object sender, RoutedEventArgs e)     => DialogResult = true;
+    private void Ok_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is SettingsViewModel vm) vm.SaveSettings();
+        DialogResult = true;
+    }
+
     private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
-    private void Apply_Click(object sender, RoutedEventArgs e)  { /* settings applied live via bindings */ }
+
+    private void Apply_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is SettingsViewModel vm) vm.SaveSettings();
+    }
 
     // ── Browse helpers ────────────────────────────────────────────────────
     private void DirBrowse_Click(object sender, RoutedEventArgs e)

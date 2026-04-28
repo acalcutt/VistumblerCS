@@ -132,8 +132,22 @@ public class SQLiteDatabaseService : IDatabaseService
                 BasicTransferRates = @BasicTransferRates,
                 OtherTransferRates = @OtherTransferRates,
                 LastSeen = @LastSeen,
-                Latitude = COALESCE(@Latitude, Latitude),
-                Longitude = COALESCE(@Longitude, Longitude);
+                Latitude = CASE
+                    WHEN @Latitude IS NOT NULL AND (
+                        Latitude IS NULL OR
+                        @Rssi >= HighestRssi OR
+                        HighestRssi IS NULL
+                    ) THEN @Latitude
+                    ELSE Latitude
+                END,
+                Longitude = CASE
+                    WHEN @Longitude IS NOT NULL AND (
+                        Longitude IS NULL OR
+                        @Rssi >= HighestRssi OR
+                        HighestRssi IS NULL
+                    ) THEN @Longitude
+                    ELSE Longitude
+                END;
 
             SELECT last_insert_rowid();
         ";
@@ -231,8 +245,9 @@ public class SQLiteDatabaseService : IDatabaseService
         if (_connection == null)
             throw new InvalidOperationException("Database not initialized");
 
-        // Get first 8 characters of MAC (XX:XX:XX format)
-        var prefix = macPrefix.Length >= 8 ? macPrefix.Substring(0, 8).ToUpper() : macPrefix.ToUpper();
+        // Normalize to 6-char OUI hex (strip colons/dashes, uppercase) — matches IEEE OUI format
+        var cleanMac = System.Text.RegularExpressions.Regex.Replace(macPrefix, "[^0-9A-Fa-f]", "");
+        var prefix = cleanMac.Length >= 6 ? cleanMac.Substring(0, 6).ToUpper() : cleanMac.ToUpper();
         
         var sql = "SELECT Manufacturer FROM Manufacturers WHERE MacPrefix = @Prefix";
         var result = await _connection.QueryFirstOrDefaultAsync<string>(sql, new { Prefix = prefix });

@@ -6,6 +6,7 @@ using Vistumbler.Infrastructure.Data;
 using Vistumbler.Infrastructure.Export;
 using Vistumbler.Infrastructure.Gps;
 using Vistumbler.Infrastructure.Import;
+using Vistumbler.Infrastructure.Settings;
 using Vistumbler.Infrastructure.Sound;
 using Vistumbler.Infrastructure.WiFi;
 using Vistumbler.UI.ViewModels;
@@ -22,9 +23,14 @@ public partial class App : Application
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices((context, services) =>
             {
+                services.AddSingleton<ISettingsService, IniSettingsService>();
+
                 // Register services
                 services.AddSingleton<IWiFiScannerService, NativeWiFiScanner>();
-                services.AddSingleton<IGpsService, SerialGpsService>();
+                services.AddSingleton<SerialGpsService>();
+                services.AddSingleton<WindowsLocationGpsService>();
+                services.AddSingleton<GpsServiceRouter>();
+                services.AddSingleton<IGpsService>(sp => sp.GetRequiredService<GpsServiceRouter>());
                 services.AddSingleton<IDatabaseService, SQLiteDatabaseService>();
                 services.AddSingleton<IExportService, ExportService>();
                 services.AddSingleton<IImportService, ImportService>();
@@ -32,7 +38,7 @@ public partial class App : Application
 
                 // Register ViewModels
                 services.AddSingleton<MainViewModel>();
-                services.AddTransient<SettingsViewModel>();
+                services.AddSingleton<SettingsViewModel>();
                 services.AddTransient<ImportViewModel>();
                 services.AddTransient<GpsDetailsViewModel>();
 
@@ -48,6 +54,10 @@ public partial class App : Application
         base.OnStartup(e);
         
         await _host.StartAsync();
+
+        // Load persisted settings before showing any window
+        var settings = _host.Services.GetRequiredService<SettingsViewModel>();
+        settings.LoadSettings();
 
         var mainWindow = _host.Services.GetRequiredService<MainWindow>();
         mainWindow.Show();

@@ -47,6 +47,7 @@ public class SQLiteDatabaseService : IDatabaseService
                 Encryption INTEGER,
                 RadioType TEXT,
                 Channel INTEGER,
+                FrequencyMhz INTEGER,
                 Signal INTEGER,
                 HighestSignal INTEGER,
                 Rssi INTEGER,
@@ -99,6 +100,13 @@ public class SQLiteDatabaseService : IDatabaseService
         ";
 
         await _connection.ExecuteAsync(sql);
+
+        // Migration: add FrequencyMhz if it doesn't exist in an older DB
+        try
+        {
+            await _connection.ExecuteAsync("ALTER TABLE AccessPoints ADD COLUMN FrequencyMhz INTEGER DEFAULT 0");
+        }
+        catch { /* Column already exists — safe to ignore */ }
     }
 
     public async Task<int> UpsertAccessPointAsync(AccessPoint accessPoint)
@@ -109,11 +117,11 @@ public class SQLiteDatabaseService : IDatabaseService
         var sql = @"
             INSERT INTO AccessPoints (
                 Bssid, Ssid, Manufacturer, Label, NetworkType, Authentication, Encryption,
-                RadioType, Channel, Signal, HighestSignal, Rssi, HighestRssi,
+                RadioType, Channel, FrequencyMhz, Signal, HighestSignal, Rssi, HighestRssi,
                 BasicTransferRates, OtherTransferRates, FirstSeen, LastSeen, Latitude, Longitude
             ) VALUES (
                 @Bssid, @Ssid, @Manufacturer, @Label, @NetworkType, @Authentication, @Encryption,
-                @RadioType, @Channel, @Signal, @HighestSignal, @Rssi, @HighestRssi,
+                @RadioType, @Channel, @FrequencyMhz, @Signal, @HighestSignal, @Rssi, @HighestRssi,
                 @BasicTransferRates, @OtherTransferRates, @FirstSeen, @LastSeen, @Latitude, @Longitude
             )
             ON CONFLICT(Bssid) DO UPDATE SET
@@ -125,6 +133,7 @@ public class SQLiteDatabaseService : IDatabaseService
                 Encryption = @Encryption,
                 RadioType = @RadioType,
                 Channel = @Channel,
+                FrequencyMhz = @FrequencyMhz,
                 Signal = @Signal,
                 HighestSignal = CASE WHEN @Signal > HighestSignal THEN @Signal ELSE HighestSignal END,
                 Rssi = @Rssi,

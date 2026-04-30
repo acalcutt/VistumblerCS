@@ -293,6 +293,15 @@
                         <TextBlock Text="Bar Graph" VerticalAlignment="Center"/>
                     </StackPanel>
                 </ToggleButton>
+                <ToggleButton Command="{Binding ToggleMapCommand}"
+                              IsChecked="{Binding GraphMode, Converter={StaticResource EnumBoolConverter}, ConverterParameter=Map, Mode=OneWay}"
+                              IsEnabled="{Binding IsGraphButtonsEnabled}"
+                              ToolTip="Map" Height="24" Padding="6,1">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#x1F5FA;" FontSize="11" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Map" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </ToggleButton>
                 <Separator/>
 
                 <!-- Panel toggles -->
@@ -318,6 +327,15 @@
             DeadTimeSeconds="{Binding Settings.GraphGapThresholdSeconds}"
             SignalHistory="{Binding SelectedAccessPoint.SignalHistoryItems}"
             Visibility="{Binding IsGraphVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+        <!-- Map (visible only when Map mode active) -->
+        <controls:MaplibreMapHost
+            x:Name="MapHost"
+            Grid.Row="2"
+            Height="300"
+            Margin="10,10,10,0"
+            StyleUrl="https://tiles.wifidb.net/styles/WDB_COLOR_RELIEF/style.json"
+            Visibility="{Binding IsMapVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
         <!-- Main Content: hidden entirely in Minimal GUI mode -->
         <Grid Grid.Row="3" Margin="10"

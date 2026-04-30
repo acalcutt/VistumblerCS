@@ -39,6 +39,20 @@ public partial class MainWindow : Window
             if (e.PropertyName == nameof(SettingsViewModel.ActiveFilterId))
                 RebuildFilterMenu();
         };
+
+        // When GPS coordinates update, pan the map if it's visible
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(MainViewModel.CurrentLatitude) or nameof(MainViewModel.CurrentLongitude))
+            {
+                if (viewModel.GraphMode == Vistumbler.Core.Enums.GraphMode.Map
+                    && double.TryParse(viewModel.CurrentLatitude,  System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double lat)
+                    && double.TryParse(viewModel.CurrentLongitude, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double lon))
+                {
+                    MapHost.CenterOn(lat, lon);
+                }
+            }
+        };
     }
 
     // ── Filter menu (dynamic filter items) ─────────────────────────────────────

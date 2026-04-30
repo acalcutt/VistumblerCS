@@ -113,14 +113,18 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isMinimalGuiMode = false;
 
-    public bool IsGraphVisible        => !IsMinimalGuiMode && GraphMode != GraphMode.Hidden;
+    public bool IsGraphVisible        => !IsMinimalGuiMode && GraphMode is GraphMode.Line or GraphMode.Bar;
+    public bool IsMapVisible          => !IsMinimalGuiMode && GraphMode == GraphMode.Map;
     public bool IsTreeViewVisible     => !IsMinimalGuiMode && ShowTreeView;
     public bool IsContentVisible      => !IsMinimalGuiMode;
     public bool IsGraphButtonsEnabled => !IsMinimalGuiMode;
     public bool IsTreeToggleEnabled   => !IsMinimalGuiMode;
 
     partial void OnGraphModeChanged(GraphMode value)
-        => OnPropertyChanged(nameof(IsGraphVisible));
+    {
+        OnPropertyChanged(nameof(IsGraphVisible));
+        OnPropertyChanged(nameof(IsMapVisible));
+    }
 
     partial void OnShowTreeViewChanged(bool value)
         => OnPropertyChanged(nameof(IsTreeViewVisible));
@@ -129,6 +133,7 @@ public partial class MainViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(IsContentVisible));
         OnPropertyChanged(nameof(IsGraphVisible));
+        OnPropertyChanged(nameof(IsMapVisible));
         OnPropertyChanged(nameof(IsTreeViewVisible));
         OnPropertyChanged(nameof(IsGraphButtonsEnabled));
         OnPropertyChanged(nameof(IsTreeToggleEnabled));
@@ -170,6 +175,7 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ToggleGraph1Command { get; }
     public ICommand ToggleGraph2Command { get; }
     public ICommand ToggleGraphOffCommand { get; }
+    public ICommand ToggleMapCommand { get; }
     public ICommand ToggleUseRssiCommand { get; }
     public ICommand ToggleGraphDeadTimeCommand { get; }
     public ICommand ToggleTreeViewCommand { get; }
@@ -275,6 +281,7 @@ public partial class MainViewModel : ViewModelBase
         ToggleGraph1Command        = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Line ? GraphMode.Hidden : GraphMode.Line);
         ToggleGraph2Command        = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Bar  ? GraphMode.Hidden : GraphMode.Bar);
         ToggleGraphOffCommand      = new RelayCommand(() => GraphMode = GraphMode.Hidden);
+        ToggleMapCommand           = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Map  ? GraphMode.Hidden : GraphMode.Map);
         ToggleUseRssiCommand       = new RelayCommand(() => UseRssiInGraphs = !UseRssiInGraphs);
         ToggleGraphDeadTimeCommand = new RelayCommand(() => GraphDeadTime   = !GraphDeadTime);
         ToggleTreeViewCommand      = new RelayCommand(() => ShowTreeView     = !ShowTreeView);

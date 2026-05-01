@@ -17,6 +17,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Vistumbler.Core\Vistumbler.Core.csproj" />
     <ProjectReference Include="..\Vistumbler.Infrastructure\Vistumbler.Infrastructure.csproj" />
+    <!-- MapLibre WPF controls (MaplibreMapHost + nav popup) -->
+    <ProjectReference Include="..\MaplibreNative.NET.WPF\MaplibreNative.NET.WPF.csproj" />
   </ItemGroup>
 
   <ItemGroup>

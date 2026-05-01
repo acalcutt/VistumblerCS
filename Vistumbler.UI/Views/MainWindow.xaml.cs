@@ -12,6 +12,9 @@ public partial class MainWindow : Window
     private double _savedHeight;
     private double _savedMinHeight;
 
+    // Track which WifiDB GeoJSON layers are currently visible (sourceId → on/off)
+    private readonly System.Collections.Generic.HashSet<string> _activeWifiDbLayers = new();
+
     public MainWindow(MainViewModel viewModel)
     {
         InitializeComponent();
@@ -52,6 +55,13 @@ public partial class MainWindow : Window
                     MapHost.CenterOn(lat, lon);
                 }
             }
+        };
+
+        // Push live AP GeoJSON to the map after each scan cycle
+        viewModel.LiveApGeoJsonUpdated += (_, geoJson) =>
+        {
+            if (viewModel.GraphMode == Vistumbler.Core.Enums.GraphMode.Map)
+                MapHost.SetWifiGeoJsonLayerData("live_aps", geoJson);
         };
     }
 
@@ -176,5 +186,33 @@ public partial class MainWindow : Window
     {
         if (DataContext is MainViewModel vm && e.NewValue is TreeNodeViewModel node)
             vm.SelectedTreeviewNode = node;
+    }
+
+    // ── WifiDB layer buttons ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Toggles a WifiDB GeoJSON layer on/off. The button Tag property must
+    /// be set to the WifiDB API function name (e.g. "exp_daily").
+    /// Source id is derived from the function name (e.g. "wifidb_exp_daily").
+    /// </summary>
+    private void WifiDbLayerButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        string func     = btn.Tag?.ToString() ?? "";
+        string sourceId = "wifidb_" + func;
+        string url      = $"https://wifidb.net/api/geojson.php?func={func}&json=1";
+
+        if (_activeWifiDbLayers.Contains(sourceId))
+        {
+            MapHost.RemoveWifiGeoJsonLayer(sourceId);
+            _activeWifiDbLayers.Remove(sourceId);
+            btn.Content = btn.ToolTip;          // restore original label
+        }
+        else
+        {
+            MapHost.SetWifiGeoJsonLayer(sourceId, url);
+            _activeWifiDbLayers.Add(sourceId);
+            btn.Content = "\u25a0 " + btn.ToolTip; // filled square = active
+        }
     }
 }

@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Vistumbler.UI.ViewModels"
         xmlns:controls="clr-namespace:Vistumbler.UI.Controls"
+        xmlns:mlcontrols="clr-namespace:MaplibreNative.WPF;assembly=MaplibreNative.NET.WPF"
         mc:Ignorable="d"
         Title="Vistumbler CS - WiFi Scanner" Height="700" Width="1200"
         WindowStartupLocation="CenterScreen"
@@ -28,8 +29,9 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="300" MinHeight="60"/>
+            <RowDefinition Height="5"/>
+            <RowDefinition Height="*" MinHeight="80"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         
@@ -319,7 +321,6 @@
         <!-- Signal Graph (visible only when Graph1/Graph2 active) -->
         <controls:SignalGraphControl
             Grid.Row="2"
-            Height="300"
             Margin="10,10,10,0"
             Mode="{Binding GraphMode}"
             UseRssi="{Binding UseRssiInGraphs}"
@@ -329,16 +330,71 @@
             Visibility="{Binding IsGraphVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
         <!-- Map (visible only when Map mode active) -->
-        <controls:MaplibreMapHost
-            x:Name="MapHost"
-            Grid.Row="2"
-            Height="300"
-            Margin="10,10,10,0"
-            StyleUrl="https://tiles.wifidb.net/styles/WDB_COLOR_RELIEF/style.json"
-            Visibility="{Binding IsMapVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+        <Grid Grid.Row="2"
+              Visibility="{Binding IsMapVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <mlcontrols:MaplibreMapHost
+                x:Name="MapHost"
+                Grid.Row="0"
+                Margin="10,10,10,0"
+                StyleUrl="https://tiles.wifidb.net/styles/WDB_COLOR_RELIEF/style.json"/>
+
+            <!-- WifiDB layer buttons: fetch and show GeoJSON from the WifiDB database -->
+            <WrapPanel Grid.Row="1" Margin="10,4,10,4" Orientation="Horizontal">
+                <Button Tag="exp_daily"
+                        ToolTip="Daily"
+                        Content="Daily"
+                        Click="WifiDbLayerButton_Click"
+                        Height="22" Padding="8,2" Margin="0,0,4,0"
+                        FontSize="11"/>
+                <Button Tag="exp_weekly"
+                        ToolTip="Weekly"
+                        Content="Weekly"
+                        Click="WifiDbLayerButton_Click"
+                        Height="22" Padding="8,2" Margin="0,0,4,0"
+                        FontSize="11"/>
+                <Button Tag="exp_monthly"
+                        ToolTip="Monthly"
+                        Content="Monthly"
+                        Click="WifiDbLayerButton_Click"
+                        Height="22" Padding="8,2" Margin="0,0,4,0"
+                        FontSize="11"/>
+                <Button Tag="exp_0to1year"
+                        ToolTip="0-1 Year"
+                        Content="0-1 Year"
+                        Click="WifiDbLayerButton_Click"
+                        Height="22" Padding="8,2" Margin="0,0,4,0"
+                        FontSize="11"/>
+                <Button Tag="exp_1to2year"
+                        ToolTip="1-2 Year"
+                        Content="1-2 Year"
+                        Click="WifiDbLayerButton_Click"
+                        Height="22" Padding="8,2" Margin="0,0,4,0"
+                        FontSize="11"/>
+                <Button Tag="exp_2to3year"
+                        ToolTip="2-3 Year"
+                        Content="2-3 Year"
+                        Click="WifiDbLayerButton_Click"
+                        Height="22" Padding="8,2" Margin="0,0,4,0"
+                        FontSize="11"/>
+            </WrapPanel>
+        </Grid>
+
+        <!-- Drag to resize between map/graph and the AP list below -->
+        <GridSplitter Grid.Row="3"
+                      Height="5"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      ResizeDirection="Rows"
+                      Background="{StaticResource AccentBrush}"
+                      Cursor="SizeNS"/>
 
         <!-- Main Content: hidden entirely in Minimal GUI mode -->
-        <Grid Grid.Row="3" Margin="10"
+        <Grid Grid.Row="4" Margin="10"
               Visibility="{Binding IsContentVisible, Converter={StaticResource BoolToVisibilityConverter}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" MinWidth="0"/>
@@ -451,7 +507,7 @@
         </Grid>
         
         <!-- Status Bar -->
-        <StatusBar Grid.Row="4" Background="{StaticResource AccentBrush}">
+        <StatusBar Grid.Row="5" Background="{StaticResource AccentBrush}">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusMessage}"/>
             </StatusBarItem>

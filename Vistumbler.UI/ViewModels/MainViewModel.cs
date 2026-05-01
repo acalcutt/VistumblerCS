@@ -1021,7 +1021,53 @@ public partial class MainViewModel : ViewModelBase
         Application.Current.Dispatcher.Invoke(() =>
         {
             ActiveApCount = AccessPoints.Count(ap => ap.IsActive);
+            FireLiveApGeoJson();
         });
+    }
+
+    // ── Live AP GeoJSON ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Fired on the UI thread after each scan cycle with the current GeoJSON
+    /// FeatureCollection for all active APs that have GPS coordinates.
+    /// </summary>
+    public event EventHandler<string>? LiveApGeoJsonUpdated;
+
+    private void FireLiveApGeoJson()
+    {
+        if (LiveApGeoJsonUpdated == null) return;
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append("{\"type\":\"FeatureCollection\",\"features\":[");
+        bool first = true;
+        foreach (var ap in AccessPoints)
+        {
+            if (ap.Latitude == null || ap.Longitude == null) continue;
+            if (!first) sb.Append(',');
+            first = false;
+
+            int sectype = ap.Authentication switch
+            {
+                Vistumbler.Core.Models.AuthenticationType.Open  => 1,
+                _ => ap.Encryption == Vistumbler.Core.Models.EncryptionType.WEP ? 2 : 3,
+            };
+
+            sb.Append("{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[");
+            sb.Append(ap.Longitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            sb.Append(',');
+            sb.Append(ap.Latitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            sb.Append("]},\"properties\":{\"bssid\":\"");
+            sb.Append(ap.Bssid.Replace("\"", ""));
+            sb.Append("\",\"ssid\":\"");
+            sb.Append(ap.Ssid.Replace("\\", "\\\\").Replace("\"", "\\\""));
+            sb.Append("\",\"signal\":");
+            sb.Append(ap.Signal ?? 0);
+            sb.Append(",\"sectype\":");
+            sb.Append(sectype);
+            sb.Append("}}");
+        }
+        sb.Append("]}");
+        LiveApGeoJsonUpdated?.Invoke(this, sb.ToString());
     }
 
     private void OnScanError(object? sender, ScanErrorEventArgs e)

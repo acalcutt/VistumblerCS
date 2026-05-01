@@ -1,0 +1,1185 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        "mbgl-dotnet"
+    </assembly>
+    <members>
+        <member name="M:MaplibreNative.FileSourceManager.GetFileSource(&lt;unknown type&gt;,MaplibreNative.ResourceOptions,MaplibreNative.ClientOptions)">
+            <summary>
+Returns shared instance of a file source for (type, options) tuple.
+Creates new instance via registered factory if needed. If new instance
+cannot be created, nullptr would be returned.
+</summary>
+            <param name="type" />
+            <param name="resourceOptions" />
+            <param name="clientOptions" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.FileSourceManager.GetFileSource(&lt;unknown type&gt;,MaplibreNative.ResourceOptions)">
+            <summary>
+Returns shared instance of a file source for (type, options) tuple.
+Creates new instance via registered factory if needed. If new instance
+cannot be created, nullptr would be returned.
+</summary>
+            <param name="type" />
+            <param name="resourceOptions" />
+            <returns />
+        </member>
+        <member name="T:MaplibreNative.FileSourceManager">
+            <summary>
+A singleton class responsible for managing file sources.
+
+The FileSourceManager provides following functionality:
+
+- provides access to file sources of a specific type and configuration
+- caches previously created file sources of a (type, configuration) tuples
+</summary>
+        </member>
+        <member name="T:MaplibreNative.BackendScope.ScopeType">
+            <summary>
+There are two types of scopes: Creating an "Implicit" scope tells Mapbox
+GL that the supporting windowing system has already activated the GL
+Backend and that no further actions are required. Creating an "Explicit"
+scope actually enables the GL Backend, and disables it when the
+BackendScope is destroyed.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.HeadlessFrontend">
+            <summary>
+Common headless backend interface, provides HeadlessBackend backend factory
+and enables extending gfx::Renderable with platform specific implementation
+of <see cref="M:MaplibreNative.HeadlessFrontend.ReadStillImage" />.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.OverscaledTileID">
+            <summary>
+Has integer z/x/y coordinates
+overscaledZ describes the zoom level this tile is intented to represent, e.g.
+when parsing data z is never larger than the source's maxzoom z/x/y describe
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Resource.TileData">
+            <summary>
+Includes auxiliary data if this is a tile request.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.FileSource.SetResourceTransform(MaplibreNative.ResourceTransform)">
+            <summary>
+When supported, sets the modifier of the requested resources.
+</summary>
+            <param name="transform" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.FileSource.GetProperty(System.String)">
+            <summary>
+Generic getter method
+</summary>
+            <param name="key" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.FileSource.SetProperty(System.String,System.String)">
+            <summary>
+Generic setter method
+</summary>
+            <param name="key" />
+            <param name="value" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.FileSource.Resume">
+            <summary>
+Resume file request activity.
+
+Calling resume will unpause the file source and process any tasks that
+expired while the file source was paused.
+</summary>
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.FileSource.Pause">
+            <summary>
+Pause file request activity.
+
+If pause is called then no revalidation or network request activity
+will occur.
+</summary>
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.FileSource.CanRequest(MaplibreNative.Resource)">
+            <summary>
+Checks whether a resource could be requested from this file source.
+</summary>
+            <param name="resource" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.FileSource.SupportsCacheOnlyRequests">
+            <summary>
+When a file source supports consulting a local cache only, it must
+return true. Cache-only requests are requests that aren't as urgent, but
+could be useful, e.g. to cover part of the map while loading. The
+FileSource should only do cheap actions to retrieve the data, e.g. load
+it from a cache, but not from the internet.
+</summary>
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.FileSource.Forward(MaplibreNative.Resource,MaplibreNative.Response,System.Action)">
+            <summary>
+Allows to forward response from one source to another.
+Optionally, callback can be provided to receive notification for forward
+operation.
+</summary>
+            <param name="resource" />
+            <param name="response" />
+            <param name="callback" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.FileSource.Request(MaplibreNative.Resource,MaplibreNative.FileSource.Callback)">
+            <summary>
+Request a resource. The callback will be called asynchronously, in the
+same thread as the request was made. This thread must have an active
+RunLoop. The request may be cancelled before completion by releasing the
+returned AsyncRequest. If the request is cancelled before the callback
+is executed, the callback will not be executed.
+</summary>
+            <param name="resource" />
+            <param name="callback" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.ShaderRegistry.RegisterShaderGroup(MaplibreNative.ShaderGroup,System.String)">
+            <summary>
+Register a new shader group with the registry for the given name.
+If a shader group is present in the registry with a conflicting name, registration will fail.
+</summary>
+            <param name="shaderGroup">A <see cref="T:MaplibreNative.ShaderGroup" /> to register.</param>
+            <param name="shaderGroupName">Unique name to register the shader group under.</param>
+            <returns>True if the shader group was registered, false if another shader group is
+already present with a conflicting name.</returns>
+        </member>
+        <member name="M:MaplibreNative.ShaderRegistry.ReplaceShader(MaplibreNative.ShaderGroup,System.String)">
+            <summary>
+Replace a matching shader group in the registry with the provided name.
+</summary>
+            <param name="shaderGroup">A <see cref="T:MaplibreNative.ShaderGroup" />.</param>
+            <param name="shaderName">Unique name to register the shader group under.</param>
+            <returns>True if a match was found and the shader group was replaced, false otherwise.</returns>
+        </member>
+        <member name="M:MaplibreNative.ShaderRegistry.GetShaderGroup(System.String)">
+            <summary>
+Get a shader group from the registry by name.
+</summary>
+            <param name="shaderGroupName">Name of shader group</param>
+            <returns>A <see cref="T:MaplibreNative.ShaderGroup" /> or <see langword="null" /> if no shader group is found with the given name</returns>
+        </member>
+        <member name="M:MaplibreNative.ShaderRegistry.IsShaderGroup(System.String)">
+            <summary>
+Checks if a shader group exists in the registry for the given name.
+</summary>
+            <param name="shaderGroupName">Name of shader group</param>
+            <returns>If a shader group is found, true</returns>
+        </member>
+        <member name="M:MaplibreNative.ShaderRegistry.GetLegacyGroup">
+            <summary>
+Get the legacy shader group.
+</summary>
+            <returns>A <see cref="T:MaplibreNative.ShaderGroup" /></returns>
+        </member>
+        <member name="T:MaplibreNative.ShaderRegistry">
+            <summary>
+A ShaderRegistry contains a collection of gfx::Shader instances.
+Using the registry, shaders may be dynamically registered or replaced
+at runtime.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Projection.WorldSize(System.Double)">
+            <summary>
+Map pixel width at given scale.
+</summary>
+            <param name="scale" />
+            <returns />
+        </member>
+        <member name="P:MaplibreNative.Response.ResponseError.Message">
+            <summary>
+An error message from the request handler, e.g. a server message or a
+system message informing the user about the reason for the failure.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Response.Data">
+            <summary>
+The actual data of the response. Present only for non-error, non-notModified responses.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Response.MustRevalidate">
+            <summary>
+This is set to <see langword="true" /> when the server requested that no expired resources
+be used by specifying "Cache-Control: must-revalidate".
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Response.NotModified">
+            <summary>
+This is set to <see langword="true" /> for 304 Not Modified responses.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Response.NoContent">
+            <summary>
+This is set to <see langword="true" /> for 204 Not Modified responses, and, for backward
+compatibility, for 404 Not Found responses for tiles.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Response.Error">
+            <summary>
+When this property is <see langword="null" />, the response was successful.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Response.IsUsable">
+            <summary>
+Indicates whether we are allowed to use this response according to HTTP
+caching rules. It may or may not be stale.
+</summary>
+            <returns />
+        </member>
+        <member name="T:MaplibreNative.TileCoordinate">
+            <summary>
+Has floating point x/y coordinates.
+Used for computing the tiles that need to be visible in the viewport.
+In mapbox-gl-js, this is named MercatorCoordinate.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.TransformState.MoveLatLng(MaplibreNative.LatLng,MaplibreNative.PointDouble)">
+            <summary>
+Recenter the map so that the given coordinate is located at the given point on screen.
+</summary>
+            <param name="latLng" />
+            <param name="anchor" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.TransformState.ScreenCoordinateToTileCoordinate(MaplibreNative.PointDouble,System.Byte)">
+            <summary>
+Implements mapbox-gl-js pointCoordinate() : MercatorCoordinate.
+</summary>
+            <param name="point" />
+            <param name="atZoom" />
+            <returns />
+        </member>
+        <member name="P:MaplibreNative.ResourceOptions.PlatformContext">
+            <summary>
+Gets the previously set (or default) platform context.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.ResourceOptions.MaximumCacheSize">
+            <summary>
+Gets the previously set (or default) maximum allowed cache size in bytes.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.ResourceOptions.AssetPath">
+            <summary>
+Gets the previously set (or default) asset path.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.ResourceOptions.CachePath">
+            <summary>
+Gets the previously set (or default) cache path.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.ResourceOptions.ApiKey">
+            <summary>
+Gets the previously set (or default) Mapbox access token.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.ResourceOptions.Default">
+            <summary>
+Returns default resource options.
+</summary>
+            <returns>Resource options.</returns>
+        </member>
+        <member name="M:MaplibreNative.ResourceOptions.WithPlatformContext(System.IntPtr)">
+            <summary>
+Sets the platform context. A platform context is usually an object that assists the creation of a file source.
+</summary>
+            <param name="context">Platform context.</param>
+            <returns>ResourceOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.ResourceOptions.WithMaximumCacheSize(System.UInt64)">
+            <summary>
+Sets the maximum cache size.
+</summary>
+            <param name="size">Cache maximum size in bytes.</param>
+            <returns>ResourceOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.ResourceOptions.WithAssetPath(System.String)">
+            <summary>
+Sets the asset path, which is the root directory from where the asset:// scheme gets resolved in a style.
+</summary>
+            <param name="path">Asset path.</param>
+            <returns>ResourceOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.ResourceOptions.WithCachePath(System.String)">
+            <summary>
+Sets the cache path.
+</summary>
+            <param name="path">Cache path.</param>
+            <returns>ResourceOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.ResourceOptions.WithApiKey(System.String)">
+            <summary>
+Sets the Mapbox access token - see
+<see href="https://docs.mapbox.com/help/how-mapbox-works/access-tokens/" /> for details.
+</summary>
+            <param name="token">Mapbox access token.</param>
+            <returns>ResourceOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.ResourceOptions.#ctor">
+            <summary>
+Constructs a ResourceOptions object with default values.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.ResourceOptions">
+            <summary>
+Holds values for resource options.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.IRendererFrontend.Update(MaplibreNative.UpdateParameters)">
+            <summary>
+Coalescing updates is up to the implementer
+</summary>
+            <param name="parameters" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.IRendererFrontend.SetObserver(MaplibreNative.RendererObserver)">
+            <summary>
+Implementer must bind the renderer observer to the renderer in a
+appropriate manner so that the callbacks occur on the main thread
+</summary>
+            <param name="observer" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.IRendererFrontend.Reset">
+            <summary>
+Must synchronously clean up the Renderer if set
+</summary>
+            <returns />
+        </member>
+        <member name="T:MaplibreNative.IRendererFrontend">
+            <summary>
+The RenderFrontend is the bridge between the Map and
+platform used to update and observer the Renderer
+
+It hides any threading specifics and always replies on
+the original thread.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.ProjectionMode.YSkew">
+            <summary>
+The Y skew value represents how much to skew on the y-axis.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.ProjectionMode.XSkew">
+            <summary>
+The X skew value represents how much to skew on the x-axis.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.ProjectionMode.Axonometric">
+            <summary>
+Set to <see langword="true" /> to enable axonometric rendering, <see langword="false" /> otherwise.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.ProjectionMode">
+            <summary>
+Holds values for Axonometric rendering. All properties are optional.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.MapOptions.PixelRatio">
+            <summary>
+Gets the previously set (or default) pixel ratio value.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.MapOptions.Size">
+            <summary>
+Gets the previously set size.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.MapOptions.NorthOrientation">
+            <summary>
+Gets the previously set (or default) Orientation.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.MapOptions.CrossSourceCollisions">
+            <summary>
+Gets the previously set (or default) CrossSourceCollisions value.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.MapOptions.ViewportMode">
+            <summary>
+Gets the previously set (or default) Viewport mode.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.MapOptions.ConstrainMode">
+            <summary>
+Gets the previously set (or default) Constrain mode.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.MapOptions.MapMode">
+            <summary>
+Gets the previously set (or default) Map mode.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.MapOptions.WithPixelRatio(System.Single)">
+            <summary>
+Sets the custom pixel ratio. By default, it is set to 1.
+</summary>
+            <param name="ratio">Pixel ratio value.</param>
+            <returns>MapOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.MapOptions.WithSize(MaplibreNative.Size)">
+            <summary>
+Sets the size to resize the map object and renderer backend.
+</summary>
+            <param name="size">A size given in logical pixels.</param>
+            <returns>MapOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.MapOptions.WithNorthOrientation(&lt;unknown type&gt;)">
+            <summary>
+Sets the orientation of the Map. By default, it is set to Upwards.
+</summary>
+            <param name="orientation">Orientation of the Map.</param>
+            <returns>MapOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.MapOptions.WithCrossSourceCollisions(System.Boolean)">
+            <summary>
+Specify whether to enable cross-source symbol collision detection
+or not. By default, it is set to true.
+</summary>
+            <param name="enableCollisions">
+                <see langword="true" /> to enable, <see langword="false" /> to disable</param>
+            <returns>MapOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.MapOptions.WithViewportMode(&lt;unknown type&gt;)">
+            <summary>
+Sets the viewport mode. This can be used to flip the vertical
+orientation of the map as some devices may use inverted orientation.
+</summary>
+            <param name="mode">Viewport mode.</param>
+            <returns>MapOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.MapOptions.WithConstrainMode(&lt;unknown type&gt;)">
+            <summary>
+Sets the map constrain mode. This can be used to limit the map
+to wrap around the globe horizontally. By default, it is set to
+HeightOnly.
+</summary>
+            <param name="mode">Map constrain mode.</param>
+            <returns>MapOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.MapOptions.WithMapMode(&lt;unknown type&gt;)">
+            <summary>
+Sets the map rendering mode. By default, it is set to Continuous
+so the map will render as data arrives from the network and react
+immediately to state changes.
+</summary>
+            <param name="mode">Map rendering mode.</param>
+            <returns>MapOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.MapOptions.#ctor">
+            <summary>
+Constructs a MapOptions object with default values.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.MapOptions">
+            <summary>
+Holds values for Map options.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.MapObserver.onCanRemoveUnusedStyleImage(System.String)">
+            <summary>
+This method should return true if unused image can be removed,
+false otherwise. By default, unused image will be removed.
+</summary>
+            <param name="id" />
+            <returns />
+        </member>
+        <member name="E:MaplibreNative.MapObserver.ShaderCompileFailed">
+            <summary>Fired when a shader fails to compile.</summary>
+        </member>
+        <member name="E:MaplibreNative.MapObserver.PostCompileShader">
+            <summary>Fired when a shader finishes compiling successfully.</summary>
+        </member>
+        <member name="E:MaplibreNative.MapObserver.PreCompileShader">
+            <summary>Fired when a shader begins compiling.</summary>
+        </member>
+        <member name="E:MaplibreNative.MapObserver.RegisterShaders">
+            <summary>
+Observe this event to easily mutate or observe shaders as soon
+as the registry becomes available.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.MapObserver.ShaderCompileFailedHandler">
+            <summary>Fired when a shader fails to compile.</summary>
+        </member>
+        <member name="T:MaplibreNative.MapObserver.PostCompileShaderHandler">
+            <summary>Fired when a shader finishes compiling.</summary>
+        </member>
+        <member name="T:MaplibreNative.MapObserver.PreCompileShaderHandler">
+            <summary>Fired when a shader begins compiling.</summary>
+        </member>
+        <member name="T:MaplibreNative.MapObserver.CanRemoveUnusedStyleImageHandler">
+            <summary>
+This event handler should return true if unused image can be removed,
+false otherwise. By default, unused image will be removed.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Map.FreeCameraOptions">
+            <summary>
+FreeCameraOptions provides more direct access to the underlying camera
+entity. For backwards compatibility the state set using this API must be
+representable with `CameraOptions` as well. Parameters are clamped to a
+valid range or discarded as invalid if the conversion to the pitch and
+bearing presentation is ambiguous. For example orientation can be
+invalid if it leads to the camera being upside down or the quaternion
+has zero length.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Map.TileLodMinRadius">
+            <summary>
+The number of map tile requests can be reduced by using a lower level of details away from
+the camera. This can improve performance, particularly when the camera pitch is high.
+See the maplibre-native documentation for details on the LOD heuristic parameters.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Map.PrefetchZoomDelta">
+            <summary>
+When loading a map, if <see cref="P:MaplibreNative.Map.PrefetchZoomDelta" /> is set to any number greater
+than 0, the map will first request a tile for `zoom - delta` in a
+attempt to display a full map at lower resolution as quick as possible.
+It will get clamped at the tile source minimum zoom. The default `delta`
+is 4.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Map.Bounds">
+            <summary>
+Returns the current map bound options. All optional fields in BoundOptions are set.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Map.TriggerRepaint">
+            <summary>
+Triggers a repaint.
+</summary>
+            <returns />
+        </member>
+        <member name="T:MaplibreNative.Map.StillImageCallback">
+            <summary>
+Register a callback that will get called (on the render thread) when all
+resources have been loaded and a complete render occurs.
+</summary>
+        </member>
+        <member name="F:&lt;unknown type&gt;.ResourceLoader">
+            <summary>
+Resource loader acts as a proxy and has logic
+for request delegation to Asset, Cache, and other
+file sources.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.NorthOrientation">
+            <summary>
+Determines the orientation of the map.
+</summary>
+        </member>
+        <member name="F:&lt;unknown type&gt;.Upwards">
+            <summary>
+Default
+</summary>
+        </member>
+        <member name="T:MaplibreNative.SourceType">
+            <summary>
+The type of a map style source.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.TileLodMode">
+            <summary>
+Selects the tile LOD (level of detail) algorithm used when rendering at high pitch.
+</summary>
+        </member>
+        <member name="F:&lt;unknown type&gt;.Distance">
+            <summary>
+Distance-based tile LOD algorithm (tiles closer to the camera are rendered at higher detail).
+</summary>
+        </member>
+        <member name="F:&lt;unknown type&gt;.Default">
+            <summary>
+Default tile LOD algorithm (center-of-screen based).
+</summary>
+        </member>
+        <member name="F:&lt;unknown type&gt;.Screen">
+            <summary>
+Constrain the map so that the screen bounds match the lat/lng bounds set via BoundOptions.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.FreeCameraOptions.Location">
+            <summary>
+Sets the mercator position as Lat&amp;Lng and altitude in meters.
+Fails to return a value if <see cref="P:MaplibreNative.FreeCameraOptions.Position" />
+is invalid or is not set.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.FreeCameraOptions.Orientation">
+            <summary>
+Orientation of the camera represented as a unit quaternion [x, y, z, w].
+The default pose of the camera is such that the forward vector is
+looking up the -Z axis and the up vector is aligned with north
+orientation of the map: forward [0, 0, -1], up [0, -1, 0], right [1, 0, 0]
+
+ Orientation can be set freely but certain constraints still apply
+  - Pitch has an upper limit
+</summary>
+        </member>
+        <member name="P:MaplibreNative.FreeCameraOptions.Position">
+            <summary>
+Position of the camera in slightly modified web mercator coordinates
+ - The size of 1 unit is the width of the projected world instead of the
+"mercator meter". Coordinate [0, 0, 0] is the north-west corner and
+[1, 1, 0] is the south-east corner.
+ - Z coordinate is conformal and must respect minimum and maximum zoom
+values.
+ - Zoom is automatically computed from the altitude (z)
+</summary>
+        </member>
+        <member name="M:MaplibreNative.FreeCameraOptions.SetRollPitchBearing(System.Double,System.Double,System.Double)">
+            <summary>
+Helper function for setting the orientation of the camera as a roll, pitch and
+a bearing. All values are in degrees.
+</summary>
+            <param name="roll" />
+            <param name="pitch" />
+            <param name="bearing" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.FreeCameraOptions.LookAtPoint(MaplibreNative.LatLng,MaplibreNative.Vec3)">
+            <summary>
+Helper function for setting orientation of the camera by defining a
+focus point on the map. Up vector is required in certain scenarios where
+bearing can't be deduced from the viewing direction
+</summary>
+            <param name="location" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.FreeCameraOptions.LookAtPoint(MaplibreNative.LatLng)">
+            <summary>
+Helper function for setting orientation of the camera by defining a
+focus point on the map. Up vector is required in certain scenarios where
+bearing can't be deduced from the viewing direction
+</summary>
+            <param name="location" />
+            <returns />
+        </member>
+        <member name="T:MaplibreNative.FreeCameraOptions">
+            <summary>
+Various options for accessing physical properties of the underlying camera
+entity. A direct access to these properties allows more flexible and precise
+controlling of the camera while also being fully compatible and
+interchangeable with CameraOptions. All properties are optional.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.ClientOptions.Version">
+            <summary>
+Gets the previously set (or default) client version.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.ClientOptions.Name">
+            <summary>
+Gets the previously set (or default) client name.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.ClientOptions.WithVersion(System.String)">
+            <summary>
+Sets the client version.
+</summary>
+            <param name="version">Client version.</param>
+            <returns>ClientOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.ClientOptions.WithName(System.String)">
+            <summary>
+Sets the client name.
+</summary>
+            <param name="name">Client name.</param>
+            <returns>ClientOptions for chaining options together.</returns>
+        </member>
+        <member name="M:MaplibreNative.ClientOptions.#ctor">
+            <summary>
+Constructs a ClientOptions object with default values.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.ClientOptions">
+            <summary>
+Holds values for client options.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.CameraOptions.CenterAltitude">
+            <summary>
+Altitude of the center of the map, in meters above sea level.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.CameraOptions.Fov">
+            <summary>
+Camera vertical field of view, measured in degrees.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.CameraOptions.Roll">
+            <summary>
+Camera roll, measured in degrees.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.CameraOptions.Pitch">
+            <summary>
+Pitch toward the horizon measured in degrees , with 0 deg resulting in a
+two - dimensional map.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.CameraOptions.Bearing">
+            <summary>
+Bearing, measured in degrees from true north. Wrapped to [0, 360).
+</summary>
+        </member>
+        <member name="P:MaplibreNative.CameraOptions.Zoom">
+            <summary>
+Zero-based zoom level. Constrained to the minimum and maximum zoom levels.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.CameraOptions.Anchor">
+            <summary>
+Point of reference for <see cref="P:MaplibreNative.CameraOptions.Zoom" />, <see cref="P:MaplibreNative.CameraOptions.Bearing" /> and <see cref="P:MaplibreNative.CameraOptions.Pitch" />, assuming an origin at the
+top - left corner of the view.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.CameraOptions.Padding">
+            <summary>
+Padding around the interior of the view that affects the frame of
+reference for <see cref="P:MaplibreNative.CameraOptions.Center" />.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.CameraOptions.Center">
+            <summary>
+Coordinate at the center of the map.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.CameraOptions">
+            <summary>
+Various options for describing the viewpoint of a map. All properties are
+optional.
+Anchor and center points are mutually exclusive, with preference for the
+center point when both are set.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.BoundOptions.MinPitch">
+            <summary>
+Minimum pitch allowed in degrees.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.BoundOptions.MaxPitch">
+            <summary>
+Maximum pitch allowed in degrees.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.BoundOptions.MinZoom">
+            <summary>
+Minimum zoom level allowed.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.BoundOptions.MaxZoom">
+            <summary>
+Maximum zoom level allowed.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.BoundOptions.Bounds">
+            <summary>
+Constrain the center of the camera to be within these bounds.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.BoundOptions.WithMaxPitch(System.Double)">
+            <summary>
+Sets the maximum pitch
+</summary>
+            <param name="p" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.BoundOptions.WithMinPitch(System.Double)">
+            <summary>
+Sets the minimum pitch
+</summary>
+            <param name="p" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.BoundOptions.WithMaxZoom(System.Double)">
+            <summary>
+Sets the maximum zoom level
+</summary>
+            <param name="z" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.BoundOptions.WithMinZoom(System.Double)">
+            <summary>
+Sets the minimum zoom level
+</summary>
+            <param name="z" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.BoundOptions.WithLatLngBounds(MaplibreNative.LatLngBounds)">
+            <summary>
+Sets the latitude and longitude bounds to which the camera center are constrained
+</summary>
+            <param name="b" />
+            <returns />
+        </member>
+        <member name="T:MaplibreNative.BoundOptions">
+            <summary>
+Holds options to limit what parts of a map are visible. All properties are optional.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.UnwrappedTileID">
+            <summary>
+Has integer z/x/y coordinates
+wrap describes tiles that are left/right of the main tile pyramid, e.g. when
+wrapping the world Used for describing what position tiles are getting
+rendered at (= calc the matrix) z is never larger than the source's maxzoom
+</summary>
+        </member>
+        <member name="M:MaplibreNative.LatLngBounds.Empty">
+            <summary>
+Return a bounds that may serve as the identity element for the extend operation.
+</summary>
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.LatLngBounds.Hull(MaplibreNative.LatLng,MaplibreNative.LatLng)">
+            <summary>
+Return the convex hull of two points; the smallest bounds that contains both.
+</summary>
+            <param name="a" />
+            <param name="b" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.LatLngBounds.Singleton(MaplibreNative.LatLng)">
+            <summary>
+Return the bounds consisting of the single point.
+</summary>
+            <param name="a" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.LatLngBounds.World">
+            <summary>
+Return a bounds covering the entire (unwrapped) world.
+</summary>
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.LatLngBounds.#ctor(MaplibreNative.CanonicalTileID)">
+            <summary>
+Constructs a LatLngBounds object with the tile's exact boundaries.
+</summary>
+            <param name="id" />
+        </member>
+        <member name="M:MaplibreNative.LatLngBounds.#ctor">
+            <summary>
+Construct an infinite bound, a bound for which the constrain method
+returns its input unmodified.
+
+Note: this is different than <see cref="M:MaplibreNative.LatLngBounds.World" /> since arbitrary
+unwrapped coordinates are also inside the bounds.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.LatLng.UnwrapForShortestPath(MaplibreNative.LatLng)">
+            <summary>
+If the distance from start to end longitudes is between half and full
+world, unwrap the start longitude to ensure the shortest path is taken.
+</summary>
+            <param name="end" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.LatLng.#ctor(MaplibreNative.CanonicalTileID)">
+            <summary>
+Constructs a LatLng object with the top left position of the specified tile.
+</summary>
+            <param name="id" />
+        </member>
+        <member name="T:MaplibreNative.CanonicalTileID">
+            <summary>
+Has integer z/x/y coordinates
+All tiles must be derived from 0/0/0 (=no tiles outside of the main tile
+pyramid) Used for requesting data; represents data tiles that exist out
+there. z is never larger than the source's maxzoom
+</summary>
+        </member>
+        <member name="M:MaplibreNative.UnassociatedImage.Copy(MaplibreNative.UnassociatedImage,MaplibreNative.UnassociatedImage,MaplibreNative.PointUInt,MaplibreNative.PointUInt,MaplibreNative.Size)">
+            <summary>
+Copy image data at <paramref name="srcPt" /> within <paramref name="size" /> from <paramref name="srcImg" /> to the rectangle of the same
+size at <paramref name="dstPt" /> in <paramref name="dstImg" />.
+</summary>
+            <param name="srcImg" />
+            <param name="dstImg" />
+            <param name="srcPt" />
+            <param name="dstPt" />
+            <param name="size" />
+            <returns />
+            <exception cref="T:System.Exception">
+Thrown if the specified bounds exceed the bounds of the
+source or destination. Must not be used to
+move data within a single Image.
+</exception>
+        </member>
+        <member name="M:MaplibreNative.UnassociatedImage.Clear(MaplibreNative.UnassociatedImage,MaplibreNative.PointUInt,MaplibreNative.Size)">
+            <summary>
+Clears the rect area specified by <paramref name="pt" /> and <paramref name="size" /> from <paramref name="dstImg" />.
+</summary>
+            <param name="dstImg" />
+            <param name="pt" />
+            <param name="size" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.PremultipliedImage.Copy(MaplibreNative.PremultipliedImage,MaplibreNative.PremultipliedImage,MaplibreNative.PointUInt,MaplibreNative.PointUInt,MaplibreNative.Size)">
+            <summary>
+Copy image data at <paramref name="srcPt" /> within <paramref name="size" /> from <paramref name="srcImg" /> to the rectangle of the same
+size at <paramref name="dstPt" /> in <paramref name="dstImg" />.
+</summary>
+            <param name="srcImg" />
+            <param name="dstImg" />
+            <param name="srcPt" />
+            <param name="dstPt" />
+            <param name="size" />
+            <returns />
+            <exception cref="T:System.Exception">
+Thrown if the specified bounds exceed the bounds of the
+source or destination. Must not be used to
+move data within a single Image.
+</exception>
+        </member>
+        <member name="M:MaplibreNative.PremultipliedImage.Clear(MaplibreNative.PremultipliedImage,MaplibreNative.PointUInt,MaplibreNative.Size)">
+            <summary>
+Clears the rect area specified by <paramref name="pt" /> and <paramref name="size" /> from <paramref name="dstImg" />.
+</summary>
+            <param name="dstImg" />
+            <param name="pt" />
+            <param name="size" />
+            <returns />
+        </member>
+        <member name="M:MaplibreNative.AlphaImage.Copy(MaplibreNative.AlphaImage,MaplibreNative.AlphaImage,MaplibreNative.PointUInt,MaplibreNative.PointUInt,MaplibreNative.Size)">
+            <summary>
+Copy image data at <paramref name="srcPt" /> within <paramref name="size" /> from <paramref name="srcImg" /> to the rectangle of the same
+size at <paramref name="dstPt" /> in <paramref name="dstImg" />.
+</summary>
+            <param name="srcImg" />
+            <param name="dstImg" />
+            <param name="srcPt" />
+            <param name="dstPt" />
+            <param name="size" />
+            <returns />
+            <exception cref="T:System.Exception">
+Thrown if the specified bounds exceed the bounds of the
+source or destination. Must not be used to
+move data within a single Image.
+</exception>
+        </member>
+        <member name="M:MaplibreNative.AlphaImage.Clear(MaplibreNative.AlphaImage,MaplibreNative.PointUInt,MaplibreNative.Size)">
+            <summary>
+Clears the rect area specified by <paramref name="pt" /> and <paramref name="size" /> from <paramref name="dstImg" />.
+</summary>
+            <param name="dstImg" />
+            <param name="pt" />
+            <param name="size" />
+            <returns />
+        </member>
+        <member name="F:MaplibreNative.ImageAlphaMode.Exclusive">
+            <summary>
+Alpha-channel only
+</summary>
+        </member>
+        <member name="P:MaplibreNative.EdgeInsets.Right">
+            <summary>
+Number of pixels inset from the right edge.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.EdgeInsets.Bottom">
+            <summary>
+Number of pixels inset from the bottom edge.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.EdgeInsets.Left">
+            <summary>
+Number of pixels inset from the left edge.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.EdgeInsets.Top">
+            <summary>
+Number of pixels inset from the top edge.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.EdgeInsets">
+            <summary>
+The distance on each side between a rectangle and a rectangle within.
+</summary>
+        </member>
+        <member name="E:MaplibreNative.RendererObserver.RegisterShaders">
+            <summary>
+Entry point for custom shader registration
+</summary>
+        </member>
+        <member name="E:MaplibreNative.RendererObserver.DidFinishRenderingMap">
+            <summary>
+Final frame
+</summary>
+        </member>
+        <member name="E:MaplibreNative.RendererObserver.DidFinishRenderingFrame">
+            <summary>
+End of frame, booleans flags that a repaint is required and that placement changed.
+</summary>
+        </member>
+        <member name="E:MaplibreNative.RendererObserver.WillStartRenderingFrame">
+            <summary>
+Start of frame, initial is the first frame for this map
+</summary>
+        </member>
+        <member name="E:MaplibreNative.RendererObserver.WillStartRenderingMap">
+            <summary>
+First frame
+</summary>
+        </member>
+        <member name="E:MaplibreNative.RendererObserver.ResourceError">
+            <summary>
+Resource failed to download / parse
+</summary>
+        </member>
+        <member name="E:MaplibreNative.RendererObserver.Invalidate">
+            <summary>
+Signals that a repaint is required
+</summary>
+        </member>
+        <member name="T:MaplibreNative.RendererObserver.StyleImageMissingCallback">
+            <summary>
+Style is missing an image
+</summary>
+        </member>
+        <member name="M:MaplibreNative.UnitBezier.#ctor(System.Double,System.Double,System.Double,System.Double)">
+            <summary>
+Calculate the polynomial coefficients, implicit first and last control points are (0,0) and (1,1).
+</summary>
+            <param name="p1x" />
+            <param name="p1y" />
+            <param name="p2x" />
+            <param name="p2y" />
+        </member>
+        <member name="P:MaplibreNative.AnimationOptions.TransitionFinishFn">
+            <summary>
+A function that is called once on the last frame of the transition, just
+before the corresponding screen update.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.AnimationOptions.TransitionFrameFn">
+            <summary>
+A function that is called on each frame of the transition, just before a
+screen update, except on the last frame. The first parameter indicates
+the elapsed time as a percentage of the duration.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.AnimationOptions.Easing">
+            <summary>
+The easing timing curve of the transition.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.AnimationOptions.MinZoom">
+            <summary>
+Zero-based zoom level at the peak of the flyTo() transition’s flight
+path.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.AnimationOptions.Velocity">
+            <summary>
+Average velocity of a flyTo() transition, measured in screenfuls per
+second, assuming a linear timing curve.
+
+A <i>screenful</i> is the visible span in pixels. It does not correspond
+to a fixed physical distance but rather varies by zoom level.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.AnimationOptions.Duration">
+            <summary>
+Time to animate to the viewpoint defined herein.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.AnimationOptions.#ctor(System.TimeSpan)">
+            <summary>
+Creates an animation with the specified duration.
+</summary>
+            <param name="d" />
+        </member>
+        <member name="M:MaplibreNative.AnimationOptions.#ctor">
+            <summary>
+Creates an animation with no options specified.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.AnimationOptions">
+            <summary>
+Various options for describing a transition between viewpoints with
+animation. All properties are optional; the default values depend on how this
+struct is used.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.ShaderGroup.RegisterShader(MaplibreNative.Shader,System.String)">
+            <summary>
+Register a new shader with the group. If a shader is present
+in the group with a conflicting name, registration will fail.
+This variant registers using an explicit name.
+</summary>
+            <param name="shader">A <see cref="T:MaplibreNative.Shader" />.</param>
+            <param name="shaderName">Unique name to register the shader under.</param>
+            <returns>True if the shader was registered, false if another shader is already present with a conflicting name.</returns>
+        </member>
+        <member name="M:MaplibreNative.ShaderGroup.RegisterShader(MaplibreNative.Shader)">
+            <summary>
+Register a new shader with the group. If a shader is present
+in the group with a conflicting name, registration will fail.
+</summary>
+            <param name="shader">A <see cref="T:MaplibreNative.Shader" /> to register.</param>
+            <returns>True if the shader was registered, false if another shader is already present with a conflicting name.</returns>
+        </member>
+        <member name="M:MaplibreNative.ShaderGroup.ReplaceShader(MaplibreNative.Shader,System.String)">
+            <summary>
+Replace a matching shader in the group with the provided instance. Shader type-names must match.
+This variant replaces by explicit name.
+</summary>
+            <param name="shader">A <see cref="T:MaplibreNative.Shader" />.</param>
+            <param name="shaderName">Unique name to register the shader under.</param>
+            <returns>True if a match was found and the shader was replaced, false otherwise.</returns>
+        </member>
+        <member name="M:MaplibreNative.ShaderGroup.ReplaceShader(MaplibreNative.Shader)">
+            <summary>
+Replace a matching shader in the group with the provided instance. Shader type-names must match.
+</summary>
+            <param name="shader">A <see cref="T:MaplibreNative.Shader" />.</param>
+            <returns>True if a match was found and the shader was replaced, false otherwise.</returns>
+        </member>
+        <member name="M:MaplibreNative.ShaderGroup.GetShader(System.String)">
+            <summary>
+Get a shader from the group by name
+</summary>
+            <param name="shaderName">Name of shader</param>
+            <returns>A <see cref="T:MaplibreNative.Shader" /> or <see langword="null" /> if no shader is found with the given name</returns>
+        </member>
+        <member name="M:MaplibreNative.ShaderGroup.IsShader(System.String)">
+            <summary>
+Checks if a shader exists in the group for the given name.
+</summary>
+            <param name="shaderName">Name of shader</param>
+            <returns>If a shader is found, true</returns>
+        </member>
+        <member name="T:MaplibreNative.ShaderGroup">
+            <summary>
+A ShaderGroup contains a collection of <see cref="T:MaplibreNative.Shader" />.
+Using the group, shaders may be dynamically registered or replaced
+at runtime.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Shader.TypeName">
+            <summary>
+Get the type name of this shader
+</summary>
+        </member>
+        <member name="T:MaplibreNative.Shader">
+            <summary>
+A shader is used as the base class for all programs across any supported
+backend API. Shaders are registered with a <see cref="T:MaplibreNative.ShaderRegistry" /> instance.
+</summary>
+        </member>
+    </members>
+</doc>

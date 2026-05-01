@@ -367,7 +367,10 @@ public class MaplibreMapHost : HwndHost
     {
         bool visible = (bool)e.NewValue;
         if (visible)
+        {
+            _renderNeedsUpdate = true;   // ensure first frame renders even if size didn't change
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)TryInitialize);
+        }
         else
             _renderTimer?.Stop();
 
@@ -422,6 +425,11 @@ public class MaplibreMapHost : HwndHost
     protected override void OnRenderSizeChanged(SizeChangedInfo info)
     {
         base.OnRenderSizeChanged(info);
+
+        // Guard: WPF collapses the element to 0×0 when Visibility=Collapsed.
+        // Passing 0-size to MapLibre native crashes the OpenGL renderer.
+        if (info.NewSize.Width < 1 || info.NewSize.Height < 1) return;
+
         float dpi = GetDpiScale();
         int wP = Math.Max(1, (int)(info.NewSize.Width  * dpi));
         int hP = Math.Max(1, (int)(info.NewSize.Height * dpi));

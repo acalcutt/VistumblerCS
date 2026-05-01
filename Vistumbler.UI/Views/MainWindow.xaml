@@ -271,10 +271,10 @@
                 <ToggleButton Command="{Binding ToggleGraphOffCommand}"
                               IsChecked="{Binding GraphMode, Converter={StaticResource EnumBoolConverter}, ConverterParameter=Hidden, Mode=OneWay}"
                               IsEnabled="{Binding IsGraphButtonsEnabled}"
-                              ToolTip="Hide Graph" Height="24" Padding="6,1">
+                              ToolTip="List only (hide graph and map)" Height="24" Padding="6,1">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#x274C;" FontSize="9" Margin="0,0,3,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="No Graph" VerticalAlignment="Center"/>
+                        <TextBlock Text="&#x1F4CB;" FontSize="9" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="List" VerticalAlignment="Center"/>
                     </StackPanel>
                 </ToggleButton>
                 <ToggleButton Command="{Binding ToggleGraph1Command}"

@@ -15,6 +15,9 @@ public partial class MainWindow : Window
     // Track which WifiDB GeoJSON layers are currently visible (sourceId → on/off)
     private readonly System.Collections.Generic.HashSet<string> _activeWifiDbLayers = new();
 
+    // Saved height of the map/graph row (Row 2) so it can be restored after hiding
+    private double _mapGraphRowHeight = 300;
+
     public MainWindow(MainViewModel viewModel)
     {
         InitializeComponent();
@@ -63,6 +66,37 @@ public partial class MainWindow : Window
             if (viewModel.GraphMode == Vistumbler.Core.Enums.GraphMode.Map)
                 MapHost.SetWifiGeoJsonLayerData("live_aps", geoJson);
         };
+
+        // Collapse/expand the map+graph row and GridSplitter row when switching modes
+        void ApplyGraphRowVisibility()
+        {
+            bool show = viewModel.IsGraphVisible || viewModel.IsMapVisible;
+            var outerGrid = (Grid)Content;
+            if (show)
+            {
+                outerGrid.RowDefinitions[2].MinHeight = 60;
+                outerGrid.RowDefinitions[2].Height    = new System.Windows.GridLength(_mapGraphRowHeight);
+                outerGrid.RowDefinitions[3].Height    = new System.Windows.GridLength(5);
+            }
+            else
+            {
+                if (outerGrid.RowDefinitions[2].ActualHeight > 0)
+                    _mapGraphRowHeight = outerGrid.RowDefinitions[2].ActualHeight;
+                outerGrid.RowDefinitions[2].MinHeight = 0;
+                outerGrid.RowDefinitions[2].Height    = new System.Windows.GridLength(0);
+                outerGrid.RowDefinitions[3].Height    = new System.Windows.GridLength(0);
+            }
+        }
+
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(MainViewModel.GraphMode) or
+                                  nameof(MainViewModel.IsMinimalGuiMode))
+                ApplyGraphRowVisibility();
+        };
+
+        // Apply on load so the initial Hidden state collapses the rows immediately
+        Loaded += (_, _) => ApplyGraphRowVisibility();
     }
 
     // ── Filter menu (dynamic filter items) ─────────────────────────────────────

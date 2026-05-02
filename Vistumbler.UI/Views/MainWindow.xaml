@@ -345,6 +345,44 @@
 
             <!-- WifiDB layer buttons: fetch and show GeoJSON from the WifiDB database -->
             <WrapPanel Grid.Row="1" Margin="10,4,10,4" Orientation="Horizontal">
+
+                <!-- Location indicator controls -->
+                <ToggleButton x:Name="BtnFollowLocation"
+                              IsChecked="True"
+                              ToolTip="Follow GPS: when active the map re-centres on each fix (preserves zoom after first fix)"
+                              Click="BtnFollowLocation_Click"
+                              Height="22" Padding="8,2" Margin="0,0,4,0" FontSize="11">
+                    <ToggleButton.Style>
+                        <Style TargetType="ToggleButton">
+                            <Setter Property="Content" Value="Free"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter Property="Content" Value="Follow"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ToggleButton.Style>
+                </ToggleButton>
+                <ToggleButton x:Name="BtnShowBearing"
+                              IsChecked="True"
+                              ToolTip="Bearing: when active the location indicator arrow shows GPS track direction; when inactive it always points north"
+                              Click="BtnShowBearing_Click"
+                              Height="22" Padding="8,2" Margin="0,0,8,0" FontSize="11">
+                    <ToggleButton.Style>
+                        <Style TargetType="ToggleButton">
+                            <Setter Property="Content" Value="N&#x2191;"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter Property="Content" Value="GPS&#x2191;"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ToggleButton.Style>
+                </ToggleButton>
+
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}"
+                           Margin="0,2,8,2"/>
+
                 <Button Tag="exp_daily"
                         ToolTip="Daily"
                         Content="Daily"

@@ -103,6 +103,16 @@ public class MaplibreMapHost : HwndHost
         _renderNeedsUpdate = true;
     }
 
+    /// <summary>Pan to a location without changing the current zoom level.</summary>
+    private void PanTo(double lat, double lon)
+    {
+        if (_map == null) return;
+        var cam = new CameraOptions();
+        cam.Center = new LatLng(lat, lon);
+        _map.JumpTo(cam);
+        _renderNeedsUpdate = true;
+    }
+
     // ── GeoJSON layer management ──────────────────────────────────────────────
     // These methods call APIs added to Style in the C++/CLI wrapper. They use
     // reflection so the WPF library keeps compiling against older DLL builds
@@ -206,7 +216,15 @@ public class MaplibreMapHost : HwndHost
         }
 
         // Remember latest position so it can be replayed after a style reload
+        bool isFirstFix = !_pendingLocInd.HasValue;
         _pendingLocInd = new LocIndParams(lat, lon, bearing, Math.Max(5f, accuracyMeters));
+
+        // Follow mode: zoom to 14 on the first fix, then just pan (preserves user zoom)
+        if (FollowLocation)
+        {
+            if (isFirstFix) CenterOn(lat, lon);
+            else            PanTo(lat, lon);
+        }
 
         if (!_styleReady) return;  // OnMapStyleLoaded will call us again
 
@@ -242,7 +260,7 @@ public class MaplibreMapHost : HwndHost
         }
 
         _piLocLoc?.SetValue(_locIndObj, new double[] { lat, lon, 0.0 });
-        _piLocBearing?.SetValue(_locIndObj, bearing);
+        _piLocBearing?.SetValue(_locIndObj, ShowBearing ? bearing : 0f);
         _piLocAccuracy?.SetValue(_locIndObj, _pendingLocInd.Value.AccuracyM);
         _renderNeedsUpdate = true;
     }
@@ -426,6 +444,12 @@ public class MaplibreMapHost : HwndHost
     private int                               _renderTickCount;
 
     // ── Location indicator state ──────────────────────────────────────────────
+
+    /// <summary>When true, each GPS fix also re-centres the map (zoom-preserving after the first fix).</summary>
+    public bool FollowLocation { get; set; } = true;
+
+    /// <summary>When false, the bearing arrow is suppressed — the indicator always points north.</summary>
+    public bool ShowBearing { get; set; } = true;
 
     private const string LocIndLayerId = "vistumbler_location";
     private object? _locIndObj;        // LocationIndicatorLayer instance (null until style loads)

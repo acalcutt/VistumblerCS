@@ -46,20 +46,6 @@ public partial class MainWindow : Window
                 RebuildFilterMenu();
         };
 
-        // When GPS coordinates update, pan the map if it's visible
-        viewModel.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(MainViewModel.CurrentLatitude) or nameof(MainViewModel.CurrentLongitude))
-            {
-                if (viewModel.GraphMode == Vistumbler.Core.Enums.GraphMode.Map
-                    && double.TryParse(viewModel.CurrentLatitude,  System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double lat)
-                    && double.TryParse(viewModel.CurrentLongitude, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double lon))
-                {
-                    MapHost.CenterOn(lat, lon);
-                }
-            }
-        };
-
         // Push live AP GeoJSON to the map after each scan cycle
         viewModel.LiveApGeoJsonUpdated += (_, geoJson) =>
         {
@@ -235,6 +221,12 @@ public partial class MainWindow : Window
     }
 
     // ── WifiDB layer buttons ──────────────────────────────────────────────────
+
+    private void BtnFollowLocation_Click(object sender, RoutedEventArgs e)
+        => MapHost.FollowLocation = BtnFollowLocation.IsChecked == true;
+
+    private void BtnShowBearing_Click(object sender, RoutedEventArgs e)
+        => MapHost.ShowBearing = BtnShowBearing.IsChecked == true;
 
     /// <summary>
     /// Toggles a WifiDB GeoJSON layer on/off. The button Tag property must

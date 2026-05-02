@@ -1028,6 +1028,12 @@ public partial class MainViewModel : ViewModelBase
     // ── Live AP GeoJSON ───────────────────────────────────────────────────────
 
     /// <summary>
+    /// Fired on the UI thread after each GPS fix with raw position values,
+    /// suitable for updating a map location indicator.
+    /// </summary>
+    public event EventHandler<GpsLocationEventArgs>? GpsLocationUpdated;
+
+    /// <summary>
     /// Fired on the UI thread after each scan cycle with the current GeoJSON
     /// FeatureCollection for all active APs that have GPS coordinates.
     /// </summary>
@@ -1084,6 +1090,13 @@ public partial class MainViewModel : ViewModelBase
         {
             CurrentLatitude  = FormatCoordinate(e.GpsData.Latitude,  isLat: true,  _settings.GpsFormat);
             CurrentLongitude = FormatCoordinate(e.GpsData.Longitude, isLat: false, _settings.GpsFormat);
+            GpsLocationUpdated?.Invoke(this, new GpsLocationEventArgs
+            {
+                Latitude       = e.GpsData.Latitude,
+                Longitude      = e.GpsData.Longitude,
+                Bearing        = (float)(e.GpsData.TrackAngle        ?? 0.0),
+                AccuracyMeters = (float)(e.GpsData.HorizontalDilution ?? 10.0),
+            });
         });
     }
 
@@ -1318,4 +1331,15 @@ public partial class MainViewModel : ViewModelBase
                 "Update Manufacturers", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
+}
+
+/// <summary>Event args for a raw GPS position fix, used to update the map location indicator.</summary>
+public sealed class GpsLocationEventArgs : EventArgs
+{
+    public double Latitude       { get; init; }
+    public double Longitude      { get; init; }
+    /// <summary>Track angle / heading in degrees (0 = north, clockwise). 0 when unknown.</summary>
+    public float  Bearing        { get; init; }
+    /// <summary>Horizontal accuracy in metres (Windows Location API) or HDOP (serial NMEA).</summary>
+    public float  AccuracyMeters { get; init; }
 }

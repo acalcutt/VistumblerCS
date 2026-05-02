@@ -67,6 +67,18 @@ public partial class MainWindow : Window
                 MapHost.SetWifiGeoJsonLayerData("live_aps", geoJson);
         };
 
+        // Update the location indicator on the map whenever a GPS fix arrives.
+        // UpdateLocationIndicator handles the "style not yet loaded" case gracefully.
+        viewModel.GpsLocationUpdated += (_, e) =>
+            MapHost.UpdateLocationIndicator(e.Latitude, e.Longitude, e.Bearing, e.AccuracyMeters);
+
+        // Remove the indicator when GPS is stopped
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.IsGpsActive) && !viewModel.IsGpsActive)
+                MapHost.ClearLocationIndicator();
+        };
+
         // Collapse/expand the map+graph row and GridSplitter row when switching modes
         void ApplyGraphRowVisibility()
         {

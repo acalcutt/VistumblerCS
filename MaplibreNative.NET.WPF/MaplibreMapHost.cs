@@ -183,6 +183,98 @@ public class MaplibreMapHost : HwndHost
         _renderNeedsUpdate = true;
     }
 
+    // ── Location indicator API ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Show (or update) the user-location "blue dot" indicator at the given position.
+    /// Creates the LocationIndicatorLayer automatically after the style is ready.
+    /// Safe to call before the style is loaded — the position is stored and applied
+    /// once <c>onDidFinishLoadingStyle</c> fires.
+    /// </summary>
+    public void UpdateLocationIndicator(double lat, double lon, float bearing, float accuracyMeters)
+    {
+        if (_map == null) return;
+        var style = _map.Style;
+
+        // Lazily resolve the Style.AddLocationIndicatorLayer method
+        if (_miAddLocInd == null)
+            _miAddLocInd = style.GetType().GetMethod("AddLocationIndicatorLayer", [typeof(string)]);
+        if (_miAddLocInd == null)
+        {
+            Log("UpdateLocationIndicator: API not available in this DLL build");
+            return;
+        }
+
+        // Remember latest position so it can be replayed after a style reload
+        _pendingLocInd = new LocIndParams(lat, lon, bearing, Math.Max(5f, accuracyMeters));
+
+        if (!_styleReady) return;  // OnMapStyleLoaded will call us again
+
+        EnsureStyleApiResolved(style);
+
+        if (_locIndObj == null)
+        {
+            // Remove a stale layer in case style was reloaded without us noticing
+            if (_miHasLayer != null && (bool)_miHasLayer.Invoke(style, [LocIndLayerId])!)
+                _miRemoveLayer?.Invoke(style, [LocIndLayerId]);
+
+            _locIndObj = _miAddLocInd.Invoke(style, [LocIndLayerId]);
+            if (_locIndObj == null)
+            {
+                Log("UpdateLocationIndicator: AddLocationIndicatorLayer returned null");
+                return;
+            }
+
+            // Resolve property infos from the concrete type (done once across all instances)
+            if (_piLocLoc == null)
+            {
+                var t = _locIndObj.GetType();
+                _piLocLoc                 = t.GetProperty("Location");
+                _piLocBearing             = t.GetProperty("Bearing");
+                _piLocAccuracy            = t.GetProperty("AccuracyRadius");
+                _piLocAccuracyColor       = t.GetProperty("AccuracyRadiusColor");
+                _piLocAccuracyBorderColor = t.GetProperty("AccuracyRadiusBorderColor");
+            }
+
+            // Apply fixed style: semi-transparent blue fill + solid blue border
+            _piLocAccuracyColor?.SetValue(_locIndObj, "rgba(30,136,229,0.3)");
+            _piLocAccuracyBorderColor?.SetValue(_locIndObj, "rgba(30,136,229,0.85)");
+        }
+
+        _piLocLoc?.SetValue(_locIndObj, new double[] { lat, lon, 0.0 });
+        _piLocBearing?.SetValue(_locIndObj, bearing);
+        _piLocAccuracy?.SetValue(_locIndObj, _pendingLocInd.Value.AccuracyM);
+        _renderNeedsUpdate = true;
+    }
+
+    /// <summary>Remove the location indicator layer from the map.</summary>
+    public void ClearLocationIndicator()
+    {
+        _pendingLocInd = null;
+        _locIndObj     = null;
+        if (_map == null || !_styleReady) return;
+        var style = _map.Style;
+        EnsureStyleApiResolved(style);
+        if (_miHasLayer != null && (bool)_miHasLayer.Invoke(style, [LocIndLayerId])!)
+            _miRemoveLayer?.Invoke(style, [LocIndLayerId]);
+        _renderNeedsUpdate = true;
+    }
+
+    // Called by DelegateMapObserver on the observer thread — dispatch to UI thread
+    private void OnMapStyleLoaded()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _styleReady = true;
+            _locIndObj  = null;  // invalidated by style reload
+            if (_pendingLocInd.HasValue)
+            {
+                var p = _pendingLocInd.Value;
+                UpdateLocationIndicator(p.Lat, p.Lon, p.Bearing, p.AccuracyM);
+            }
+        });
+    }
+
     /// <summary>Remove a GeoJSON wifi layer set (3 security-type circle layers + source).</summary>
     public void RemoveWifiGeoJsonLayer(string sourceId)
     {
@@ -333,6 +425,22 @@ public class MaplibreMapHost : HwndHost
     private float                             _dpi = 1.0f;
     private int                               _renderTickCount;
 
+    // ── Location indicator state ──────────────────────────────────────────────
+
+    private const string LocIndLayerId = "vistumbler_location";
+    private object? _locIndObj;        // LocationIndicatorLayer instance (null until style loads)
+    private bool    _styleReady;       // true after first/each onDidFinishLoadingStyle
+    private record struct LocIndParams(double Lat, double Lon, float Bearing, float AccuracyM);
+    private LocIndParams? _pendingLocInd;
+
+    // Reflection cache — resolved from the returned LocationIndicatorLayer type on first use
+    private static System.Reflection.MethodInfo?   _miAddLocInd;
+    private static System.Reflection.PropertyInfo? _piLocLoc;
+    private static System.Reflection.PropertyInfo? _piLocBearing;
+    private static System.Reflection.PropertyInfo? _piLocAccuracy;
+    private static System.Reflection.PropertyInfo? _piLocAccuracyColor;
+    private static System.Reflection.PropertyInfo? _piLocAccuracyBorderColor;
+
     // ── Input state ───────────────────────────────────────────────────────────
 
     private bool  _isDragging;
@@ -413,6 +521,8 @@ public class MaplibreMapHost : HwndHost
 
         if (_navPopup != null) { _navPopup.IsOpen = false; _navPopup = null; }
 
+        _styleReady = false;
+        _locIndObj  = null;
         _map?.Dispose();      _map      = null;
         _frontend?.Dispose(); _frontend = null;
         _runLoop?.Dispose();  _runLoop  = null;
@@ -748,8 +858,9 @@ public class MaplibreMapHost : HwndHost
             .WithCachePath(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "maplibre_cache.db"))
             .WithAssetPath(AppDomain.CurrentDomain.BaseDirectory);
 
-        var obs = new MaplibreNative.WPF.DelegateMapObserver((type, msg) =>
-            Log($"[MapObserver:{type}] {msg}"));
+        var obs = new MaplibreNative.WPF.DelegateMapObserver(
+            (type, msg) => Log($"[MapObserver:{type}] {msg}"),
+            onStyleLoaded: OnMapStyleLoaded);
 
         _map = new Map(_frontend, obs, mapOptions, resOptions);
         Log("Map created");

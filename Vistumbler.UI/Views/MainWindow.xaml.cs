@@ -222,11 +222,6 @@ public partial class MainWindow : Window
 
     // ── WifiDB layer buttons ──────────────────────────────────────────────────
 
-    private void BtnFollowLocation_Click(object sender, RoutedEventArgs e)
-        => MapHost.FollowLocation = BtnFollowLocation.IsChecked == true;
-
-    private void BtnShowBearing_Click(object sender, RoutedEventArgs e)
-        => MapHost.ShowBearing = BtnShowBearing.IsChecked == true;
 
     /// <summary>
     /// Toggles a WifiDB GeoJSON layer on/off. The button Tag property must
@@ -238,7 +233,9 @@ public partial class MainWindow : Window
         if (sender is not Button btn) return;
         string func     = btn.Tag?.ToString() ?? "";
         string sourceId = "wifidb_" + func;
-        string url      = $"https://wifidb.net/api/geojson.php?func={func}&json=1";
+        var viewModel   = (MainViewModel)DataContext!;
+        string apiBase  = viewModel.Settings.WifiDbApiUrl.TrimEnd('/');
+        string url      = $"{apiBase}/geojson.php?func={func}&json=1";
 
         if (_activeWifiDbLayers.Contains(sourceId))
         {

@@ -591,6 +591,7 @@ public class MaplibreMapHost : HwndHost
                 if (_attributionPopup != null) _attributionPopup.IsOpen = false;
             };
             parentWin.Activated += (_, _) => { UpdateNavPopupOpen(); UpdateGpsPopupOpen(); UpdateAttributionPopupOpen(); };
+            parentWin.LocationChanged += (_, _) => { RepositionPopup(_navPopup); RepositionPopup(_gpsPopup); RepositionPopup(_attributionPopup); };
         }
 
         _renderTimer?.Start();
@@ -634,17 +635,21 @@ public class MaplibreMapHost : HwndHost
         int hP = Math.Max(1, (int)(info.NewSize.Height * dpi));
 
         if (_childHwnd != IntPtr.Zero)
-            SetWindowPos(_childHwnd, IntPtr.Zero, 0, 0, wP, hP, 0x0040);
+            SetWindowPos(_childHwnd, IntPtr.Zero, 0, 0, wP, hP, 0x0056);
 
         if (_frontend != null)
         {
-            _map?.SetSize(new MaplibreNative.Size((uint)wP, (uint)hP));
+            _map?.SetSize(new MaplibreNative.Size(
+                (uint)Math.Max(1, info.NewSize.Width),
+                (uint)Math.Max(1, info.NewSize.Height)));
             _frontend.Backend.Size = new MaplibreNative.Size((uint)wP, (uint)hP);
+            for (int i = 0; i < 4; i++) _runLoop?.RunOnce();
         }
         _renderNeedsUpdate = true;
 
         PositionNavPopup();
         PositionGpsPopup();
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, (Action)PositionAttributionPopup);
 
         if (!_initialized && IsVisible)
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)TryInitialize);
@@ -796,7 +801,8 @@ public class MaplibreMapHost : HwndHost
             StaysOpen          = true,
             IsHitTestVisible   = true,
             PlacementTarget    = this,
-            Placement          = PlacementMode.Relative,
+            Placement          = PlacementMode.Custom,
+            CustomPopupPlacementCallback = (popupSize, targetSize, offset) => new[] { new CustomPopupPlacement(new Point(0, 0), PopupPrimaryAxis.None) },
             Child              = outerBorder,
         };
 
@@ -835,6 +841,14 @@ public class MaplibreMapHost : HwndHost
     private static void SetButtonCorners(Border btn, double topLeft, double topRight, double bottomRight, double bottomLeft)
         => btn.CornerRadius = new CornerRadius(topLeft, topRight, bottomRight, bottomLeft);
 
+    private void RepositionPopup(Popup? p)
+    {
+        if (p == null || !p.IsOpen) return;
+        // WPF popups often fail to move when their PlacementTarget is maximized/restored.
+        // UpdatePosition is the internal method that forces physical window placement.
+        typeof(Popup).GetMethod("UpdatePosition", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.Invoke(p, null);
+    }
+
     private void PositionNavPopup()
     {
         if (_navPopup == null) return;
@@ -844,6 +858,7 @@ public class MaplibreMapHost : HwndHost
         _navPopup.HorizontalOffset = ActualWidth  - panelWidth - margin;
         _navPopup.VerticalOffset   = margin;
         UpdateNavPopupOpen();
+        RepositionPopup(_navPopup);
     }
 
     /// <summary>
@@ -910,7 +925,8 @@ public class MaplibreMapHost : HwndHost
             StaysOpen          = true,
             IsHitTestVisible   = true,
             PlacementTarget    = this,
-            Placement          = PlacementMode.Relative,
+            Placement          = PlacementMode.Custom,
+            CustomPopupPlacementCallback = (popupSize, targetSize, offset) => new[] { new CustomPopupPlacement(new Point(0, 0), PopupPrimaryAxis.None) },
             Child              = outerBorder,
         };
 
@@ -983,6 +999,7 @@ public class MaplibreMapHost : HwndHost
         _gpsPopup.HorizontalOffset = ActualWidth - panelWidth - margin;
         _gpsPopup.VerticalOffset   = margin + navHeight + 4;
         UpdateGpsPopupOpen();
+        RepositionPopup(_gpsPopup);
     }
 
     /// <summary>
@@ -1025,7 +1042,8 @@ public class MaplibreMapHost : HwndHost
             StaysOpen          = true,
             IsHitTestVisible   = false,
             PlacementTarget    = this,
-            Placement          = PlacementMode.Relative,
+            Placement          = PlacementMode.Custom,
+            CustomPopupPlacementCallback = (popupSize, targetSize, offset) => new[] { new CustomPopupPlacement(new Point(0, 0), PopupPrimaryAxis.None) },
             Child              = _attributionBorder,
         };
 
@@ -1044,6 +1062,7 @@ public class MaplibreMapHost : HwndHost
         _attributionPopup.HorizontalOffset = margin;
         _attributionPopup.VerticalOffset   = ActualHeight - contentH - margin;
         UpdateAttributionPopupOpen();
+        RepositionPopup(_attributionPopup);
     }
 
     private void UpdateAttributionPopupOpen()
@@ -1225,11 +1244,12 @@ public class MaplibreMapHost : HwndHost
             var backendSize = _frontend.Backend.Size;
             if (backendSize.Width != sizePhys.Width || backendSize.Height != sizePhys.Height)
             {
-                _map.SetSize(new MaplibreNative.Size((uint)ActualWidth, (uint)ActualHeight));
-                _frontend.Backend.Size = sizePhys;
+                _map.SetSize(new MaplibreNative.Size((uint)Math.Max(1, ActualWidth), (uint)Math.Max(1, ActualHeight)));
+                _frontend.Backend.Size = new MaplibreNative.Size((uint)Math.Max(1, sizePhys.Width), (uint)Math.Max(1, sizePhys.Height));
                 if (_childHwnd != IntPtr.Zero)
                     SetWindowPos(_childHwnd, IntPtr.Zero, 0, 0,
-                        (int)sizePhys.Width, (int)sizePhys.Height, 0x0040);
+                        (int)Math.Max(1, sizePhys.Width), (int)Math.Max(1, sizePhys.Height), 0x0056);
+                for (int i = 0; i < 4; i++) _runLoop?.RunOnce();
                 _renderNeedsUpdate = true;
             }
         }

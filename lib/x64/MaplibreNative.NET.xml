@@ -4,6 +4,86 @@
         "mbgl-dotnet"
     </assembly>
     <members>
+        <member name="T:MaplibreNative.GeoJSON">
+            <summary>
+Wraps a parsed GeoJSON value (geometry, feature, or feature collection).
+Instances are returned by <see cref="!:GeoJSONSource" /> and used when passing
+geometry data to map sources.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.BackendScope.ScopeType">
+            <summary>
+There are two types of scopes: Creating an "Implicit" scope tells Mapbox
+GL that the supporting windowing system has already activated the GL
+Backend and that no further actions are required. Creating an "Explicit"
+scope actually enables the GL Backend, and disables it when the
+BackendScope is destroyed.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.HeadlessFrontend">
+            <summary>
+Common headless backend interface, provides HeadlessBackend backend factory
+and enables extending gfx::Renderable with platform specific implementation
+of <see cref="M:MaplibreNative.HeadlessFrontend.ReadStillImage" />.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.OverscaledTileID">
+            <summary>
+Has integer z/x/y coordinates
+overscaledZ describes the zoom level this tile is intented to represent, e.g.
+when parsing data z is never larger than the source's maxzoom z/x/y describe
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Resource.TileData">
+            <summary>
+Includes auxiliary data if this is a tile request.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.ShaderRegistry.RegisterShaderGroup(MaplibreNative.ShaderGroup,System.String)">
+            <summary>
+Register a new shader group with the registry for the given name.
+If a shader group is present in the registry with a conflicting name, registration will fail.
+</summary>
+            <param name="shaderGroup">A <see cref="T:MaplibreNative.ShaderGroup" /> to register.</param>
+            <param name="shaderGroupName">Unique name to register the shader group under.</param>
+            <returns>True if the shader group was registered, false if another shader group is
+already present with a conflicting name.</returns>
+        </member>
+        <member name="M:MaplibreNative.ShaderRegistry.ReplaceShader(MaplibreNative.ShaderGroup,System.String)">
+            <summary>
+Replace a matching shader group in the registry with the provided name.
+</summary>
+            <param name="shaderGroup">A <see cref="T:MaplibreNative.ShaderGroup" />.</param>
+            <param name="shaderName">Unique name to register the shader group under.</param>
+            <returns>True if a match was found and the shader group was replaced, false otherwise.</returns>
+        </member>
+        <member name="M:MaplibreNative.ShaderRegistry.GetShaderGroup(System.String)">
+            <summary>
+Get a shader group from the registry by name.
+</summary>
+            <param name="shaderGroupName">Name of shader group</param>
+            <returns>A <see cref="T:MaplibreNative.ShaderGroup" /> or <see langword="null" /> if no shader group is found with the given name</returns>
+        </member>
+        <member name="M:MaplibreNative.ShaderRegistry.IsShaderGroup(System.String)">
+            <summary>
+Checks if a shader group exists in the registry for the given name.
+</summary>
+            <param name="shaderGroupName">Name of shader group</param>
+            <returns>If a shader group is found, true</returns>
+        </member>
+        <member name="M:MaplibreNative.ShaderRegistry.GetLegacyGroup">
+            <summary>
+Get the legacy shader group.
+</summary>
+            <returns>A <see cref="T:MaplibreNative.ShaderGroup" /></returns>
+        </member>
+        <member name="T:MaplibreNative.ShaderRegistry">
+            <summary>
+A ShaderRegistry contains a collection of gfx::Shader instances.
+Using the registry, shaders may be dynamically registered or replaced
+at runtime.
+</summary>
+        </member>
         <member name="M:MaplibreNative.FileSourceManager.GetFileSource(&lt;unknown type&gt;,MaplibreNative.ResourceOptions,MaplibreNative.ClientOptions)">
             <summary>
 Returns shared instance of a file source for (type, options) tuple.
@@ -33,34 +113,6 @@ The FileSourceManager provides following functionality:
 
 - provides access to file sources of a specific type and configuration
 - caches previously created file sources of a (type, configuration) tuples
-</summary>
-        </member>
-        <member name="T:MaplibreNative.BackendScope.ScopeType">
-            <summary>
-There are two types of scopes: Creating an "Implicit" scope tells Mapbox
-GL that the supporting windowing system has already activated the GL
-Backend and that no further actions are required. Creating an "Explicit"
-scope actually enables the GL Backend, and disables it when the
-BackendScope is destroyed.
-</summary>
-        </member>
-        <member name="T:MaplibreNative.HeadlessFrontend">
-            <summary>
-Common headless backend interface, provides HeadlessBackend backend factory
-and enables extending gfx::Renderable with platform specific implementation
-of <see cref="M:MaplibreNative.HeadlessFrontend.ReadStillImage" />.
-</summary>
-        </member>
-        <member name="T:MaplibreNative.OverscaledTileID">
-            <summary>
-Has integer z/x/y coordinates
-overscaledZ describes the zoom level this tile is intented to represent, e.g.
-when parsing data z is never larger than the source's maxzoom z/x/y describe
-</summary>
-        </member>
-        <member name="P:MaplibreNative.Resource.TileData">
-            <summary>
-Includes auxiliary data if this is a tile request.
 </summary>
         </member>
         <member name="M:MaplibreNative.FileSource.SetResourceTransform(MaplibreNative.ResourceTransform)">
@@ -143,57 +195,87 @@ is executed, the callback will not be executed.
             <param name="callback" />
             <returns />
         </member>
-        <member name="M:MaplibreNative.ShaderRegistry.RegisterShaderGroup(MaplibreNative.ShaderGroup,System.String)">
-            <summary>
-Register a new shader group with the registry for the given name.
-If a shader group is present in the registry with a conflicting name, registration will fail.
-</summary>
-            <param name="shaderGroup">A <see cref="T:MaplibreNative.ShaderGroup" /> to register.</param>
-            <param name="shaderGroupName">Unique name to register the shader group under.</param>
-            <returns>True if the shader group was registered, false if another shader group is
-already present with a conflicting name.</returns>
-        </member>
-        <member name="M:MaplibreNative.ShaderRegistry.ReplaceShader(MaplibreNative.ShaderGroup,System.String)">
-            <summary>
-Replace a matching shader group in the registry with the provided name.
-</summary>
-            <param name="shaderGroup">A <see cref="T:MaplibreNative.ShaderGroup" />.</param>
-            <param name="shaderName">Unique name to register the shader group under.</param>
-            <returns>True if a match was found and the shader group was replaced, false otherwise.</returns>
-        </member>
-        <member name="M:MaplibreNative.ShaderRegistry.GetShaderGroup(System.String)">
-            <summary>
-Get a shader group from the registry by name.
-</summary>
-            <param name="shaderGroupName">Name of shader group</param>
-            <returns>A <see cref="T:MaplibreNative.ShaderGroup" /> or <see langword="null" /> if no shader group is found with the given name</returns>
-        </member>
-        <member name="M:MaplibreNative.ShaderRegistry.IsShaderGroup(System.String)">
-            <summary>
-Checks if a shader group exists in the registry for the given name.
-</summary>
-            <param name="shaderGroupName">Name of shader group</param>
-            <returns>If a shader group is found, true</returns>
-        </member>
-        <member name="M:MaplibreNative.ShaderRegistry.GetLegacyGroup">
-            <summary>
-Get the legacy shader group.
-</summary>
-            <returns>A <see cref="T:MaplibreNative.ShaderGroup" /></returns>
-        </member>
-        <member name="T:MaplibreNative.ShaderRegistry">
-            <summary>
-A ShaderRegistry contains a collection of gfx::Shader instances.
-Using the registry, shaders may be dynamically registered or replaced
-at runtime.
-</summary>
-        </member>
         <member name="M:MaplibreNative.Projection.WorldSize(System.Double)">
             <summary>
 Map pixel width at given scale.
 </summary>
             <param name="scale" />
             <returns />
+        </member>
+        <member name="M:MaplibreNative.Value.op_Explicit~System.Boolean">
+            <summary>Returns <see langword="true" /> when the value is non-null and non-zero.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.GetString">
+            <summary>Returns the value as a string, or <see langword="null" /> if the held type is not a string.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.GetObject">
+            <summary>Returns the object members, or <see langword="null" /> if the held type is not an object.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.GetArray">
+            <summary>Returns the array elements, or <see langword="null" /> if the held type is not an array.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.GetDouble">
+            <summary>Returns the value as a double, or <see langword="null" /> if the held type is not a number.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.GetBool">
+            <summary>Returns the value as a boolean, or <see langword="null" /> if the held type is not a boolean.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.GetUInt">
+            <summary>Returns the value as an unsigned 64-bit integer, or <see langword="null" /> if the held type is not an unsigned integer.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.GetInt">
+            <summary>Returns the value as a signed 64-bit integer, or <see langword="null" /> if the held type is not a signed integer.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.Collections.Generic.IDictionary`2{System.String,MaplibreNative.Value})">
+            <summary>Initializes an object <see cref="T:MaplibreNative.Value" /> from a string-keyed dictionary.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.Collections.Generic.IEnumerable`1{MaplibreNative.Value})">
+            <summary>Initializes an array <see cref="T:MaplibreNative.Value" /> from a sequence of values.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.Double)">
+            <summary>Initializes a double-precision float <see cref="T:MaplibreNative.Value" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.Single)">
+            <summary>Initializes a single-precision float <see cref="T:MaplibreNative.Value" /> (stored as double).</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.UInt64)">
+            <summary>Initializes an unsigned 64-bit integer <see cref="T:MaplibreNative.Value" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.UInt32)">
+            <summary>Initializes an unsigned 32-bit integer <see cref="T:MaplibreNative.Value" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.UInt16)">
+            <summary>Initializes an unsigned 16-bit integer <see cref="T:MaplibreNative.Value" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.Byte)">
+            <summary>Initializes an unsigned 8-bit integer <see cref="T:MaplibreNative.Value" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.Int64)">
+            <summary>Initializes a signed 64-bit integer <see cref="T:MaplibreNative.Value" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.Int32)">
+            <summary>Initializes a signed 32-bit integer <see cref="T:MaplibreNative.Value" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.Int16)">
+            <summary>Initializes a signed 16-bit integer <see cref="T:MaplibreNative.Value" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.SByte)">
+            <summary>Initializes a signed 8-bit integer <see cref="T:MaplibreNative.Value" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.String)">
+            <summary>Initializes a string <see cref="T:MaplibreNative.Value" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor(System.Boolean)">
+            <summary>Initializes a boolean <see cref="T:MaplibreNative.Value" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Value.#ctor">
+            <summary>Initializes a null <see cref="T:MaplibreNative.Value" />.</summary>
+        </member>
+        <member name="T:MaplibreNative.Value">
+            <summary>
+A variant type representing a JSON-like value: null, boolean, string, signed or unsigned
+integer, double, array, or object. Used for feature properties and style expression evaluation.
+</summary>
         </member>
         <member name="P:MaplibreNative.Response.ResponseError.Message">
             <summary>
@@ -235,6 +317,116 @@ caching rules. It may or may not be stale.
 </summary>
             <returns />
         </member>
+        <member name="T:MaplibreNative.MatrixExtensions">
+            <summary>
+Extension methods for <see cref="T:MaplibreNative.Mat4" /> and <see cref="T:MaplibreNative.Vec4" /> that expose the same matrix
+operations as instance-style calls (e.g. <c>mat.Multiply(other)</c>).
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.Multiply(MaplibreNative.Mat4,MaplibreNative.Mat4,MaplibreNative.Mat4)">
+            <summary>Multiplies <paramref name="a" /> by <paramref name="b" /> and stores the result in <paramref name="out" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.Multiply(MaplibreNative.Mat4,MaplibreNative.Mat4)">
+            <summary>Post-multiplies <paramref name="out" /> in-place by <paramref name="a" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.Scale(MaplibreNative.Mat4,MaplibreNative.Mat4,System.Double,System.Double,System.Double)">
+            <summary>Scales matrix <paramref name="a" /> by (x, y, z) and stores the result in <paramref name="out" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.Scale(MaplibreNative.Mat4,System.Double,System.Double,System.Double)">
+            <summary>Scales <paramref name="out" /> in-place by (x, y, z).</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.RotateZ(MaplibreNative.Mat4,MaplibreNative.Mat4,System.Double)">
+            <summary>Rotates matrix <paramref name="a" /> around the Z axis and stores the result in <paramref name="out" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.RotateZ(MaplibreNative.Mat4,System.Double)">
+            <summary>Rotates <paramref name="out" /> in-place around the Z axis by <paramref name="rad" /> radians.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.RotateY(MaplibreNative.Mat4,MaplibreNative.Mat4,System.Double)">
+            <summary>Rotates matrix <paramref name="a" /> around the Y axis and stores the result in <paramref name="out" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.RotateY(MaplibreNative.Mat4,System.Double)">
+            <summary>Rotates <paramref name="out" /> in-place around the Y axis by <paramref name="rad" /> radians.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.RotateX(MaplibreNative.Mat4,MaplibreNative.Mat4,System.Double)">
+            <summary>Rotates matrix <paramref name="a" /> around the X axis and stores the result in <paramref name="out" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.RotateX(MaplibreNative.Mat4,System.Double)">
+            <summary>Rotates <paramref name="out" /> in-place around the X axis by <paramref name="rad" /> radians.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.Translate(MaplibreNative.Mat4,MaplibreNative.Mat4,System.Double,System.Double,System.Double)">
+            <summary>Translates matrix <paramref name="a" /> by (x, y, z) and stores the result in <paramref name="out" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.Translate(MaplibreNative.Mat4,System.Double,System.Double,System.Double)">
+            <summary>Translates <paramref name="out" /> in-place by (x, y, z).</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.Copy(MaplibreNative.Mat4,MaplibreNative.Mat4)">
+            <summary>Copies matrix <paramref name="a" /> into <paramref name="out" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.Perspective(MaplibreNative.Mat4,System.Double,System.Double,System.Double,System.Double)">
+            <summary>Generates a perspective projection matrix into <paramref name="out" />.</summary>
+            <param name="fovy">Vertical field of view in radians.</param>
+            <param name="aspect">Aspect ratio (width / height).</param>
+        </member>
+        <member name="M:MaplibreNative.Mat4.Ortho(MaplibreNative.Mat4,System.Double,System.Double,System.Double,System.Double,System.Double,System.Double)">
+            <summary>Generates an orthographic projection matrix into <paramref name="out" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.Invert(MaplibreNative.Mat4,MaplibreNative.Mat4)">
+            <summary>Inverts <paramref name="a" /> and stores the result in <paramref name="out" />. Returns <see langword="false" /> if the matrix is singular.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.Invert(MaplibreNative.Mat4)">
+            <summary>Inverts <paramref name="out" /> in-place. Returns <see langword="false" /> if the matrix is singular.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.Identity(MaplibreNative.Mat4)">
+            <summary>Sets <paramref name="out" /> to the identity matrix.</summary>
+        </member>
+        <member name="P:MaplibreNative.Mat4.Count">
+            <summary>Gets the number of elements (always 16).</summary>
+        </member>
+        <member name="P:MaplibreNative.Mat4.default(System.Int32)">
+            <summary>Gets or sets the element at the specified flat index (0–15, column-major).</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.#ctor(MaplibreNative.Mat4)">
+            <summary>Initializes a <see cref="T:MaplibreNative.Mat4" /> by copying <paramref name="source" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Mat4.#ctor">
+            <summary>Initializes an identity <see cref="T:MaplibreNative.Mat4" />.</summary>
+        </member>
+        <member name="T:MaplibreNative.Mat4">
+            <summary>
+A 4x4 column-major matrix of doubles. Implements <see cref="!:System::Collections::Generic::IReadOnlyList{T}" /> for flat
+index access (16 elements, column-major order).
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Vec4.TransformMat4(MaplibreNative.Vec4,MaplibreNative.Vec4,MaplibreNative.Mat4)">
+            <summary>Transforms vector <paramref name="a" /> by matrix <paramref name="m" /> and stores the result in <paramref name="out" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Vec4.TransformMat4(MaplibreNative.Vec4,MaplibreNative.Mat4)">
+            <summary>Transforms <paramref name="out" /> in-place by matrix <paramref name="m" />.</summary>
+        </member>
+        <member name="P:MaplibreNative.Vec4.Count">
+            <summary>Gets the number of components (always 4).</summary>
+        </member>
+        <member name="P:MaplibreNative.Vec4.default(System.Int32)">
+            <summary>Gets or sets the component at the specified index (0, 1, 2, or 3).</summary>
+        </member>
+        <member name="M:MaplibreNative.Vec4.#ctor">
+            <summary>Initializes a zero <see cref="T:MaplibreNative.Vec4" />.</summary>
+        </member>
+        <member name="T:MaplibreNative.Vec4">
+            <summary>A 4-component column vector of doubles. Implements <see cref="!:System::Collections::Generic::IReadOnlyList{T}" /> for index access.</summary>
+        </member>
+        <member name="P:MaplibreNative.Vec3.Count">
+            <summary>Gets the number of components (always 3).</summary>
+        </member>
+        <member name="P:MaplibreNative.Vec3.default(System.Int32)">
+            <summary>Gets or sets the component at the specified index (0, 1, or 2).</summary>
+        </member>
+        <member name="M:MaplibreNative.Vec3.#ctor">
+            <summary>Initializes a zero <see cref="T:MaplibreNative.Vec3" />.</summary>
+        </member>
+        <member name="T:MaplibreNative.Vec3">
+            <summary>A 3-component column vector of doubles. Implements <see cref="!:System::Collections::Generic::IReadOnlyList{T}" /> for index access.</summary>
+        </member>
         <member name="T:MaplibreNative.TileCoordinate">
             <summary>
 Has floating point x/y coordinates.
@@ -257,6 +449,872 @@ Implements mapbox-gl-js pointCoordinate() : MercatorCoordinate.
             <param name="point" />
             <param name="atZoom" />
             <returns />
+        </member>
+        <member name="M:MaplibreNative.Style.GetSourceAttributions">
+            <summary>
+Returns a deduplicated list of non-empty attribution strings from all loaded sources.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.AddCircleLayer(System.String,System.String,System.String,System.Single,System.Single,System.String)">
+            <summary>
+Add a circle layer above all existing layers (legacy overload with inline style params).
+color: CSS hex string e.g. "#ff0000". filterJson is reserved and currently ignored.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.SetGeoJsonSourceData(System.String,System.String)">
+            <summary>Set the data of an existing GeoJSON source from an inline GeoJSON string.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.SetGeoJsonSourceUrl(System.String,System.String)">
+            <summary>Update the URL of an existing GeoJSON source.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.AddGeoJsonSource(System.String,System.String)">
+            <summary>Add a GeoJSON source that fetches its data from a URL.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.RemoveImage(System.String)">
+            <summary>Removes the image with the given id from the style.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.HasImage(System.String)">
+            <summary>Returns true if an image with the given id exists in the style.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.GetImage(System.String)">
+            <summary>
+Returns metadata for the image with the given id, or nullptr if not found.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.AddImage(System.String,MaplibreNative.PremultipliedImage,System.Single)">
+            <summary>Add a standard (non-SDF) sprite image.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.AddImage(System.String,MaplibreNative.PremultipliedImage,System.Single,System.Boolean)">
+            <summary>
+Add a sprite image to the style.
+</summary>
+            <param name="id">Unique sprite id.</param>
+            <param name="pixels">Premultiplied RGBA pixel data.</param>
+            <param name="pixelRatio">Device pixel ratio the image was created at (usually 1 or 2).</param>
+            <param name="sdf">True if the image should be treated as a signed distance field.</param>
+        </member>
+        <member name="M:MaplibreNative.Style.GetDefaultCamera">
+            <summary>
+Returns the default camera position defined in the style JSON
+(the "center", "zoom", "bearing" and "pitch" root fields).
+Fields not set in the style will be unset (null) on the returned options.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.SetTransitionOptions(MaplibreNative.TransitionOptions)">
+            <summary>Sets the global transition options.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.GetTransitionOptions">
+            <summary>Gets the current global transition options.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.GetLight">
+            <summary>
+Returns a non-owning wrapper around the style's current light.
+Mutating the returned object immediately affects the rendered map.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.HasSource(System.String)">
+            <summary>Returns true if a source with the given id exists.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.RemoveSource(System.String)">
+            <summary>Remove a source by id. Returns true if removed.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.AddGeoJsonSourceFromUrl(System.String,System.String,MaplibreNative.GeoJSONOptions)">
+            <summary>Add a GeoJSON source from a URL with explicit tile/cluster options.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.AddGeoJsonSourceFromUrl(System.String,System.String)">
+            <summary>Add a GeoJSON source that immediately loads from a URL.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.AddGeoJsonSource(System.String,MaplibreNative.GeoJSONOptions)">
+            <summary>Add a GeoJSON source with explicit tile/cluster options.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.HasLayer(System.String)">
+            <summary>Returns true if a layer with the given id exists.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.RemoveLayer(System.String)">
+            <summary>Remove a layer by id. Returns true if removed.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.AddFillLayer(System.String,System.String,System.String)">
+            <summary>Same as the two-arg overloads but inserts the layer before <paramref name="beforeLayerId" />.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.GetSources">
+            <summary>Returns all sources.</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.GetSource(System.String)">
+            <summary>
+Returns the source with the given id, cast to its concrete type, or
+nullptr if no source with that id exists.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.GetLayers">
+            <summary>Returns all layers in paint order (bottom to top).</summary>
+        </member>
+        <member name="M:MaplibreNative.Style.GetLayer(System.String)">
+            <summary>
+Returns the layer with the given id, cast to its concrete type, or
+nullptr if no layer with that id exists.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.TransitionOptions.EnablePlacementTransitions">
+            <summary>
+Whether placement transitions (symbol fade-in/out) are enabled.
+Defaults to true.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.TransitionOptions.DelayMilliseconds">
+            <summary>
+Delay before the transition starts, in milliseconds.
+Null means no explicit delay.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.TransitionOptions.DurationMilliseconds">
+            <summary>
+Duration of the transition in milliseconds.
+Null means no explicit duration (the default will apply).
+</summary>
+        </member>
+        <member name="T:MaplibreNative.TransitionOptions">
+            <summary>
+Options that control the timing of transitions between style property values.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.StyleImage.Sdf">
+            <summary>Whether the image is a signed-distance-field icon.</summary>
+        </member>
+        <member name="P:MaplibreNative.StyleImage.PixelRatio">
+            <summary>Pixel ratio (device pixel ratio the image was created at).</summary>
+        </member>
+        <member name="P:MaplibreNative.StyleImage.Height">
+            <summary>Height in pixels.</summary>
+        </member>
+        <member name="P:MaplibreNative.StyleImage.Width">
+            <summary>Width in pixels.</summary>
+        </member>
+        <member name="P:MaplibreNative.StyleImage.Id">
+            <summary>The image id (sprite name).</summary>
+        </member>
+        <member name="T:MaplibreNative.StyleImage">
+            <summary>
+Metadata for a style sprite image obtained from <see cref="!:Style::GetImage" />.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Light.Position">
+            <summary>Gets or sets the spherical light position.</summary>
+        </member>
+        <member name="P:MaplibreNative.Light.Intensity">
+            <summary>Gets or sets the intensity in [0, 1].</summary>
+        </member>
+        <member name="P:MaplibreNative.Light.Color">
+            <summary>Gets or sets the light color as a CSS string (e.g. "#ffffff").</summary>
+        </member>
+        <member name="P:MaplibreNative.Light.Anchor">
+            <summary>Gets or sets the anchor type.</summary>
+        </member>
+        <member name="T:MaplibreNative.Light">
+            <summary>
+Wraps an <c>mbgl::style::Light</c> object (non-owning pointer).
+Obtain an instance via <see cref="!:Style::GetLight" />.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.LightPosition">
+            <summary>
+Spherical position of the light source.
+Coordinates are [radial, azimuthal, polar] where:
+  radial    = distance from the center (0.0â€“infinity)
+  azimuthal = azimuthal angle in degrees (0â€“360)
+  polar     = polar angle in degrees (0â€“90)
+</summary>
+        </member>
+        <member name="T:MaplibreNative.LightAnchor">
+            <summary>
+Specifies the anchor reference for the light source.
+</summary>
+        </member>
+        <member name="F:&lt;unknown type&gt;.Viewport">
+            <summary>The light rotates with the viewport.</summary>
+        </member>
+        <member name="F:&lt;unknown type&gt;.Map">
+            <summary>The light is fixed relative to the map.</summary>
+        </member>
+        <member name="M:MaplibreNative.ImageSource.SetImage(MaplibreNative.PremultipliedImage)">
+            <summary>
+Update the pixel data of the image source at runtime.
+The image is cloned internally; the caller retains ownership of <paramref name="image" />.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.ImageSource.Coordinates">
+            <summary>
+The four geographic corners of the image, in order:
+top-left, top-right, bottom-right, bottom-left.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.ImageSource.Url">
+            <summary>URL of the image to display.</summary>
+        </member>
+        <member name="T:MaplibreNative.ImageSource">
+            <summary>Wraps an mbgl::style::ImageSource.</summary>
+        </member>
+        <member name="P:MaplibreNative.RasterDEMSource.TileSize">
+            <summary>Tile size in pixels (default 512).</summary>
+        </member>
+        <member name="P:MaplibreNative.RasterDEMSource.Url">
+            <summary>
+The TileJSON URL for the raster-DEM tile set,
+or empty string if the source was constructed from an inline Tileset.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.RasterDEMSource">
+            <summary>Wraps an mbgl::style::RasterDEMSource (elevation / terrain).</summary>
+        </member>
+        <member name="P:MaplibreNative.RasterSource.TileSize">
+            <summary>Tile size in pixels (default 512).</summary>
+        </member>
+        <member name="P:MaplibreNative.RasterSource.Url">
+            <summary>
+The TileJSON or Mapbox-style URL for the raster tile set,
+or empty string if the source was constructed from an inline Tileset.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.RasterSource">
+            <summary>Wraps an mbgl::style::RasterSource.</summary>
+        </member>
+        <member name="P:MaplibreNative.VectorSource.Url">
+            <summary>
+The TileJSON or Mapbox-style URL for the vector tile set,
+or empty string if the source was constructed from an inline Tileset.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.VectorSource">
+            <summary>Wraps an mbgl::style::VectorSource.</summary>
+        </member>
+        <member name="M:MaplibreNative.GeoJSONSource.SetData(System.String)">
+            <summary>
+Update the source with inline GeoJSON data provided as a string.
+</summary>
+            <param name="geoJson">A valid GeoJSON string.</param>
+        </member>
+        <member name="M:MaplibreNative.GeoJSONSource.SetUrl(System.String)">
+            <summary>
+Update the source to load data from the specified URL.
+The URL may be a remote https:// URL or a local file:// URL.
+</summary>
+            <param name="url">URL pointing to a GeoJSON document.</param>
+        </member>
+        <member name="T:MaplibreNative.GeoJSONSource">
+            <summary>Wraps an mbgl::style::GeoJSONSource.</summary>
+        </member>
+        <member name="P:MaplibreNative.GeoJSONOptions.ClusterMaxZoom">
+            <summary>Maximum zoom at which clusters are generated (default 17).</summary>
+        </member>
+        <member name="P:MaplibreNative.GeoJSONOptions.ClusterRadius">
+            <summary>Cluster radius in pixels (default 50).</summary>
+        </member>
+        <member name="P:MaplibreNative.GeoJSONOptions.Cluster">
+            <summary>Whether to cluster point features (default false).</summary>
+        </member>
+        <member name="P:MaplibreNative.GeoJSONOptions.LineMetrics">
+            <summary>Whether to calculate line distance metrics (default false).</summary>
+        </member>
+        <member name="P:MaplibreNative.GeoJSONOptions.Tolerance">
+            <summary>Douglas-Peucker simplification tolerance (default 0.375).</summary>
+        </member>
+        <member name="P:MaplibreNative.GeoJSONOptions.Buffer">
+            <summary>Tile buffer size in pixels (default 128).</summary>
+        </member>
+        <member name="P:MaplibreNative.GeoJSONOptions.TileSize">
+            <summary>Tile size in pixels (default 512).</summary>
+        </member>
+        <member name="P:MaplibreNative.GeoJSONOptions.MaxZoom">
+            <summary>Maximum zoom at which tiles are generated (default 18).</summary>
+        </member>
+        <member name="P:MaplibreNative.GeoJSONOptions.MinZoom">
+            <summary>Minimum zoom at which tiles are generated (default 0).</summary>
+        </member>
+        <member name="T:MaplibreNative.GeoJSONOptions">
+            <summary>
+Options that control tiling and clustering behaviour of a GeoJSONSource.
+All options must be specified at construction time via
+Style::AddGeoJsonSource(sourceId, options).
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Source.MaxOverscaleFactorForParentTiles">
+            <summary>
+Maximum overscale factor for parent tiles used when a tile is not yet
+available. Pass a negative value to clear the override.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Source.PrefetchZoomDelta">
+            <summary>
+Number of zoom levels to prefetch when requesting tiles.
+Pass a negative value to clear the override and use the global setting.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Source.IsVolatile">
+            <summary>
+Whether the source's data is volatile (can be evicted from the cache).
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Source.Attribution">
+            <summary>Optional attribution text for this source.</summary>
+        </member>
+        <member name="P:MaplibreNative.Source.Type">
+            <summary>
+Source type string as reported by the native library
+(e.g. "geojson", "vector", "raster", "raster-dem", "image").
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Source.Id">
+            <summary>Unique identifier for the source.</summary>
+        </member>
+        <member name="T:MaplibreNative.Source">
+            <summary>
+Non-owning wrapper for an mbgl::style::Source.
+Lifetime is tied to the Style that owns the native source â€” do not hold
+references after the Style is disposed.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.LocationIndicatorLayer.TopImageSize">
+            <summary>Scale factor of the TopImage (default 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.LocationIndicatorLayer.ShadowImageSize">
+            <summary>Scale factor of the ShadowImage (default 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.LocationIndicatorLayer.PerspectiveCompensation">
+            <summary>Perspective compensation factor (0 = no compensation, 1 = full; default 0.85).</summary>
+        </member>
+        <member name="P:MaplibreNative.LocationIndicatorLayer.Location">
+            <summary>
+Geographic position of the indicator as [latitude, longitude, altitude].
+Returns an array of three doubles.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.LocationIndicatorLayer.ImageTiltDisplacement">
+            <summary>Displacement of the top image along the tilt in pixels (default 0).</summary>
+        </member>
+        <member name="P:MaplibreNative.LocationIndicatorLayer.BearingImageSize">
+            <summary>Scale factor of the BearingImage (default 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.LocationIndicatorLayer.Bearing">
+            <summary>Bearing of the location indicator in degrees (0 = north, clockwise).</summary>
+        </member>
+        <member name="P:MaplibreNative.LocationIndicatorLayer.AccuracyRadiusColor">
+            <summary>Fill color of the accuracy circle.</summary>
+        </member>
+        <member name="P:MaplibreNative.LocationIndicatorLayer.AccuracyRadiusBorderColor">
+            <summary>Border color of the accuracy circle.</summary>
+        </member>
+        <member name="P:MaplibreNative.LocationIndicatorLayer.AccuracyRadius">
+            <summary>Radius of the accuracy circle in metres.</summary>
+        </member>
+        <member name="P:MaplibreNative.LocationIndicatorLayer.TopImage">
+            <summary>Name of the image to use as the top of the location indicator (sprite id).</summary>
+        </member>
+        <member name="P:MaplibreNative.LocationIndicatorLayer.ShadowImage">
+            <summary>Name of the image to use as the shadow beneath the indicator (sprite id).</summary>
+        </member>
+        <member name="P:MaplibreNative.LocationIndicatorLayer.BearingImage">
+            <summary>Name of the image to use as the bearing arrow (sprite id).</summary>
+        </member>
+        <member name="T:MaplibreNative.LocationIndicatorLayer">
+            <summary>
+Wraps an mbgl::style::LocationIndicatorLayer (the "blue dot" user-location
+indicator layer). No source is required.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.ColorReliefLayer.ColorRamp">
+            <summary>
+Color ramp as a MapLibre expression JSON string that maps elevation
+(raster-value) to a color. Example:
+<c>["interpolate",["linear"],["raster-value"],0,"#000080",3000,"#ffffff"]</c>
+Returns an empty string when unset.
+Throws ArgumentException on invalid expression JSON.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.ColorReliefLayer.Opacity">
+            <summary>Opacity of the color-relief layer (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="T:MaplibreNative.ColorReliefLayer">
+            <summary>Wraps an mbgl::style::ColorReliefLayer.</summary>
+        </member>
+        <member name="P:MaplibreNative.FillExtrusionLayer.TranslateAnchor">
+            <summary>Frame of reference for Translate: Map or Viewport.</summary>
+        </member>
+        <member name="P:MaplibreNative.FillExtrusionLayer.Translate">
+            <summary>X/Y translation of the fill extrusion in pixels as [x, y].</summary>
+        </member>
+        <member name="P:MaplibreNative.FillExtrusionLayer.Pattern">
+            <summary>Sprite image name for a repeating fill-extrusion pattern. Empty string = solid color.</summary>
+        </member>
+        <member name="P:MaplibreNative.FillExtrusionLayer.VerticalGradient">
+            <summary>Whether to apply a gradient effect along the sides of the extrusion.</summary>
+        </member>
+        <member name="P:MaplibreNative.FillExtrusionLayer.Base">
+            <summary>Base of the extrusion in meters (for raising the bottom).</summary>
+        </member>
+        <member name="P:MaplibreNative.FillExtrusionLayer.Height">
+            <summary>Height of the extrusion in meters.</summary>
+        </member>
+        <member name="P:MaplibreNative.FillExtrusionLayer.Opacity">
+            <summary>Extrusion opacity (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.FillExtrusionLayer.Color">
+            <summary>Extrusion color as a CSS hex string.</summary>
+        </member>
+        <member name="T:MaplibreNative.FillExtrusionLayer">
+            <summary>Wraps an mbgl::style::FillExtrusionLayer.</summary>
+        </member>
+        <member name="P:MaplibreNative.HillshadeLayer.IlluminationAnchor">
+            <summary>
+Frame of reference for the illumination direction: Map keeps the
+light direction fixed as the map rotates; Viewport keeps it fixed
+relative to the viewport.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.HillshadeLayer.AccentColor">
+            <summary>Accent color for vert faces as a CSS hex string.</summary>
+        </member>
+        <member name="P:MaplibreNative.HillshadeLayer.HighlightColor">
+            <summary>Highlight color as a CSS hex string.</summary>
+        </member>
+        <member name="P:MaplibreNative.HillshadeLayer.ShadowColor">
+            <summary>Shadow color as a CSS hex string.</summary>
+        </member>
+        <member name="P:MaplibreNative.HillshadeLayer.IlluminationDirection">
+            <summary>Direction of the light source as an azimuth (0 â€“ 360 degrees).</summary>
+        </member>
+        <member name="P:MaplibreNative.HillshadeLayer.Exaggeration">
+            <summary>Intensity of the hillshade (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="T:MaplibreNative.HillshadeLayer">
+            <summary>Wraps an mbgl::style::HillshadeLayer.</summary>
+        </member>
+        <member name="P:MaplibreNative.HeatmapLayer.Color">
+            <summary>
+Color ramp as a MapLibre expression JSON string that maps heatmap density (0â€“1) to a color.
+Returns empty string when unset (uses the default rainbow ramp).
+Throws ArgumentException on invalid expression JSON.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.HeatmapLayer.Weight">
+            <summary>Contribution of each individual point to the heatmap.</summary>
+        </member>
+        <member name="P:MaplibreNative.HeatmapLayer.Intensity">
+            <summary>Intensity multiplier that controls the rate of increase.</summary>
+        </member>
+        <member name="P:MaplibreNative.HeatmapLayer.Radius">
+            <summary>Radius of influence of one heatmap point in pixels.</summary>
+        </member>
+        <member name="P:MaplibreNative.HeatmapLayer.Opacity">
+            <summary>Global opacity of the heatmap (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="T:MaplibreNative.HeatmapLayer">
+            <summary>Wraps an mbgl::style::HeatmapLayer.</summary>
+        </member>
+        <member name="P:MaplibreNative.BackgroundLayer.Pattern">
+            <summary>Sprite image name for a repeating background pattern. Empty string = solid color.</summary>
+        </member>
+        <member name="P:MaplibreNative.BackgroundLayer.Opacity">
+            <summary>Background opacity (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.BackgroundLayer.Color">
+            <summary>Background fill color as a CSS hex string.</summary>
+        </member>
+        <member name="T:MaplibreNative.BackgroundLayer">
+            <summary>Wraps an mbgl::style::BackgroundLayer (no source).</summary>
+        </member>
+        <member name="P:MaplibreNative.RasterLayer.Resampling">
+            <summary>Resampling method used when scaling raster tiles. Default: Linear.</summary>
+        </member>
+        <member name="P:MaplibreNative.RasterLayer.FadeDuration">
+            <summary>Fade duration when a new tile is added (milliseconds).</summary>
+        </member>
+        <member name="P:MaplibreNative.RasterLayer.Saturation">
+            <summary>Saturation adjustment (-1.0 â€“ 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.RasterLayer.HueRotate">
+            <summary>Hue rotation in degrees (0 â€“ 360).</summary>
+        </member>
+        <member name="P:MaplibreNative.RasterLayer.Contrast">
+            <summary>Contrast adjustment (-1.0 â€“ 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.RasterLayer.BrightnessMax">
+            <summary>Maximum brightness (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.RasterLayer.BrightnessMin">
+            <summary>Minimum brightness (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.RasterLayer.Opacity">
+            <summary>Raster opacity (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="T:MaplibreNative.RasterLayer">
+            <summary>Wraps an mbgl::style::RasterLayer.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextTranslateAnchor">
+            <summary>Frame of reference for TextTranslate: Map or Viewport.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextTranslate">
+            <summary>X/Y translation of text in pixels as [x, y].</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconTranslateAnchor">
+            <summary>Frame of reference for IconTranslate: Map or Viewport.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconTranslate">
+            <summary>X/Y translation of icons in pixels as [x, y].</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconTextFitPadding">
+            <summary>
+Padding applied to each side of the icon bounding box when using IconTextFit
+as [top, right, bottom, left] in ems. Returns {0,0,0,0} when unset.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconTextFit">
+            <summary>
+Scales the icon to fit around the associated text.
+None = icon not scaled, Both = icon scaled to fit text in both axes,
+Width/Height = scaled in one axis only.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconHaloBlur">
+            <summary>Icon halo blur in pixels.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconHaloWidth">
+            <summary>Icon halo width in pixels.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconHaloColor">
+            <summary>Icon halo color as a CSS hex string.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconColor">
+            <summary>Icon color (used for SDF icons) as a CSS hex string.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconOpacity">
+            <summary>Icon opacity (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextHaloBlur">
+            <summary>Halo blur applied to text glyphs in pixels.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextHaloWidth">
+            <summary>Halo width in pixels.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextHaloColor">
+            <summary>Halo color around text glyphs as a CSS hex string.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextOpacity">
+            <summary>Text opacity (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextColor">
+            <summary>Text color as a CSS hex string.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextPitchAlignment">
+            <summary>Orientation of text when map is pitched. Default: Auto.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextRotationAlignment">
+            <summary>In combination with SymbolPlacement, determines orientation of text. Default: Auto.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextOptional">
+            <summary>If true, icons will be shown without text if text is not available.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextIgnorePlacement">
+            <summary>If true, the text will be visible even if it collides with other symbols.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextAllowOverlap">
+            <summary>If true, other symbols can be visible even if they collide with the text.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextOffset">
+            <summary>Offset distance of text from its anchor in [x, y] ems.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextTransform">
+            <summary>Specifies how to capitalize text. Default: None.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextKeepUpright">
+            <summary>If true, the text may be flipped vertically to prevent upside-down text. Default: true.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextPadding">
+            <summary>Extra padding around text bounding box. Default: 2.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextRotate">
+            <summary>Rotates the text clockwise by this angle in degrees.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextMaxAngle">
+            <summary>Maximum angle between adjacent glyph segments for line placement in degrees.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextAnchor">
+            <summary>Part of text to anchor to the symbol placement position. Default: Center.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextRadialOffset">
+            <summary>Radial offset in ems from the anchor (used instead of TextOffset for line/circle placement).</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextJustify">
+            <summary>Text justification. Default: Center.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextLetterSpacing">
+            <summary>Spacing between letters in ems. Default: 0.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextLineHeight">
+            <summary>Text leading value for multi-line text. Default: 1.2.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextMaxWidth">
+            <summary>Maximum line width for text wrapping in ems. Default: 10.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextSize">
+            <summary>Font size in pixels. Default: 16.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextFont">
+            <summary>
+Ordered list of font stack names. E.g. { "Open Sans Bold", "Arial Unicode MS Bold" }.
+Returns an empty array if not set.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.TextField">
+            <summary>
+Text content to display (plain string; for rich text use the style JSON directly).
+</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconPitchAlignment">
+            <summary>Orientation of icon when map is pitched. Default: Auto.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconRotationAlignment">
+            <summary>In combination with SymbolPlacement, determines orientation of icon. Default: Auto.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconOptional">
+            <summary>If true, text will be displayed without icon if icon is not available. Default: false.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconIgnorePlacement">
+            <summary>If true, the icon will be visible even if it collides with other symbols. Default: false.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconAllowOverlap">
+            <summary>If true, other symbols can be visible even if they collide with the icon. Default: false.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconKeepUpright">
+            <summary>If true, the icon may be flipped to prevent upside-down text. Default: false.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconPadding">
+            <summary>Extra padding around icon bounding box used to detect symbol collisions. Default: 2.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconOffset">
+            <summary>Offset distance of icon from its anchor in [x, y] ems.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconRotate">
+            <summary>Rotates the icon clockwise by this angle in degrees.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconAnchor">
+            <summary>Part of icon to anchor to its placement position. Default: Center.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconSize">
+            <summary>Scale factor for the icon image. Default: 1.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.IconImage">
+            <summary>
+Name of a sprite image to use for the icon.
+Returns the first section's image id for constant Formatted values, empty string otherwise.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.SymbolZOrder">
+            <summary>Determines whether overlapping symbols will be rendered in the order they appear in the data source. Default: Auto.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.SymbolSortKey">
+            <summary>Sort key for overlap resolution (lower = drawn below higher values).</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.SymbolAvoidEdges">
+            <summary>If true, symbols will not cross tile edges to avoid gaps or overlaps.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.SymbolSpacing">
+            <summary>Distance between two symbol anchors when placement is Line. Default: 250.</summary>
+        </member>
+        <member name="P:MaplibreNative.SymbolLayer.SymbolPlacement">
+            <summary>How symbol icons and text are placed relative to its geometry. Default: Point.</summary>
+        </member>
+        <member name="T:MaplibreNative.SymbolLayer">
+            <summary>Wraps an mbgl::style::SymbolLayer.</summary>
+        </member>
+        <member name="P:MaplibreNative.CircleLayer.TranslateAnchor">
+            <summary>Frame of reference for Translate: Map or Viewport.</summary>
+        </member>
+        <member name="P:MaplibreNative.CircleLayer.Translate">
+            <summary>X/Y translation of circles in pixels as [x, y].</summary>
+        </member>
+        <member name="P:MaplibreNative.CircleLayer.PitchAlignment">
+            <summary>Orientation of the circle relative to map or viewport.</summary>
+        </member>
+        <member name="P:MaplibreNative.CircleLayer.PitchScale">
+            <summary>Controls the scaling of circle radius with camera pitch.</summary>
+        </member>
+        <member name="P:MaplibreNative.CircleLayer.SortKey">
+            <summary>Sort key for feature rendering order within the layer.</summary>
+        </member>
+        <member name="P:MaplibreNative.CircleLayer.Blur">
+            <summary>Blur applied to the circle (pixels).</summary>
+        </member>
+        <member name="P:MaplibreNative.CircleLayer.StrokeOpacity">
+            <summary>Stroke opacity (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.CircleLayer.StrokeColor">
+            <summary>Stroke color as a CSS hex string.</summary>
+        </member>
+        <member name="P:MaplibreNative.CircleLayer.StrokeWidth">
+            <summary>Stroke width in pixels.</summary>
+        </member>
+        <member name="P:MaplibreNative.CircleLayer.Radius">
+            <summary>Circle radius in pixels.</summary>
+        </member>
+        <member name="P:MaplibreNative.CircleLayer.Opacity">
+            <summary>Circle opacity (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.CircleLayer.Color">
+            <summary>Circle fill color as a CSS hex string.</summary>
+        </member>
+        <member name="T:MaplibreNative.CircleLayer">
+            <summary>Wraps an mbgl::style::CircleLayer.</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.Gradient">
+            <summary>
+Line gradient as a MapLibre expression JSON string (requires lineMetrics=true on the source).
+Maps line progress (0â€“1) to a color. Returns empty string when unset.
+Throws ArgumentException on invalid expression JSON.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.TranslateAnchor">
+            <summary>Frame of reference for Translate: Map or Viewport.</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.Translate">
+            <summary>X/Y translation of the line layer in pixels as [x, y].</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.Pattern">
+            <summary>Sprite image name for a repeating line pattern. Empty string = no pattern.</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.Dasharray">
+            <summary>
+Dash pattern for the line as alternating gap/dash lengths (in line widths).
+Returns an empty array when unset (solid line).
+</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.SortKey">
+            <summary>Sort key for feature rendering order within the layer.</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.RoundLimit">
+            <summary>Limit at which a round join is converted to a bevel join. Default: 1.05.</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.MiterLimit">
+            <summary>Limit at which a miter join is converted to a bevel join. Default: 2.</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.Join">
+            <summary>Join style at corners of lines.</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.Cap">
+            <summary>Cap style at the ends of lines.</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.Offset">
+            <summary>Offset in pixels (positive = right of direction, negative = left).</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.GapWidth">
+            <summary>Gap width in pixels (draws a gap between two parallel lines).</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.Blur">
+            <summary>Line blur applied in pixels.</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.Width">
+            <summary>Stroke width in pixels.</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.Opacity">
+            <summary>Stroke opacity (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.LineLayer.Color">
+            <summary>Stroke color as a CSS hex string.</summary>
+        </member>
+        <member name="T:MaplibreNative.LineLayer">
+            <summary>Wraps an mbgl::style::LineLayer.</summary>
+        </member>
+        <member name="P:MaplibreNative.FillLayer.TranslateAnchor">
+            <summary>Frame of reference for Translate: Map or Viewport.</summary>
+        </member>
+        <member name="P:MaplibreNative.FillLayer.Translate">
+            <summary>X/Y translation of the fill layer in pixels as [x, y].</summary>
+        </member>
+        <member name="P:MaplibreNative.FillLayer.Pattern">
+            <summary>Sprite image name for the fill pattern. Empty string = no pattern.</summary>
+        </member>
+        <member name="P:MaplibreNative.FillLayer.SortKey">
+            <summary>Sort key for feature rendering order within the layer.</summary>
+        </member>
+        <member name="P:MaplibreNative.FillLayer.Antialias">
+            <summary>Whether to anti-alias the fill edges.</summary>
+        </member>
+        <member name="P:MaplibreNative.FillLayer.OutlineColor">
+            <summary>
+Outline color as a CSS hex string.
+Defaults to the fill color if not set.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.FillLayer.Opacity">
+            <summary>Fill opacity (0.0 â€“ 1.0).</summary>
+        </member>
+        <member name="P:MaplibreNative.FillLayer.Color">
+            <summary>
+Fill color as a CSS hex string (e.g. "#rrggbb").
+Returns the current constant value, or empty string for expressions.
+</summary>
+        </member>
+        <member name="T:MaplibreNative.FillLayer">
+            <summary>Wraps an mbgl::style::FillLayer.</summary>
+        </member>
+        <member name="M:MaplibreNative.Layer.GetLayoutProperty(System.String)">
+            <summary>
+Returns the JSON-encoded value of a layout property, or an empty string if not set.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Layer.GetPaintProperty(System.String)">
+            <summary>
+Returns the JSON-encoded value of a paint property, or an empty string if not set.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Layer.SetFilter(System.String)">
+            <summary>
+Sets a filter expression from a MapLibre filter JSON string,
+e.g. <c>["==", "class", "motorway"]</c> or a full expression array.
+Pass null or an empty string to clear the filter.
+Throws if the JSON cannot be parsed as a valid filter expression.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Layer.GetFilter">
+            <summary>
+Gets the current filter expression as a JSON string,
+or an empty string if no filter is set.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Layer.Type">
+            <summary>
+Layer type string as reported by the native library
+(e.g. "fill", "line", "circle", "symbol", "raster", "background",
+ "heatmap", "hillshade", "fill-extrusion").
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Layer.MaxZoom">
+            <summary>Maximum zoom level at which this layer is rendered.</summary>
+        </member>
+        <member name="P:MaplibreNative.Layer.MinZoom">
+            <summary>Minimum zoom level at which this layer is rendered.</summary>
+        </member>
+        <member name="P:MaplibreNative.Layer.Visible">
+            <summary>Whether this layer is rendered (true = visible, false = none).</summary>
+        </member>
+        <member name="P:MaplibreNative.Layer.SourceLayer">
+            <summary>
+Source-layer name used when drawing from a vector tile source.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Layer.SourceId">
+            <summary>
+Source identifier this layer reads from.
+Empty string for background layers.
+</summary>
+        </member>
+        <member name="P:MaplibreNative.Layer.Id">
+            <summary>Unique identifier for the layer.</summary>
+        </member>
+        <member name="T:MaplibreNative.Layer">
+            <summary>
+Non-owning wrapper for an mbgl::style::Layer.
+Lifetime is tied to the Style that owns the native layer â€” do not hold
+references after the Style is disposed.
+</summary>
         </member>
         <member name="P:MaplibreNative.ResourceOptions.PlatformContext">
             <summary>
@@ -567,6 +1625,21 @@ Triggers a repaint.
 Register a callback that will get called (on the render thread) when all
 resources have been loaded and a complete render occurs.
 </summary>
+        </member>
+        <member name="T:MaplibreNative.HillshadeIlluminationAnchorType">
+            <summary>Frame of reference for the hillshade illumination direction.</summary>
+        </member>
+        <member name="T:MaplibreNative.RasterResamplingType">
+            <summary>Resampling method for raster tiles when scaling.</summary>
+        </member>
+        <member name="T:MaplibreNative.AlignmentType">
+            <summary>Alignment type used for icon/text pitch and rotation alignment.</summary>
+        </member>
+        <member name="T:MaplibreNative.CirclePitchScaleType">
+            <summary>Controls how the circle is translated relative to the camera pitch.</summary>
+        </member>
+        <member name="T:MaplibreNative.TranslateAnchorType">
+            <summary>Controls the frame of reference for line/fill/circle translate.</summary>
         </member>
         <member name="F:&lt;unknown type&gt;.ResourceLoader">
             <summary>
@@ -985,6 +2058,38 @@ Clears the rect area specified by <paramref name="pt" /> and <paramref name="siz
 Alpha-channel only
 </summary>
         </member>
+        <member name="M:MaplibreNative.Size.op_Inequality(MaplibreNative.Size,MaplibreNative.Size)">
+            <summary>Returns <see langword="true" /> if either dimension differs.</summary>
+        </member>
+        <member name="M:MaplibreNative.Size.op_Equality(MaplibreNative.Size,MaplibreNative.Size)">
+            <summary>Returns <see langword="true" /> if both dimensions are equal.</summary>
+        </member>
+        <member name="P:MaplibreNative.Size.IsEmpty">
+            <summary>Gets whether either dimension is zero.</summary>
+        </member>
+        <member name="P:MaplibreNative.Size.AspectRatio">
+            <summary>Gets the aspect ratio (Width / Height). Returns 0 if Height is zero.</summary>
+        </member>
+        <member name="P:MaplibreNative.Size.Area">
+            <summary>Gets the area (Width * Height) in square pixels.</summary>
+        </member>
+        <member name="P:MaplibreNative.Size.Height">
+            <summary>Gets or sets the height in pixels.</summary>
+        </member>
+        <member name="P:MaplibreNative.Size.Width">
+            <summary>Gets or sets the width in pixels.</summary>
+        </member>
+        <member name="M:MaplibreNative.Size.#ctor(System.UInt32,System.UInt32)">
+            <summary>Initializes a new <see cref="T:MaplibreNative.Size" /> with the specified width and height.</summary>
+            <param name="width">Width in pixels.</param>
+            <param name="height">Height in pixels.</param>
+        </member>
+        <member name="M:MaplibreNative.Size.#ctor">
+            <summary>Initializes a new <see cref="T:MaplibreNative.Size" /> with zero width and height.</summary>
+        </member>
+        <member name="T:MaplibreNative.Size">
+            <summary>Represents a width and height pair, in pixels.</summary>
+        </member>
         <member name="P:MaplibreNative.EdgeInsets.Right">
             <summary>
 Number of pixels inset from the right edge.
@@ -1050,6 +2155,18 @@ Signals that a repaint is required
 Style is missing an image
 </summary>
         </member>
+        <member name="M:MaplibreNative.Renderer.QueryRenderedFeaturesInBox(System.Double,System.Double,System.Double,System.Double,System.Collections.Generic.IEnumerable`1{System.String})">
+            <summary>
+Query rendered features within a screen bounding box. Returns a GeoJSON FeatureCollection JSON string.
+Pass null or an empty array for layerIds to query all layers.
+</summary>
+        </member>
+        <member name="M:MaplibreNative.Renderer.QueryRenderedFeaturesAtPoint(System.Double,System.Double,System.Collections.Generic.IEnumerable`1{System.String})">
+            <summary>
+Query rendered features at a screen point. Returns a GeoJSON FeatureCollection JSON string.
+Pass null or an empty array for layerIds to query all layers.
+</summary>
+        </member>
         <member name="M:MaplibreNative.UnitBezier.#ctor(System.Double,System.Double,System.Double,System.Double)">
             <summary>
 Calculate the polynomial coefficients, implicit first and last control points are (0,0) and (1,1).
@@ -1079,7 +2196,7 @@ The easing timing curve of the transition.
         </member>
         <member name="P:MaplibreNative.AnimationOptions.MinZoom">
             <summary>
-Zero-based zoom level at the peak of the flyTo() transition’s flight
+Zero-based zoom level at the peak of the flyTo() transition�s flight
 path.
 </summary>
         </member>

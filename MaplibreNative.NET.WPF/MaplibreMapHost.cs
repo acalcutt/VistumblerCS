@@ -358,6 +358,25 @@ public class MaplibreMapHost : HwndHost
     [DllImport("user32.dll")] private static extern bool SetWindowPos(
         IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
+    [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+    [DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+    private const int GWL_EXSTYLE      = -20;
+    private const int WS_EX_TOPMOST    = 0x00000008;
+    private const int WS_EX_NOACTIVATE = 0x08000000;
+    private const int WM_WINDOWPOSCHANGING = 0x0046;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WINDOWPOS
+    {
+        public IntPtr hwnd;
+        public IntPtr hwndInsertAfter;
+        public int x;
+        public int y;
+        public int cx;
+        public int cy;
+        public uint flags;
+    }
+
     [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern int   ReleaseDC(IntPtr hWnd, IntPtr hDC);
 
@@ -503,18 +522,21 @@ public class MaplibreMapHost : HwndHost
 
     private Popup?           _navPopup;
     private RotateTransform? _compassRotate;
+    private Point?           _navDesired;
 
     // ── GPS / location control popup ─────────────────────────────────────────
 
     private Popup?  _gpsPopup;
     private Border? _followBtn;
     private Border? _bearingBtn;
+    private Point?  _gpsDesired;
 
     // ── Attribution overlay ───────────────────────────────────────────────────
 
     private Popup?     _attributionPopup;
     private TextBlock? _attributionText;
     private Border?    _attributionBorder;
+    private Point?     _attributionDesired;
 
     // Resolved once from Style.GetSourceAttributions (v2.1.0+)
     private static System.Reflection.MethodInfo? _miGetSourceAttributions;
@@ -591,7 +613,7 @@ public class MaplibreMapHost : HwndHost
                 if (_attributionPopup != null) _attributionPopup.IsOpen = false;
             };
             parentWin.Activated += (_, _) => { UpdateNavPopupOpen(); UpdateGpsPopupOpen(); UpdateAttributionPopupOpen(); };
-            parentWin.LocationChanged += (_, _) => { RepositionPopup(_navPopup); RepositionPopup(_gpsPopup); RepositionPopup(_attributionPopup); };
+            parentWin.LocationChanged += (_, _) => { PositionNavPopup(); PositionGpsPopup(); PositionAttributionPopup(); };
         }
 
         _renderTimer?.Start();
@@ -620,6 +642,14 @@ public class MaplibreMapHost : HwndHost
         if (_hGLRC != IntPtr.Zero) { wglMakeCurrent(IntPtr.Zero, IntPtr.Zero); wglDeleteContext(_hGLRC); _hGLRC = IntPtr.Zero; }
         if (_hDC   != IntPtr.Zero) { ReleaseDC(_childHwnd, _hDC); _hDC = IntPtr.Zero; }
         if (_childHwnd != IntPtr.Zero) { DestroyWindow(_childHwnd); _childHwnd = IntPtr.Zero; }
+    }
+
+        protected override void OnWindowPositionChanged(Rect rcBoundingBox)
+    {
+        base.OnWindowPositionChanged(rcBoundingBox);
+        PositionNavPopup();
+        PositionGpsPopup();
+        PositionAttributionPopup();
     }
 
     protected override void OnRenderSizeChanged(SizeChangedInfo info)
@@ -801,10 +831,10 @@ public class MaplibreMapHost : HwndHost
             StaysOpen          = true,
             IsHitTestVisible   = true,
             PlacementTarget    = this,
-            Placement          = PlacementMode.Custom,
-            CustomPopupPlacementCallback = (popupSize, targetSize, offset) => new[] { new CustomPopupPlacement(new Point(0, 0), PopupPrimaryAxis.None) },
+            Placement          = PlacementMode.AbsolutePoint,
             Child              = outerBorder,
         };
+        HookPopup(_navPopup, () => GetDesired(_navDesired));
 
         PositionNavPopup();
     }
@@ -841,12 +871,100 @@ public class MaplibreMapHost : HwndHost
     private static void SetButtonCorners(Border btn, double topLeft, double topRight, double bottomRight, double bottomLeft)
         => btn.CornerRadius = new CornerRadius(topLeft, topRight, bottomRight, bottomLeft);
 
+        private Point GetScreenOffset()
+    {
+        if (!IsVisible || !IsLoaded) return new Point(0, 0);
+        try
+        {
+            var src = PresentationSource.FromVisual(this);
+            if (src == null || src.CompositionTarget == null) return new Point(0, 0);
+            var pt = PointToScreen(new Point(0, 0));
+            double dpiX = src.CompositionTarget.TransformToDevice.M11;
+            double dpiY = src.CompositionTarget.TransformToDevice.M22;
+            return new Point(pt.X / dpiX, pt.Y / dpiY);
+        }
+        catch { return new Point(0,0); }
+    }
+
+    /// <summary>
+    /// Installs a WM_WINDOWPOSCHANGING hook on the given popup that overrides
+    /// any incoming x/y with the result of <paramref name="getDesired"/>. This
+    /// bypasses WPF's automatic on-screen clamping during window drags so the
+    /// popup stays glued to the map even when the parent window goes off-screen.
+    /// Also removes the topmost extended style so the popup respects normal
+    /// z-order (other apps on top of Vistumbler will hide it).
+    /// </summary>
+    private void HookPopup(Popup p, Func<(double x, double y, double dpiX, double dpiY)?> getDesired)
+    {
+        EventHandler? installHook = null;
+        installHook = (_, _) =>
+        {
+            if (p.Child == null) return;
+            var src = PresentationSource.FromVisual(p.Child) as HwndSource;
+            if (src == null || src.Handle == IntPtr.Zero) return;
+
+            // Strip topmost; popups should respect normal z-order.
+            int ex = GetWindowLong(src.Handle, GWL_EXSTYLE);
+            SetWindowLong(src.Handle, GWL_EXSTYLE, (ex & ~WS_EX_TOPMOST) | WS_EX_NOACTIVATE);
+
+            src.AddHook((IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled) =>
+            {
+                if (msg == WM_WINDOWPOSCHANGING)
+                {
+                    var d = getDesired();
+                    if (d.HasValue)
+                    {
+                        var wp = Marshal.PtrToStructure<WINDOWPOS>(lParam);
+                        wp.x = (int)Math.Round(d.Value.x * d.Value.dpiX);
+                        wp.y = (int)Math.Round(d.Value.y * d.Value.dpiY);
+                        Marshal.StructureToPtr(wp, lParam, false);
+                    }
+                }
+                return IntPtr.Zero;
+            });
+        };
+        p.Opened += installHook;
+    }
+
+    private const uint SWP_NOSIZE       = 0x0001;
+    private const uint SWP_NOZORDER     = 0x0004;
+    private const uint SWP_NOACTIVATE   = 0x0010;
+    private const uint SWP_NOREDRAW     = 0x0008;
+    private const uint SWP_ASYNCWINDOWPOS = 0x4000;
+
+    /// <summary>
+    /// Force-moves a Popup's HWND directly via Win32 SetWindowPos, bypassing
+    /// WPF's automatic on-screen clamping. The Popup must be open. Coordinates
+    /// are passed in physical pixels.
+    /// </summary>
+    private static void MovePopupHwnd(Popup p, double xDip, double yDip, double dpiX, double dpiY)
+    {
+        if (p.Child == null) return;
+        var src = PresentationSource.FromVisual(p.Child) as HwndSource;
+        if (src == null || src.Handle == IntPtr.Zero) return;
+        int x = (int)Math.Round(xDip * dpiX);
+        int y = (int)Math.Round(yDip * dpiY);
+        SetWindowPos(src.Handle, IntPtr.Zero, x, y, 0, 0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
+    }
+
+    private (double x, double y, double dpiX, double dpiY)? GetDesired(Point? p)
+    {
+        if (!p.HasValue) return null;
+        var src = PresentationSource.FromVisual(this);
+        if (src?.CompositionTarget == null) return null;
+        return (p.Value.X, p.Value.Y,
+            src.CompositionTarget.TransformToDevice.M11,
+            src.CompositionTarget.TransformToDevice.M22);
+    }
+
     private void RepositionPopup(Popup? p)
     {
         if (p == null || !p.IsOpen) return;
-        // WPF popups often fail to move when their PlacementTarget is maximized/restored.
-        // UpdatePosition is the internal method that forces physical window placement.
-        typeof(Popup).GetMethod("UpdatePosition", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.Invoke(p, null);
+        // Force evaluation so re-setting offset forces a redraw
+        var offset = p.HorizontalOffset;
+        p.HorizontalOffset = offset + 0.001;
+        p.HorizontalOffset = offset;
     }
 
     private void PositionNavPopup()
@@ -854,9 +972,12 @@ public class MaplibreMapHost : HwndHost
         if (_navPopup == null) return;
         const double margin      = 10;
         const double panelWidth  = 29;
-        // Place in the top-right corner (mirrors maplibre-gl-js default).
-        _navPopup.HorizontalOffset = ActualWidth  - panelWidth - margin;
-        _navPopup.VerticalOffset   = margin;
+        var sc = GetScreenOffset();
+        double targetX = sc.X + ActualWidth - panelWidth - margin;
+        double targetY = sc.Y + margin;
+        _navDesired = new Point(targetX, targetY);
+        _navPopup.HorizontalOffset = targetX;
+        _navPopup.VerticalOffset   = targetY;
         UpdateNavPopupOpen();
         RepositionPopup(_navPopup);
     }
@@ -925,10 +1046,10 @@ public class MaplibreMapHost : HwndHost
             StaysOpen          = true,
             IsHitTestVisible   = true,
             PlacementTarget    = this,
-            Placement          = PlacementMode.Custom,
-            CustomPopupPlacementCallback = (popupSize, targetSize, offset) => new[] { new CustomPopupPlacement(new Point(0, 0), PopupPrimaryAxis.None) },
+            Placement          = PlacementMode.AbsolutePoint,
             Child              = outerBorder,
         };
+        HookPopup(_gpsPopup, () => GetDesired(_gpsDesired));
 
         // Call directly (same pattern as InitNavPopup) so the popup opens
         // as soon as ActualHeight is available.
@@ -993,11 +1114,13 @@ public class MaplibreMapHost : HwndHost
         if (_gpsPopup == null) return;
         const double margin      = 10;
         const double panelWidth  = 29;
-        // Nav panel is 3×29px buttons + 2×1px dividers = 91px, starting at VerticalOffset=margin.
-        // Place GPS panel in the SAME right column, directly below nav + a 4px gap.
-        const double navHeight   = 3 * 29 + 2 * 1;   // 89
-        _gpsPopup.HorizontalOffset = ActualWidth - panelWidth - margin;
-        _gpsPopup.VerticalOffset   = margin + navHeight + 4;
+        const double navHeight   = 3 * 29 + 2 * 1;
+        var sc = GetScreenOffset();
+        double targetX = sc.X + ActualWidth - panelWidth - margin;
+        double targetY = sc.Y + margin + navHeight + 4;
+        _gpsDesired = new Point(targetX, targetY);
+        _gpsPopup.HorizontalOffset = targetX;
+        _gpsPopup.VerticalOffset   = targetY;
         UpdateGpsPopupOpen();
         RepositionPopup(_gpsPopup);
     }
@@ -1042,10 +1165,10 @@ public class MaplibreMapHost : HwndHost
             StaysOpen          = true,
             IsHitTestVisible   = false,
             PlacementTarget    = this,
-            Placement          = PlacementMode.Custom,
-            CustomPopupPlacementCallback = (popupSize, targetSize, offset) => new[] { new CustomPopupPlacement(new Point(0, 0), PopupPrimaryAxis.None) },
+            Placement          = PlacementMode.AbsolutePoint,
             Child              = _attributionBorder,
         };
+        HookPopup(_attributionPopup, () => GetDesired(_attributionDesired));
 
         PositionAttributionPopup();
     }
@@ -1054,13 +1177,15 @@ public class MaplibreMapHost : HwndHost
     {
         if (_attributionPopup == null) return;
         const double margin  = 4;
-        // Constrain width so the text wraps instead of running off the right edge.
-        // Leave room for the nav/GPS column (≈49px) and both margins.
         if (_attributionBorder != null)
             _attributionBorder.MaxWidth = Math.Max(100, ActualWidth - 49 - margin * 2);
         double contentH = (_attributionBorder?.ActualHeight > 0) ? _attributionBorder.ActualHeight : 22;
-        _attributionPopup.HorizontalOffset = margin;
-        _attributionPopup.VerticalOffset   = ActualHeight - contentH - margin;
+        var sc = GetScreenOffset();
+        double targetX = sc.X + margin;
+        double targetY = sc.Y + ActualHeight - contentH - margin;
+        _attributionDesired = new Point(targetX, targetY);
+        _attributionPopup.HorizontalOffset = targetX;
+        _attributionPopup.VerticalOffset   = targetY;
         UpdateAttributionPopupOpen();
         RepositionPopup(_attributionPopup);
     }
@@ -1281,3 +1406,8 @@ public class MaplibreMapHost : HwndHost
         }
     }
 }
+
+
+
+
+

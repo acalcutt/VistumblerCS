@@ -12,18 +12,23 @@ public class DelegateMapObserver : MapObserver
 {
     private readonly Action<string, string> _log;
     private readonly Action? _onStyleLoaded;
+    private readonly Action? _onMapLoaded;
 
-    public DelegateMapObserver(Action<string, string> log, Action? onStyleLoaded = null)
+    public DelegateMapObserver(Action<string, string> log, Action? onStyleLoaded = null, Action? onMapLoaded = null)
     {
-        _log            = log;
-        _onStyleLoaded  = onStyleLoaded;
+        _log           = log;
+        _onStyleLoaded = onStyleLoaded;
+        _onMapLoaded   = onMapLoaded;
     }
 
     protected override void onDidFailLoadingMap(MapLoadError type, string description)
         => _log("Fail",    $"[{type}] {description}");
 
     protected override void onDidFinishLoadingMap()
-        => _log("Finish",  "Map loaded");
+    {
+        _log("Finish", "Map loaded");
+        _onMapLoaded?.Invoke();
+    }
 
     protected override void onWillStartLoadingMap()
         => _log("Will",    "WillStartLoading");

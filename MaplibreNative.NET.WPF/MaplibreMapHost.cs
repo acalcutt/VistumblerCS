@@ -1174,7 +1174,8 @@ public class MaplibreMapHost : HwndHost
 
         var obs = new MaplibreNative.WPF.DelegateMapObserver(
             (type, msg) => Log($"[MapObserver:{type}] {msg}"),
-            onStyleLoaded: OnMapStyleLoaded);
+            onStyleLoaded: OnMapStyleLoaded,
+            onMapLoaded:   () => Dispatcher.BeginInvoke((Action)RefreshAttribution));
 
         _map = new Map(_frontend, obs, mapOptions, resOptions);
         Log("Map created");

@@ -997,7 +997,7 @@ public class MaplibreMapHost : HwndHost
         {
             FontSize          = 10,
             Foreground        = Brushes.Black,
-            TextWrapping      = TextWrapping.NoWrap,
+            TextWrapping      = TextWrapping.Wrap,
             VerticalAlignment = VerticalAlignment.Center,
         };
 
@@ -1029,6 +1029,10 @@ public class MaplibreMapHost : HwndHost
     {
         if (_attributionPopup == null) return;
         const double margin  = 4;
+        // Constrain width so the text wraps instead of running off the right edge.
+        // Leave room for the nav/GPS column (≈49px) and both margins.
+        if (_attributionBorder != null)
+            _attributionBorder.MaxWidth = Math.Max(100, ActualWidth - 49 - margin * 2);
         double contentH = (_attributionBorder?.ActualHeight > 0) ? _attributionBorder.ActualHeight : 22;
         _attributionPopup.HorizontalOffset = margin;
         _attributionPopup.VerticalOffset   = ActualHeight - contentH - margin;
@@ -1062,12 +1066,20 @@ public class MaplibreMapHost : HwndHost
             var parts = new List<string>();
             foreach (var item in enumerable)
                 if (item is string s && s.Length > 0)
-                    parts.Add(s);
-            _attributionText.Text = string.Join(" | ", parts);
+                    parts.Add(StripHtml(s));
+            _attributionText.Text = string.Join(" \u2502 ", parts);
         }
 
         PositionAttributionPopup();
         UpdateAttributionPopupOpen();
+    }
+
+    /// <summary>Strips HTML tags and decodes common HTML entities from an attribution string.</summary>
+    private static string StripHtml(string html)
+    {
+        // Remove all tags, then decode entities
+        string text = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]*>", "");
+        return System.Net.WebUtility.HtmlDecode(text).Trim();
     }
 
     private void UpdateCompassBearing()

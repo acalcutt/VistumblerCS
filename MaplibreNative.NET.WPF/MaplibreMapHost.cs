@@ -533,7 +533,14 @@ public class MaplibreMapHost : HwndHost
             hwndParent.Handle, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
 
         IsVisibleChanged += OnIsVisibleChanged;
-        SizeChanged      += (_, _) => { PositionNavPopup(); PositionGpsPopup(); PositionAttributionPopup(); };
+        SizeChanged += (_, _) =>
+        {
+            PositionNavPopup();
+            PositionGpsPopup();
+            // Attribution depends on ActualHeight and border re-wrap after MaxWidth changes,
+            // so defer until after the layout pass completes.
+            Dispatcher.BeginInvoke(DispatcherPriority.Render, (Action)PositionAttributionPopup);
+        };
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)TryInitialize);
 
         return new HandleRef(this, _childHwnd);
@@ -1063,7 +1070,7 @@ public class MaplibreMapHost : HwndHost
         var result = _miGetSourceAttributions.Invoke(style, null);
         if (result is System.Collections.IEnumerable enumerable)
         {
-            var parts = new List<string>();
+            var parts = new List<string> { "© MapLibre" };
             foreach (var item in enumerable)
                 if (item is string s && s.Length > 0)
                     parts.Add(StripHtml(s));

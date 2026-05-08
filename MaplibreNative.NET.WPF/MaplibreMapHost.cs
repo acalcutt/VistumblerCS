@@ -65,7 +65,7 @@ public class MaplibreMapHost : HwndHost
     {
         var h = (MaplibreMapHost)d;
         if (h._navPopup != null)
-            h._navPopup.IsOpen = (bool)e.NewValue && h.IsVisible;
+            h.UpdateNavPopupOpen();
     }
 
     // ── Public camera helpers ─────────────────────────────────────────────────
@@ -128,6 +128,12 @@ public class MaplibreMapHost : HwndHost
     private static System.Reflection.MethodInfo? _miRemoveLayer;
     private static bool _styleApiResolved;
 
+    // Resolved from the CircleLayer type on first use
+    private static System.Reflection.PropertyInfo? _piCircleColor;
+    private static System.Reflection.PropertyInfo? _piCircleRadius;
+    private static System.Reflection.PropertyInfo? _piCircleOpacity;
+    private static System.Reflection.MethodInfo?   _miLayerSetFilter;
+
     private static void EnsureStyleApiResolved(object styleObj)
     {
         if (_styleApiResolved) return;
@@ -138,7 +144,7 @@ public class MaplibreMapHost : HwndHost
         _miSetGeoJsonSourceData= t.GetMethod("SetGeoJsonSourceData",[typeof(string), typeof(string)]);
         _miHasSource           = t.GetMethod("HasSource",           [typeof(string)]);
         _miRemoveSource        = t.GetMethod("RemoveSource",        [typeof(string)]);
-        _miAddCircleLayer      = t.GetMethod("AddCircleLayer",      [typeof(string), typeof(string), typeof(string), typeof(float), typeof(float), typeof(string)]);
+        _miAddCircleLayer      = t.GetMethod("AddCircleLayer",      [typeof(string), typeof(string)]);
         _miHasLayer            = t.GetMethod("HasLayer",            [typeof(string)]);
         _miRemoveLayer         = t.GetMethod("RemoveLayer",         [typeof(string)]);
     }
@@ -290,6 +296,7 @@ public class MaplibreMapHost : HwndHost
                 var p = _pendingLocInd.Value;
                 UpdateLocationIndicator(p.Lat, p.Lon, p.Bearing, p.AccuracyM);
             }
+            RefreshAttribution();
         });
     }
 
@@ -310,14 +317,34 @@ public class MaplibreMapHost : HwndHost
 
     private static void _AddWifiCircleLayers(object style, string sourceId)
     {
-        void AddIfMissing(string lid, string color)
+        // Each layer gets a filter so only features matching that security type are drawn.
+        // Filters accept both int and string sectype values (mirrors the Android app pattern).
+        void AddIfMissing(string lid, string color, string filterJson)
         {
             bool has = (bool)_miHasLayer!.Invoke(style, [lid])!;
-            if (!has) _miAddCircleLayer!.Invoke(style, [lid, sourceId, color, 5f, 0.85f, null]);
+            if (has) return;
+            var layer = _miAddCircleLayer!.Invoke(style, [lid, sourceId])!;
+            // Resolve CircleLayer property infos once from the actual runtime type
+            if (_piCircleColor == null)
+            {
+                var lt = layer.GetType();
+                _piCircleColor    = lt.GetProperty("Color");
+                _piCircleRadius   = lt.GetProperty("Radius");
+                _piCircleOpacity  = lt.GetProperty("Opacity");
+                _miLayerSetFilter = lt.GetMethod("SetFilter", [typeof(string)]);
+            }
+            _piCircleColor?.SetValue(layer, color);
+            _piCircleRadius?.SetValue(layer, 5f);
+            _piCircleOpacity?.SetValue(layer, 0.85f);
+            _miLayerSetFilter?.Invoke(layer, [filterJson]);
         }
-        AddIfMissing(sourceId + "_open",   "#00802b");  // green
-        AddIfMissing(sourceId + "_wep",    "#cc7a00");  // orange
-        AddIfMissing(sourceId + "_secure", "#b30000");  // red
+        // sectype: 1=Open(green), 2=WEP(orange), 3=Secure/WPA*(red)
+        AddIfMissing(sourceId + "_open",   "#00802b",
+            "[\"any\",[\"==\",[\"get\",\"sectype\"],1],[\"==\",[\"get\",\"sectype\"],\"1\"]]");
+        AddIfMissing(sourceId + "_wep",    "#cc7a00",
+            "[\"any\",[\"==\",[\"get\",\"sectype\"],2],[\"==\",[\"get\",\"sectype\"],\"2\"]]");
+        AddIfMissing(sourceId + "_secure", "#b30000",
+            "[\"any\",[\"==\",[\"get\",\"sectype\"],3],[\"==\",[\"get\",\"sectype\"],\"3\"]]");
     }
 
     // ── Win32 / WGL P/Invoke ──────────────────────────────────────────────────
@@ -377,6 +404,7 @@ public class MaplibreMapHost : HwndHost
     private const int  WGL_CONTEXT_MINOR_VERSION_ARB         = 0x2092;
     private const int  WGL_CONTEXT_PROFILE_MASK_ARB          = 0x9126;
     private const uint CS_OWNDC                              = 0x0020;
+    private const uint CS_DBLCLKS                            = 0x0008;
     private const string MapLibreWindowClass                 = "MapLibreGLChild";
 
     private static WndProcDelegate? _wndProcKeepAlive;
@@ -389,7 +417,7 @@ public class MaplibreMapHost : HwndHost
         var wc = new WNDCLASSEXA
         {
             cbSize        = (uint)Marshal.SizeOf<WNDCLASSEXA>(),
-            style         = CS_OWNDC,
+            style         = CS_OWNDC | CS_DBLCLKS,
             lpfnWndProc   = Marshal.GetFunctionPointerForDelegate(_wndProcKeepAlive),
             hInstance     = GetModuleHandleW(IntPtr.Zero),
             lpszClassName = MapLibreWindowClass,
@@ -473,8 +501,23 @@ public class MaplibreMapHost : HwndHost
 
     // ── Navigation popup ──────────────────────────────────────────────────────
 
-    private Popup?          _navPopup;
+    private Popup?           _navPopup;
     private RotateTransform? _compassRotate;
+
+    // ── GPS / location control popup ─────────────────────────────────────────
+
+    private Popup?  _gpsPopup;
+    private Border? _followBtn;
+    private Border? _bearingBtn;
+
+    // ── Attribution overlay ───────────────────────────────────────────────────
+
+    private Popup?     _attributionPopup;
+    private TextBlock? _attributionText;
+    private Border?    _attributionBorder;
+
+    // Resolved once from Style.GetSourceAttributions (v2.1.0+)
+    private static System.Reflection.MethodInfo? _miGetSourceAttributions;
 
     // ── HwndHost overrides ────────────────────────────────────────────────────
 
@@ -490,6 +533,7 @@ public class MaplibreMapHost : HwndHost
             hwndParent.Handle, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
 
         IsVisibleChanged += OnIsVisibleChanged;
+        SizeChanged      += (_, _) => { PositionNavPopup(); PositionGpsPopup(); PositionAttributionPopup(); };
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)TryInitialize);
 
         return new HandleRef(this, _childHwnd);
@@ -506,8 +550,9 @@ public class MaplibreMapHost : HwndHost
         else
             _renderTimer?.Stop();
 
-        if (_navPopup != null)
-            _navPopup.IsOpen = visible && ShowNavigationControls;
+        UpdateNavPopupOpen();
+        UpdateGpsPopupOpen();
+        UpdateAttributionPopupOpen();
     }
 
     private void TryInitialize()
@@ -523,15 +568,22 @@ public class MaplibreMapHost : HwndHost
         _initialized = true;
         try { InitOpenGl();    Log("InitOpenGl OK"); } catch (Exception ex) { Log($"InitOpenGl EX: {ex}"); throw; }
         try { InitMaplibre();  Log("InitMaplibre OK"); } catch (Exception ex) { Log($"InitMaplibre EX: {ex}"); throw; }
-        try { InitNavPopup();  } catch (Exception ex) { Log($"InitNavPopup EX: {ex}"); }
+        try { InitNavPopup();         } catch (Exception ex) { Log($"InitNavPopup EX: {ex}"); }
+        try { InitGpsPopup();         } catch (Exception ex) { Log($"InitGpsPopup EX: {ex}"); }
+        try { InitAttributionPopup(); } catch (Exception ex) { Log($"InitAttributionPopup EX: {ex}"); }
 
-        // Hide nav popup when the host window loses focus so it doesn't float
+        // Hide popups when the host window loses focus so they don't float
         // over unrelated windows (WPF Popup creates its own top-level HWND).
         var parentWin = System.Windows.Window.GetWindow(this);
         if (parentWin != null)
         {
-            parentWin.Deactivated += (_, _) => { if (_navPopup != null) _navPopup.IsOpen = false; };
-            parentWin.Activated   += (_, _) => { if (_navPopup != null) _navPopup.IsOpen = ShowNavigationControls && IsVisible; };
+            parentWin.Deactivated += (_, _) =>
+            {
+                if (_navPopup         != null) _navPopup.IsOpen         = false;
+                if (_gpsPopup         != null) _gpsPopup.IsOpen         = false;
+                if (_attributionPopup != null) _attributionPopup.IsOpen = false;
+            };
+            parentWin.Activated += (_, _) => { UpdateNavPopupOpen(); UpdateGpsPopupOpen(); UpdateAttributionPopupOpen(); };
         }
 
         _renderTimer?.Start();
@@ -543,7 +595,13 @@ public class MaplibreMapHost : HwndHost
         _renderTimer?.Stop();
         _renderTimer = null;
 
-        if (_navPopup != null) { _navPopup.IsOpen = false; _navPopup = null; }
+        if (_navPopup         != null) { _navPopup.IsOpen         = false; _navPopup         = null; }
+        if (_gpsPopup         != null) { _gpsPopup.IsOpen         = false; _gpsPopup         = null; }
+        if (_attributionPopup != null) { _attributionPopup.IsOpen = false; _attributionPopup = null; }
+        _attributionText   = null;
+        _attributionBorder = null;
+        _followBtn  = null;
+        _bearingBtn = null;
 
         _styleReady = false;
         _locIndObj  = null;
@@ -573,12 +631,13 @@ public class MaplibreMapHost : HwndHost
 
         if (_frontend != null)
         {
-            _map?.SetSize(new MaplibreNative.Size((uint)info.NewSize.Width, (uint)info.NewSize.Height));
+            _map?.SetSize(new MaplibreNative.Size((uint)wP, (uint)hP));
             _frontend.Backend.Size = new MaplibreNative.Size((uint)wP, (uint)hP);
         }
         _renderNeedsUpdate = true;
 
         PositionNavPopup();
+        PositionGpsPopup();
 
         if (!_initialized && IsVisible)
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)TryInitialize);
@@ -735,7 +794,6 @@ public class MaplibreMapHost : HwndHost
         };
 
         PositionNavPopup();
-        _navPopup.IsOpen = ShowNavigationControls && IsVisible;
     }
 
     /// <summary>Creates a 29×29 white nav button with hover effect.</summary>
@@ -778,6 +836,238 @@ public class MaplibreMapHost : HwndHost
         // Place in the top-right corner (mirrors maplibre-gl-js default).
         _navPopup.HorizontalOffset = ActualWidth  - panelWidth - margin;
         _navPopup.VerticalOffset   = margin;
+        UpdateNavPopupOpen();
+    }
+
+    /// <summary>
+    /// Central open/close decision for the nav popup. Hides it when the map
+    /// area is too small to avoid floating over other panels (WPF Popup is a
+    /// separate top-level HWND and does not clip to the placement target).
+    /// </summary>
+    private void UpdateNavPopupOpen()
+    {
+        if (_navPopup == null) return;
+        // Nav panel: 3×29 px buttons + 2×1 px dividers = 89 px + 10 px top margin.
+        const double minH = 100;
+        bool fits = ActualHeight >= minH;
+        _navPopup.IsOpen = fits && ShowNavigationControls && IsVisible;
+    }
+
+    // ── GPS / location control popup ─────────────────────────────────────────
+
+    private void InitGpsPopup()
+    {
+        var outerBorder = new Border
+        {
+            CornerRadius = new CornerRadius(4),
+            Effect = new DropShadowEffect
+            {
+                BlurRadius  = 6,
+                ShadowDepth = 2,
+                Opacity     = 0.25,
+                Color       = Colors.Black,
+                Direction   = 270,
+            },
+        };
+
+        var panel = new StackPanel { Width = 29 };
+        outerBorder.Child = panel;
+
+        // Follow button — toggles FollowLocation
+        _followBtn = MakeGpsToggleButton("Flw", "Free", FollowLocation, () =>
+        {
+            FollowLocation = !FollowLocation;
+            if (_followBtn != null) UpdateGpsButtonState(_followBtn, FollowLocation, "Flw", "Free");
+        });
+        SetButtonCorners(_followBtn, topLeft: 4, topRight: 4, bottomRight: 0, bottomLeft: 0);
+        panel.Children.Add(_followBtn);
+
+        panel.Children.Add(new Border
+        {
+            Height     = 1,
+            Background = new SolidColorBrush(Color.FromRgb(218, 218, 218)),
+        });
+
+        // Bearing button — toggles ShowBearing
+        _bearingBtn = MakeGpsToggleButton("GPS\u2191", "N\u2191", ShowBearing, () =>
+        {
+            ShowBearing = !ShowBearing;
+            if (_bearingBtn != null) UpdateGpsButtonState(_bearingBtn, ShowBearing, "GPS\u2191", "N\u2191");
+        });
+        SetButtonCorners(_bearingBtn, topLeft: 0, topRight: 0, bottomRight: 4, bottomLeft: 4);
+        panel.Children.Add(_bearingBtn);
+
+        _gpsPopup = new Popup
+        {
+            AllowsTransparency = true,
+            StaysOpen          = true,
+            IsHitTestVisible   = true,
+            PlacementTarget    = this,
+            Placement          = PlacementMode.Relative,
+            Child              = outerBorder,
+        };
+
+        // Call directly (same pattern as InitNavPopup) so the popup opens
+        // as soon as ActualHeight is available.
+        PositionGpsPopup();
+    }
+
+    /// <summary>Creates a 29×29 GPS toggle button with active (blue) / inactive (white) states.</summary>
+    private static Border MakeGpsToggleButton(string activeText, string inactiveText, bool initialState, Action onClick)
+    {
+        var tb = new TextBlock
+        {
+            Text                = initialState ? activeText : inactiveText,
+            FontSize            = 9,
+            FontWeight          = FontWeights.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment   = VerticalAlignment.Center,
+            IsHitTestVisible    = false,
+            Foreground          = initialState ? Brushes.White : Brushes.Black,
+        };
+
+        var btn = new Border
+        {
+            Width      = 29,
+            Height     = 29,
+            Background = initialState
+                ? new SolidColorBrush(Color.FromRgb(0x21, 0x96, 0xF3))
+                : Brushes.White,
+            Cursor     = Cursors.Hand,
+            Child      = tb,
+        };
+
+        btn.MouseLeftButtonDown += (_, e) => { onClick(); e.Handled = true; };
+        btn.MouseEnter += (_, _) =>
+        {
+            bool active = tb.Text == activeText;
+            btn.Background = active
+                ? new SolidColorBrush(Color.FromRgb(0x1A, 0x7E, 0xC8))   // darker blue
+                : new SolidColorBrush(Color.FromRgb(240, 240, 240));       // hover grey
+        };
+        btn.MouseLeave += (_, _) =>
+        {
+            bool active = tb.Text == activeText;
+            btn.Background = active
+                ? new SolidColorBrush(Color.FromRgb(0x21, 0x96, 0xF3))
+                : Brushes.White;
+        };
+        return btn;
+    }
+
+    private static void UpdateGpsButtonState(Border btn, bool active, string activeText, string inactiveText)
+    {
+        if (btn.Child is not TextBlock tb) return;
+        tb.Text       = active ? activeText : inactiveText;
+        tb.Foreground = active ? Brushes.White : Brushes.Black;
+        btn.Background = active
+            ? new SolidColorBrush(Color.FromRgb(0x21, 0x96, 0xF3))
+            : Brushes.White;
+    }
+
+    private void PositionGpsPopup()
+    {
+        if (_gpsPopup == null) return;
+        const double margin      = 10;
+        const double panelWidth  = 29;
+        // Nav panel is 3×29px buttons + 2×1px dividers = 91px, starting at VerticalOffset=margin.
+        // Place GPS panel in the SAME right column, directly below nav + a 4px gap.
+        const double navHeight   = 3 * 29 + 2 * 1;   // 89
+        _gpsPopup.HorizontalOffset = ActualWidth - panelWidth - margin;
+        _gpsPopup.VerticalOffset   = margin + navHeight + 4;
+        UpdateGpsPopupOpen();
+    }
+
+    /// <summary>
+    /// Central open/close decision for the GPS popup — same size-gate as nav popup.
+    /// </summary>
+    private void UpdateGpsPopupOpen()
+    {
+        if (_gpsPopup == null) return;
+        const double minH = 100;
+        bool fits = ActualHeight >= minH;
+        _gpsPopup.IsOpen = fits && IsVisible;
+    }
+
+    // ── Attribution overlay ────────────────────────────────────────────────────
+
+    private void InitAttributionPopup()
+    {
+        _attributionText = new TextBlock
+        {
+            FontSize          = 10,
+            Foreground        = Brushes.Black,
+            TextWrapping      = TextWrapping.NoWrap,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        _attributionBorder = new Border
+        {
+            Background   = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
+            CornerRadius = new CornerRadius(3),
+            Padding      = new Thickness(5, 2, 5, 2),
+            Child        = _attributionText,
+        };
+
+        // Reposition after the border measures itself so the bottom edge stays flush.
+        _attributionBorder.SizeChanged += (_, _) => PositionAttributionPopup();
+
+        _attributionPopup = new Popup
+        {
+            AllowsTransparency = true,
+            StaysOpen          = true,
+            IsHitTestVisible   = false,
+            PlacementTarget    = this,
+            Placement          = PlacementMode.Relative,
+            Child              = _attributionBorder,
+        };
+
+        PositionAttributionPopup();
+    }
+
+    private void PositionAttributionPopup()
+    {
+        if (_attributionPopup == null) return;
+        const double margin  = 4;
+        double contentH = (_attributionBorder?.ActualHeight > 0) ? _attributionBorder.ActualHeight : 22;
+        _attributionPopup.HorizontalOffset = margin;
+        _attributionPopup.VerticalOffset   = ActualHeight - contentH - margin;
+        UpdateAttributionPopupOpen();
+    }
+
+    private void UpdateAttributionPopupOpen()
+    {
+        if (_attributionPopup == null) return;
+        bool hasText = !string.IsNullOrEmpty(_attributionText?.Text);
+        _attributionPopup.IsOpen = hasText && IsVisible;
+    }
+
+    /// <summary>
+    /// Reads source attributions from the loaded style (requires MaplibreNative.NET v2.1.0+)
+    /// and updates the bottom-left attribution overlay.
+    /// </summary>
+    private void RefreshAttribution()
+    {
+        if (_map == null || _attributionText == null) return;
+        var style = _map.Style;
+
+        if (_miGetSourceAttributions == null)
+            _miGetSourceAttributions = style.GetType().GetMethod("GetSourceAttributions", Type.EmptyTypes);
+
+        if (_miGetSourceAttributions == null) return;  // pre-v2.1.0 DLL — skip silently
+
+        var result = _miGetSourceAttributions.Invoke(style, null);
+        if (result is System.Collections.IEnumerable enumerable)
+        {
+            var parts = new List<string>();
+            foreach (var item in enumerable)
+                if (item is string s && s.Length > 0)
+                    parts.Add(s);
+            _attributionText.Text = string.Join(" | ", parts);
+        }
+
+        PositionAttributionPopup();
+        UpdateAttributionPopupOpen();
     }
 
     private void UpdateCompassBearing()

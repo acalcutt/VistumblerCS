@@ -477,6 +477,7 @@ public class MaplibreMapHost : HwndHost
     // ── State ─────────────────────────────────────────────────────────────────
 
     private IntPtr _childHwnd = IntPtr.Zero;
+    private IntPtr _ownerHwnd  = IntPtr.Zero;   // main window HWND for popup z-order
     private IntPtr _hDC       = IntPtr.Zero;
     private IntPtr _hGLRC     = IntPtr.Zero;
 
@@ -606,6 +607,7 @@ public class MaplibreMapHost : HwndHost
         var parentWin = System.Windows.Window.GetWindow(this);
         if (parentWin != null)
         {
+            _ownerHwnd = new System.Windows.Interop.WindowInteropHelper(parentWin).Handle;
             parentWin.Deactivated += (_, _) =>
             {
                 if (_navPopup         != null) _navPopup.IsOpen         = false;
@@ -903,22 +905,39 @@ public class MaplibreMapHost : HwndHost
             var src = PresentationSource.FromVisual(p.Child) as HwndSource;
             if (src == null || src.Handle == IntPtr.Zero) return;
 
-            // Strip topmost; popups should respect normal z-order.
+            // Strip WS_EX_TOPMOST so the popup respects normal z-order.
             int ex = GetWindowLong(src.Handle, GWL_EXSTYLE);
             SetWindowLong(src.Handle, GWL_EXSTYLE, (ex & ~WS_EX_TOPMOST) | WS_EX_NOACTIVATE);
+
+            // Place popup just above the owner window so it is visible over the
+            // map but NOT above other applications.
+            if (_ownerHwnd != IntPtr.Zero)
+                SetWindowPos(src.Handle, _ownerHwnd, 0, 0, 0, 0,
+                    SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
 
             src.AddHook((IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled) =>
             {
                 if (msg == WM_WINDOWPOSCHANGING)
                 {
+                    var wp = Marshal.PtrToStructure<WINDOWPOS>(lParam);
+
+                    // Always enforce z-order: place just above the owner.
+                    // Clear SWP_NOZORDER so our hwndInsertAfter is honoured;
+                    // WPF often sets that flag on move-only updates.
+                    const uint SWP_NOZORDER_FLAG = 0x0004;
+                    if (_ownerHwnd != IntPtr.Zero)
+                    {
+                        wp.hwndInsertAfter = _ownerHwnd;
+                        wp.flags &= ~SWP_NOZORDER_FLAG;
+                    }
+
                     var d = getDesired();
                     if (d.HasValue)
                     {
-                        var wp = Marshal.PtrToStructure<WINDOWPOS>(lParam);
                         wp.x = (int)Math.Round(d.Value.x * d.Value.dpiX);
                         wp.y = (int)Math.Round(d.Value.y * d.Value.dpiY);
-                        Marshal.StructureToPtr(wp, lParam, false);
                     }
+                    Marshal.StructureToPtr(wp, lParam, false);
                 }
                 return IntPtr.Zero;
             });
@@ -927,6 +946,7 @@ public class MaplibreMapHost : HwndHost
     }
 
     private const uint SWP_NOSIZE       = 0x0001;
+    private const uint SWP_NOMOVE       = 0x0002;
     private const uint SWP_NOZORDER     = 0x0004;
     private const uint SWP_NOACTIVATE   = 0x0010;
     private const uint SWP_NOREDRAW     = 0x0008;

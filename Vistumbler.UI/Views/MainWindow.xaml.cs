@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Vistumbler.Core.Services;
 using Vistumbler.UI.ViewModels;
+using Vistumbler.UI.Extensions;
 
 namespace Vistumbler.UI.Views;
 

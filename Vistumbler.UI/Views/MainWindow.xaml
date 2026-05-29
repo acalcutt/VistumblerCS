@@ -1,11 +1,11 @@
-<Window x:Class="Vistumbler.UI.Views.MainWindow"
+﻿<Window x:Class="Vistumbler.UI.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Vistumbler.UI.ViewModels"
         xmlns:controls="clr-namespace:Vistumbler.UI.Controls"
-        xmlns:mlcontrols="clr-namespace:MaplibreNative.WPF;assembly=MaplibreNative.NET.WPF"
+        xmlns:mlwpf="clr-namespace:MapLibreNative.Maui.WPF;assembly=MapLibreNative.Maui.WPF"
         mc:Ignorable="d"
         Title="Vistumbler CS - WiFi Scanner" Height="700" Width="1200"
         WindowStartupLocation="CenterScreen"
@@ -337,7 +337,7 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <mlcontrols:MaplibreMapHost
+            <mlwpf:MlnMapHost
                 x:Name="MapHost"
                 Grid.Row="0"
                 Margin="10,10,10,0"

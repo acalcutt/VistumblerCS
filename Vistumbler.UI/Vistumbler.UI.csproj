@@ -1,12 +1,12 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <PlatformTarget>x64</PlatformTarget>
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <Version>0.1.0</Version>
     <AssemblyVersion>0.1.0.0</AssemblyVersion>
     <FileVersion>0.1.0.0</FileVersion>
@@ -17,30 +17,14 @@
   <ItemGroup>
     <ProjectReference Include="..\Vistumbler.Core\Vistumbler.Core.csproj" />
     <ProjectReference Include="..\Vistumbler.Infrastructure\Vistumbler.Infrastructure.csproj" />
-    <!-- MapLibre WPF controls (MaplibreMapHost + nav popup) -->
-    <ProjectReference Include="..\MaplibreNative.NET.WPF\MaplibreNative.NET.WPF.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- MapLibre Native .NET wrapper (C++/CLI, /clr:netcore, x64 only) -->
-    <Reference Include="MaplibreNative.NET">
-      <HintPath>..\lib\x64\MaplibreNative.NET.dll</HintPath>
-    </Reference>
-    <!-- Copy the native DLL and IJW host alongside the output -->
-    <Content Include="..\lib\x64\MaplibreNative.NET.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>MaplibreNative.NET.dll</Link>
-    </Content>
-    <Content Include="..\lib\x64\Ijwhost.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>Ijwhost.dll</Link>
-    </Content>
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <!-- MapLibre MAUI WPF control (uses P/Invoke instead of C++/CLI) -->
+    <PackageReference Include="MapLibreNative.Maui.WPF" Version="2.0.2" />
   </ItemGroup>
 
   <!-- WAV sound files copied into the repo under Sounds\ -->

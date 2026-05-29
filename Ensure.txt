@@ -1,0 +1,40 @@
+    private void EnsureInitialized()
+    {
+        if (!_initialized)
+        {
+            _initialized = true;
+            try
+            {
+                Debug.WriteLine(""[MapHost] EnsureInitialized start"");
+                InitOpenGl();
+                Debug.WriteLine($""[MapHost] After InitOpenGl: _glReady={_glReady} _hDC={_hDC} _hGLRC={_hGLRC}"");
+                InitMaplibre();
+                Debug.WriteLine($""[MapHost] After InitMaplibre: _map={_map != null} _frontend={_frontend != null}"");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($""[MapHost] EXCEPTION during init: {ex}"");
+                System.IO.File.AppendAllText(""map_log.txt"", $""[MapHost] EXCEPTION during init: {ex}\n"");
+            }
+        }
+        _renderTimer?.Start();
+        RequestRender();
+    }
+
+    protected override void DestroyWindowCore(HandleRef hwnd)
+    {
+        IsVisibleChanged -= OnIsVisibleChanged;
+        _renderTimer?.Stop();
+        _renderTimer = null;
+
+        _map?.Dispose();
+        _map = null;
+        _frontend?.Dispose();
+        _frontend = null;
+        _runLoop?.Dispose();
+        _runLoop = null;
+
+        if (_hGLRC != IntPtr.Zero) { wglMakeCurrent(IntPtr.Zero, IntPtr.Zero); wglDeleteContext(_hGLRC); _hGLRC = IntPtr.Zero; }
+        if (_hDC   != IntPtr.Zero) { ReleaseDC(_childHwnd, _hDC); _hDC = IntPtr.Zero; }
+        if (_childHwnd != IntPtr.Zero) { DestroyWindow(_childHwnd); _childHwnd = IntPtr.Zero; }
+    }

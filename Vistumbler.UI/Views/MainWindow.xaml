@@ -346,39 +346,45 @@
             <!-- WifiDB layer buttons: fetch and show GeoJSON from the WifiDB database -->
             <WrapPanel Grid.Row="1" Margin="10,4,10,4" Orientation="Horizontal">
 
-                <Button Tag="exp_daily"
+                <Button Tag="WifiDB_daily"
                         ToolTip="Daily"
                         Content="Daily"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
-                <Button Tag="exp_weekly"
+                <Button Tag="WifiDB_weekly"
                         ToolTip="Weekly"
                         Content="Weekly"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
-                <Button Tag="exp_monthly"
+                <Button Tag="WifiDB_monthly"
                         ToolTip="Monthly"
                         Content="Monthly"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
-                <Button Tag="exp_0to1year"
+                <Button Tag="WifiDB_0to1year"
                         ToolTip="0-1 Year"
                         Content="0-1 Year"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
-                <Button Tag="exp_1to2year"
+                <Button Tag="WifiDB_1to2year"
                         ToolTip="1-2 Year"
                         Content="1-2 Year"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
-                <Button Tag="exp_2to3year"
+                <Button Tag="WifiDB_2to3year"
                         ToolTip="2-3 Year"
                         Content="2-3 Year"
+                        Click="WifiDbLayerButton_Click"
+                        Height="22" Padding="8,2" Margin="0,0,4,0"
+                        FontSize="11"/>
+                <Button Tag="WifiDB_Legacy"
+                        ToolTip="3+ Year"
+                        Content="3+ Year"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>

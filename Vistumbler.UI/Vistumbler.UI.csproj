@@ -24,7 +24,7 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
     <!-- MapLibre MAUI WPF control (uses P/Invoke instead of C++/CLI) -->
-    <PackageReference Include="MapLibreNative.Maui.WPF" Version="3.2.0" />
+    <PackageReference Include="MapLibreNative.Maui.WPF" Version="3.2.5" />
   </ItemGroup>
 
   <!-- WAV sound files copied into the repo under Sounds\ -->

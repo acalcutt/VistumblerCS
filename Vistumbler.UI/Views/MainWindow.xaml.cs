@@ -232,11 +232,26 @@ public partial class MainWindow : Window
     private void WifiDbLayerButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn) return;
-        string func     = btn.Tag?.ToString() ?? "";
-        string sourceId = "wifidb_" + func;
+        string tag      = btn.Tag?.ToString() ?? "";
+        string sourceId = "wifidb_" + tag;
         var viewModel   = (MainViewModel)DataContext!;
-        string apiBase  = viewModel.Settings.WifiDbApiUrl.TrimEnd('/');
-        string url      = $"{apiBase}/geojson.php?func={func}&json=1";
+        string urlBase  = viewModel.Settings.WifiDbUrl.TrimEnd('/');
+
+        // Daily uses the API endpoint (last 36 hours, all users — no credentials needed).
+        // All other layers use pre-generated static GeoJSON files.
+        string url = tag switch
+        {
+            "WifiDB_daily"    => $"{urlBase}/api/geojson.php?func=exp_daily&json=1",
+            "WifiDB_weekly"   => $"{urlBase}/out/geojson/WifiDB_weekly.json",
+            "WifiDB_monthly"  => $"{urlBase}/out/geojson/WifiDB_monthly.json",
+            "WifiDB_0to1year" => $"{urlBase}/out/geojson/WifiDB_0to1year.json",
+            "WifiDB_1to2year" => $"{urlBase}/out/geojson/WifiDB_1to2year.json",
+            "WifiDB_2to3year" => $"{urlBase}/out/geojson/WifiDB_2to3year.json",
+            "WifiDB_Legacy"   => $"{urlBase}/out/geojson/WifiDB_Legacy.json",
+            _                 => string.Empty,
+        };
+
+        if (string.IsNullOrEmpty(url)) return;
 
         if (_activeWifiDbLayers.Contains(sourceId))
         {

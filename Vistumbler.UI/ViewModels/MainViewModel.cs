@@ -113,14 +113,18 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isMinimalGuiMode = false;
 
-    public bool IsGraphVisible        => !IsMinimalGuiMode && GraphMode != GraphMode.Hidden;
+    public bool IsGraphVisible        => !IsMinimalGuiMode && GraphMode is GraphMode.Line or GraphMode.Bar;
+    public bool IsMapVisible          => !IsMinimalGuiMode && GraphMode == GraphMode.Map;
     public bool IsTreeViewVisible     => !IsMinimalGuiMode && ShowTreeView;
     public bool IsContentVisible      => !IsMinimalGuiMode;
     public bool IsGraphButtonsEnabled => !IsMinimalGuiMode;
     public bool IsTreeToggleEnabled   => !IsMinimalGuiMode;
 
     partial void OnGraphModeChanged(GraphMode value)
-        => OnPropertyChanged(nameof(IsGraphVisible));
+    {
+        OnPropertyChanged(nameof(IsGraphVisible));
+        OnPropertyChanged(nameof(IsMapVisible));
+    }
 
     partial void OnShowTreeViewChanged(bool value)
         => OnPropertyChanged(nameof(IsTreeViewVisible));
@@ -129,6 +133,7 @@ public partial class MainViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(IsContentVisible));
         OnPropertyChanged(nameof(IsGraphVisible));
+        OnPropertyChanged(nameof(IsMapVisible));
         OnPropertyChanged(nameof(IsTreeViewVisible));
         OnPropertyChanged(nameof(IsGraphButtonsEnabled));
         OnPropertyChanged(nameof(IsTreeToggleEnabled));
@@ -170,6 +175,7 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ToggleGraph1Command { get; }
     public ICommand ToggleGraph2Command { get; }
     public ICommand ToggleGraphOffCommand { get; }
+    public ICommand ToggleMapCommand { get; }
     public ICommand ToggleUseRssiCommand { get; }
     public ICommand ToggleGraphDeadTimeCommand { get; }
     public ICommand ToggleTreeViewCommand { get; }
@@ -275,6 +281,7 @@ public partial class MainViewModel : ViewModelBase
         ToggleGraph1Command        = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Line ? GraphMode.Hidden : GraphMode.Line);
         ToggleGraph2Command        = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Bar  ? GraphMode.Hidden : GraphMode.Bar);
         ToggleGraphOffCommand      = new RelayCommand(() => GraphMode = GraphMode.Hidden);
+        ToggleMapCommand           = new RelayCommand(() => GraphMode = GraphMode == GraphMode.Map  ? GraphMode.Hidden : GraphMode.Map);
         ToggleUseRssiCommand       = new RelayCommand(() => UseRssiInGraphs = !UseRssiInGraphs);
         ToggleGraphDeadTimeCommand = new RelayCommand(() => GraphDeadTime   = !GraphDeadTime);
         ToggleTreeViewCommand      = new RelayCommand(() => ShowTreeView     = !ShowTreeView);
@@ -1014,7 +1021,59 @@ public partial class MainViewModel : ViewModelBase
         Application.Current.Dispatcher.Invoke(() =>
         {
             ActiveApCount = AccessPoints.Count(ap => ap.IsActive);
+            FireLiveApGeoJson();
         });
+    }
+
+    // ── Live AP GeoJSON ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Fired on the UI thread after each GPS fix with raw position values,
+    /// suitable for updating a map location indicator.
+    /// </summary>
+    public event EventHandler<GpsLocationEventArgs>? GpsLocationUpdated;
+
+    /// <summary>
+    /// Fired on the UI thread after each scan cycle with the current GeoJSON
+    /// FeatureCollection for all active APs that have GPS coordinates.
+    /// </summary>
+    public event EventHandler<string>? LiveApGeoJsonUpdated;
+
+    private void FireLiveApGeoJson()
+    {
+        if (LiveApGeoJsonUpdated == null) return;
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append("{\"type\":\"FeatureCollection\",\"features\":[");
+        bool first = true;
+        foreach (var ap in AccessPoints)
+        {
+            if (ap.Latitude == null || ap.Longitude == null) continue;
+            if (!first) sb.Append(',');
+            first = false;
+
+            int sectype = ap.Authentication switch
+            {
+                Vistumbler.Core.Models.AuthenticationType.Open  => 1,
+                _ => ap.Encryption == Vistumbler.Core.Models.EncryptionType.WEP ? 2 : 3,
+            };
+
+            sb.Append("{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[");
+            sb.Append(ap.Longitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            sb.Append(',');
+            sb.Append(ap.Latitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            sb.Append("]},\"properties\":{\"bssid\":\"");
+            sb.Append(ap.Bssid.Replace("\"", ""));
+            sb.Append("\",\"ssid\":\"");
+            sb.Append(ap.Ssid.Replace("\\", "\\\\").Replace("\"", "\\\""));
+            sb.Append("\",\"signal\":");
+            sb.Append(ap.Signal ?? 0);
+            sb.Append(",\"sectype\":");
+            sb.Append(sectype);
+            sb.Append("}}");
+        }
+        sb.Append("]}");
+        LiveApGeoJsonUpdated?.Invoke(this, sb.ToString());
     }
 
     private void OnScanError(object? sender, ScanErrorEventArgs e)
@@ -1031,6 +1090,13 @@ public partial class MainViewModel : ViewModelBase
         {
             CurrentLatitude  = FormatCoordinate(e.GpsData.Latitude,  isLat: true,  _settings.GpsFormat);
             CurrentLongitude = FormatCoordinate(e.GpsData.Longitude, isLat: false, _settings.GpsFormat);
+            GpsLocationUpdated?.Invoke(this, new GpsLocationEventArgs
+            {
+                Latitude       = e.GpsData.Latitude,
+                Longitude      = e.GpsData.Longitude,
+                Bearing        = (float)(e.GpsData.TrackAngle        ?? 0.0),
+                AccuracyMeters = (float)(e.GpsData.HorizontalDilution ?? 10.0),
+            });
         });
     }
 
@@ -1265,4 +1331,15 @@ public partial class MainViewModel : ViewModelBase
                 "Update Manufacturers", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
+}
+
+/// <summary>Event args for a raw GPS position fix, used to update the map location indicator.</summary>
+public sealed class GpsLocationEventArgs : EventArgs
+{
+    public double Latitude       { get; init; }
+    public double Longitude      { get; init; }
+    /// <summary>Track angle / heading in degrees (0 = north, clockwise). 0 when unknown.</summary>
+    public float  Bearing        { get; init; }
+    /// <summary>Horizontal accuracy in metres (Windows Location API) or HDOP (serial NMEA).</summary>
+    public float  AccuracyMeters { get; init; }
 }

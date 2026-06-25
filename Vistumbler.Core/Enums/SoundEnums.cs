@@ -30,5 +30,6 @@ public enum GraphMode
 {
     Hidden = 0,
     Line   = 1,   // Graph1 – line chart, last 50 points
-    Bar    = 2    // Graph2 – bar chart, one bar per pixel of width
+    Bar    = 2,   // Graph2 – bar chart, one bar per pixel of width
+    Map    = 3    // Map – MapLibre interactive map
 }

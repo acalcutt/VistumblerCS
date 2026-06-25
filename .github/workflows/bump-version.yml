@@ -228,4 +228,3 @@ jobs:
 
             Review the `CHANGELOG.md` entries before merging. Once merged, trigger the **Build and Release** workflow to publish the GitHub release.
           labels: release
-          create-labels: true

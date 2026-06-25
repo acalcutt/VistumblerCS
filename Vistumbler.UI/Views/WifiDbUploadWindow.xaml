@@ -1,0 +1,75 @@
+<Window x:Class="Vistumbler.UI.Views.WifiDbUploadWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Upload APs to WifiDB" Width="520" SizeToContent="Height"
+        ResizeMode="NoResize" WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" TextWrapping="Wrap" Margin="0,0,0,12"
+                   Text="Upload the currently scanned access points to WifiDB.net. You must have a WifiDB account and API key (set them on the WifiDB settings tab or below)."/>
+
+        <!-- User info -->
+        <GroupBox Grid.Row="1" Header="User Information" Margin="0,0,0,10">
+            <Grid Margin="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Username:"   VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <TextBox   Grid.Row="0" Grid.Column="1" x:Name="UserBox"       Margin="0,0,0,4" Padding="3,2"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Other Users:" VerticalAlignment="Center" Margin="0,0,8,4"/>
+                <TextBox   Grid.Row="1" Grid.Column="1" x:Name="OtherUsersBox" Margin="0,0,0,4" Padding="3,2"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="API Key:"    VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox   Grid.Row="2" Grid.Column="1" x:Name="ApiKeyBox"     Padding="3,2"/>
+            </Grid>
+        </GroupBox>
+
+        <!-- Upload info -->
+        <GroupBox Grid.Row="2" Header="Upload Information" Margin="0,0,0,12">
+            <Grid Margin="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="File Type:" VerticalAlignment="Center" Margin="0,0,8,6"/>
+                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,6">
+                    <RadioButton x:Name="Vs1Radio" Content="Vistumbler VS1" IsChecked="True" Margin="0,0,16,0"/>
+                    <RadioButton x:Name="CsvRadio" Content="CSV"/>
+                </StackPanel>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Title:" VerticalAlignment="Center" Margin="0,0,8,6"/>
+                <TextBox   Grid.Row="1" Grid.Column="1" x:Name="TitleBox" Margin="0,0,0,6" Padding="3,2"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Notes:" VerticalAlignment="Top" Margin="0,2,8,0"/>
+                <TextBox   Grid.Row="2" Grid.Column="1" x:Name="NotesBox" Height="80" Padding="3,2"
+                           AcceptsReturn="True" TextWrapping="Wrap"
+                           VerticalScrollBarVisibility="Auto"/>
+            </Grid>
+        </GroupBox>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Upload" Width="100" IsDefault="True" Click="Upload_Click" Margin="0,0,8,0"/>
+            <Button Content="Cancel" Width="100" IsCancel="True"  Click="Cancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

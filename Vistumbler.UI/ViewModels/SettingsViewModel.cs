@@ -643,7 +643,23 @@ public partial class SettingsViewModel : ViewModelBase
         _ini.Save();
     }
 
-    // ── Manufacturer commands ─────────────────────────────────────────────
+    /// <summary>Full path to the active INI settings file.</summary>
+    public string SettingsFilePath => _ini.SettingsFilePath;
+
+    /// <summary>Flush current settings to the INI file, then copy it to <paramref name="destinationPath"/>.</summary>
+    public void ExportSettingsTo(string destinationPath)
+    {
+        SaveSettings();
+        File.Copy(SettingsFilePath, destinationPath, overwrite: true);
+    }
+
+    /// <summary>Replace the active settings file with <paramref name="sourcePath"/> and reload all values.</summary>
+    public void ImportSettingsFrom(string sourcePath)
+    {
+        File.Copy(sourcePath, SettingsFilePath, overwrite: true);
+        _ini.Reload();
+        LoadSettings();
+    }
     public async Task LoadManufacturersAsync()
     {
         var all = await _db.GetAllManufacturersAsync();

@@ -28,6 +28,9 @@ public partial class MainViewModel : ViewModelBase
     private readonly SettingsViewModel _settings;
 
     public SettingsViewModel Settings => _settings;
+
+    /// <summary>Live-updating GPS detail data shared by the GPS Details and Compass windows.</summary>
+    private readonly GpsDetailsViewModel _gpsDetails = new();
     private CancellationTokenSource? _scanCancellationTokenSource;
 
     [ObservableProperty]
@@ -224,6 +227,14 @@ public partial class MainViewModel : ViewModelBase
     public ICommand OpenGeonamesCommand { get; }
     public ICommand FindApInWifiDbCommand { get; }
 
+    // ── Extra-menu / WifiDB commands ──────────────────────────────────────
+    public ICommand OpenGpsDetailsCommand { get; }
+    public ICommand OpenGpsCompassCommand { get; }
+    public ICommand OpenSaveFolderCommand { get; }
+    public ICommand ExportSettingsCommand { get; }
+    public ICommand ImportSettingsCommand { get; }
+    public ICommand UploadToWifiDbCommand { get; }
+
     public MainViewModel(
         IWiFiScannerService wifiScanner,
         IGpsService gpsService,
@@ -325,6 +336,12 @@ public partial class MainViewModel : ViewModelBase
         AddLabelCommand       = new AsyncRelayCommand(AddLabelAsync,        () => SelectedAccessPoint != null);
         OpenGeonamesCommand   = new RelayCommand(OpenGeonames,       () => SelectedAccessPoint != null);
         FindApInWifiDbCommand = new AsyncRelayCommand(FindApInWifiDb, () => SelectedAccessPoint != null);
+        OpenGpsDetailsCommand = new RelayCommand(OpenGpsDetailsWindow);
+        OpenGpsCompassCommand = new RelayCommand(OpenGpsCompassWindow);
+        OpenSaveFolderCommand = new RelayCommand(OpenSaveFolder);
+        ExportSettingsCommand = new RelayCommand(ExportSettings);
+        ImportSettingsCommand = new RelayCommand(ImportSettings);
+        UploadToWifiDbCommand = new AsyncRelayCommand(UploadToWifiDb);
         SelectAdapterCommand    = new RelayCommand<WiFiAdapter>(SelectAdapter);
         RefreshInterfacesCommand = new AsyncRelayCommand(LoadAdaptersAsync);
 
@@ -728,6 +745,168 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    private void OpenGpsDetailsWindow()
+    {
+        var window = new Views.GpsDetailsWindow(_gpsDetails) { Owner = Application.Current.MainWindow };
+        window.Show();
+    }
+
+    private void OpenGpsCompassWindow()
+    {
+        var window = new Views.GpsCompassWindow(_gpsDetails) { Owner = Application.Current.MainWindow };
+        window.Show();
+    }
+
+    private void OpenSaveFolder()
+    {
+        var dir = _settings.SaveDir;
+        if (string.IsNullOrWhiteSpace(dir))
+            dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Vistumbler");
+        try
+        {
+            Directory.CreateDirectory(dir);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName        = dir,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not open save folder:\n{ex.Message}", "Open Save Folder",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void ExportSettings()
+    {
+        var dialog = new SaveFileDialog
+        {
+            Filter   = "INI Files (*.ini)|*.ini|All Files (*.*)|*.*",
+            FileName = "vistumbler_settings.ini"
+        };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            _settings.ExportSettingsTo(dialog.FileName);
+            StatusMessage = $"Settings exported to {dialog.FileName}";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not export settings:\n{ex.Message}", "Export Settings",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void ImportSettings()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "INI Files (*.ini)|*.ini|All Files (*.*)|*.*"
+        };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            _settings.ImportSettingsFrom(dialog.FileName);
+            StatusMessage = "Settings imported. Some changes may require a restart.";
+            MessageBox.Show(
+                "Settings imported successfully. Some changes may require restarting Vistumbler to take full effect.",
+                "Import Settings", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not import settings:\n{ex.Message}", "Import Settings",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async Task UploadToWifiDb()
+    {
+        // Mirrors _AddToYourWDB() / _UploadFileToWifiDB() in Vistumbler.au3:
+        // exports the current APs to a VS1 or CSV file and POSTs it (multipart/form-data)
+        // to {WifiDbApiUrl}import.php with the user's credentials.
+        var models = GetAccessPointsModels();
+        if (models.Count == 0)
+        {
+            MessageBox.Show("There are no access points to upload.", "Upload to WifiDB",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var defaultTitle = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        var dialog = new Views.WifiDbUploadWindow(_settings.WifiDbUser, _settings.WifiDbApiKey, defaultTitle)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        var user     = string.IsNullOrWhiteSpace(dialog.UserName) ? "Unknown" : dialog.UserName;
+        var apiKey   = dialog.ApiKey;
+        var fileType = dialog.FileType;            // "VS1" or "CSV"
+        var apiBase  = string.IsNullOrWhiteSpace(_settings.WifiDbApiUrl)
+                           ? "https://api.wifidb.net/"
+                           : _settings.WifiDbApiUrl;
+        if (!apiBase.EndsWith('/')) apiBase += "/";
+        var apiUrl = apiBase + "import.php";
+
+        // Persist any edited credentials back to settings.
+        if (user != "Unknown") _settings.WifiDbUser = user;
+        _settings.WifiDbApiKey = apiKey;
+
+        StatusMessage = "Exporting APs for WifiDB upload\u2026";
+
+        var ext      = fileType == "CSV" ? "csv" : "vs1";
+        var tempPath = Path.Combine(Path.GetTempPath(),
+            $"WDB_Export_{DateTime.Now:yyyyMMdd_HHmmss}.{ext}");
+        var fileName = $"{DateTime.Now:yyyyMMdd_HHmmss}_VS.{(fileType == "CSV" ? "CSV" : "VS1")}";
+
+        try
+        {
+            if (fileType == "CSV")
+                await _exportService.ExportToCsvAsync(tempPath, models);
+            else
+                await _exportService.ExportToVs1Async(tempPath, models);
+
+            var fileBytes = await File.ReadAllBytesAsync(tempPath);
+
+            using var content = new System.Net.Http.MultipartFormDataContent();
+            if (!string.IsNullOrWhiteSpace(apiKey))
+                content.Add(new System.Net.Http.StringContent(apiKey), "apikey");
+            content.Add(new System.Net.Http.StringContent(user), "username");
+            if (!string.IsNullOrWhiteSpace(dialog.OtherUsers))
+                content.Add(new System.Net.Http.StringContent(dialog.OtherUsers), "otherusers");
+            if (!string.IsNullOrWhiteSpace(dialog.UploadTitle))
+                content.Add(new System.Net.Http.StringContent(dialog.UploadTitle), "title");
+            if (!string.IsNullOrWhiteSpace(dialog.Notes))
+                content.Add(new System.Net.Http.StringContent(dialog.Notes), "notes");
+
+            var fileContent = new System.Net.Http.ByteArrayContent(fileBytes);
+            fileContent.Headers.ContentType =
+                new System.Net.Http.Headers.MediaTypeHeaderValue("text/plain") { CharSet = "UTF-8" };
+            content.Add(fileContent, "file", fileName);
+
+            StatusMessage = "Uploading APs to WifiDB\u2026";
+            var response = await _httpClient.PostAsync(apiUrl, content);
+            var body     = await response.Content.ReadAsStringAsync();
+
+            MessageBox.Show(
+                string.IsNullOrWhiteSpace(body) ? "Upload complete (no response body)." : body,
+                "WifiDB Upload Result", MessageBoxButton.OK, MessageBoxImage.Information);
+            StatusMessage = "WifiDB upload complete";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"WifiDB upload failed:\n{ex.Message}", "WifiDB Upload Error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusMessage = "WifiDB upload failed";
+        }
+        finally
+        {
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* best effort */ }
+        }
+    }
+
     private void OpenSettingsWindow() => OpenSettingsWindowAt(0);
 
     private void OpenSettingsWindowAt(int tabIndex = 0)
@@ -1097,6 +1276,7 @@ public partial class MainViewModel : ViewModelBase
                 Bearing        = (float)(e.GpsData.TrackAngle        ?? 0.0),
                 AccuracyMeters = (float)(e.GpsData.HorizontalDilution ?? 10.0),
             });
+            _gpsDetails.UpdateFromGpsData(e.GpsData);
         });
     }
 

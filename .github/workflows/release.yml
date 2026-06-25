@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Get version and check GitHub releases
         id: check
@@ -68,7 +68,7 @@ jobs:
             rid: win-arm64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
@@ -112,7 +112,7 @@ jobs:
     environment: release
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4

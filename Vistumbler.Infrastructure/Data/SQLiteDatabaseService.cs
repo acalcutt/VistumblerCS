@@ -1,5 +1,5 @@
 using System.Data;
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using Dapper;
 using Vistumbler.Core.Models;
 using Vistumbler.Core.Services;
@@ -11,20 +11,14 @@ namespace Vistumbler.Infrastructure.Data;
 /// </summary>
 public class SQLiteDatabaseService : IDatabaseService
 {
-    private SQLiteConnection? _connection;
+    private SqliteConnection? _connection;
     private string? _databasePath;
 
     public async Task InitializeAsync(string databasePath)
     {
         _databasePath = databasePath;
 
-        // Create database file if it doesn't exist
-        if (!File.Exists(databasePath))
-        {
-            SQLiteConnection.CreateFile(databasePath);
-        }
-
-        _connection = new SQLiteConnection($"Data Source={databasePath};Version=3;");
+        _connection = new SqliteConnection($"Data Source={databasePath}");
         await _connection.OpenAsync();
 
         await CreateTablesAsync();
@@ -35,8 +29,9 @@ public class SQLiteDatabaseService : IDatabaseService
         if (_connection == null)
             throw new InvalidOperationException("Database not initialized");
 
-        var sql = @"
-            CREATE TABLE IF NOT EXISTS AccessPoints (
+        var statements = new[]
+        {
+            @"CREATE TABLE IF NOT EXISTS AccessPoints (
                 ApId INTEGER PRIMARY KEY AUTOINCREMENT,
                 Bssid TEXT UNIQUE NOT NULL,
                 Ssid TEXT,
@@ -58,9 +53,8 @@ public class SQLiteDatabaseService : IDatabaseService
                 LastSeen TEXT,
                 Latitude REAL,
                 Longitude REAL
-            );
-
-            CREATE TABLE IF NOT EXISTS SignalHistory (
+            )",
+            @"CREATE TABLE IF NOT EXISTS SignalHistory (
                 HistId INTEGER PRIMARY KEY AUTOINCREMENT,
                 ApId INTEGER NOT NULL,
                 GpsId INTEGER,
@@ -69,9 +63,8 @@ public class SQLiteDatabaseService : IDatabaseService
                 Timestamp TEXT,
                 FOREIGN KEY(ApId) REFERENCES AccessPoints(ApId),
                 FOREIGN KEY(GpsId) REFERENCES GpsData(GpsId)
-            );
-
-            CREATE TABLE IF NOT EXISTS GpsData (
+            )",
+            @"CREATE TABLE IF NOT EXISTS GpsData (
                 GpsId INTEGER PRIMARY KEY AUTOINCREMENT,
                 Latitude REAL,
                 Longitude REAL,
@@ -82,35 +75,13 @@ public class SQLiteDatabaseService : IDatabaseService
                 TrackAngle REAL,
                 Timestamp TEXT,
                 Quality INTEGER
-            );
-
-            CREATE TABLE IF NOT EXISTS Manufacturers (
-                MacPrefix TEXT PRIMARY KEY,
-                Manufacturer TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS Labels (
-                Bssid TEXT PRIMARY KEY,
-                Label TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_ap_bssid ON AccessPoints(Bssid);
-            CREATE INDEX IF NOT EXISTS idx_signal_apid ON SignalHistory(ApId);
-            CREATE INDEX IF NOT EXISTS idx_signal_timestamp ON SignalHistory(Timestamp);
-        ";
-
-        await _connection.ExecuteAsync(sql);
-
-        // Migration: add FrequencyMhz if it doesn't exist in an older DB
-        try
-        {
-            await _connection.ExecuteAsync("ALTER TABLE AccessPoints ADD COLUMN FrequencyMhz INTEGER DEFAULT 0");
-        }
-        catch { /* Column already exists — safe to ignore */ }
-
-        // Filters table
-        await _connection.ExecuteAsync(@"
-            CREATE TABLE IF NOT EXISTS Filters (
+            )",
+            "CREATE TABLE IF NOT EXISTS Manufacturers (MacPrefix TEXT PRIMARY KEY, Manufacturer TEXT NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS Labels (Bssid TEXT PRIMARY KEY, Label TEXT NOT NULL)",
+            "CREATE INDEX IF NOT EXISTS idx_ap_bssid ON AccessPoints(Bssid)",
+            "CREATE INDEX IF NOT EXISTS idx_signal_apid ON SignalHistory(ApId)",
+            "CREATE INDEX IF NOT EXISTS idx_signal_timestamp ON SignalHistory(Timestamp)",
+            @"CREATE TABLE IF NOT EXISTS Filters (
                 FiltId   INTEGER PRIMARY KEY AUTOINCREMENT,
                 FiltName TEXT NOT NULL,
                 FiltDesc TEXT,
@@ -128,8 +99,18 @@ public class SQLiteDatabaseService : IDatabaseService
                 Btx      TEXT DEFAULT '*',
                 Otx      TEXT DEFAULT '*',
                 Active   TEXT DEFAULT '*'
-            );
-        ");
+            )",
+        };
+
+        foreach (var s in statements)
+            await _connection.ExecuteAsync(s);
+
+        // Migration: add FrequencyMhz if it doesn't exist in an older DB
+        try
+        {
+            await _connection.ExecuteAsync("ALTER TABLE AccessPoints ADD COLUMN FrequencyMhz INTEGER DEFAULT 0");
+        }
+        catch { /* Column already exists — safe to ignore */ }
     }
 
     public async Task<int> UpsertAccessPointAsync(AccessPoint accessPoint)
@@ -179,21 +160,18 @@ public class SQLiteDatabaseService : IDatabaseService
                         HighestRssi IS NULL
                     ) THEN @Longitude
                     ELSE Longitude
-                END;
-
-            SELECT last_insert_rowid();
+                END
+            RETURNING ApId;
         ";
 
-        var result = await _connection.ExecuteScalarAsync<int>(sql, accessPoint);
-        
-        // If it was an update, get the existing ID
-        if (result == 0)
+        var result = await _connection.ExecuteScalarAsync<int?>(sql, accessPoint);
+        if (result is null or 0)
         {
             var ap = await GetAccessPointByBssidAsync(accessPoint.Bssid);
             return ap?.ApId ?? 0;
         }
 
-        return result;
+        return result.Value;
     }
 
     public async Task AddSignalHistoryAsync(SignalHistory signalHistory)
@@ -221,8 +199,7 @@ public class SQLiteDatabaseService : IDatabaseService
             ) VALUES (
                 @Latitude, @Longitude, @Altitude, @NumberOfSatellites,
                 @HorizontalDilution, @SpeedKnots, @TrackAngle, @Timestamp, @Quality
-            );
-            SELECT last_insert_rowid();
+            ) RETURNING GpsId;
         ";
 
         return await _connection.ExecuteScalarAsync<int>(sql, gpsData);

@@ -1,6 +1,0 @@
-    private void RequestRender()
-    {
-        if (!_glReady || _map == null || _frontend == null) return;
-        _map.TriggerRepaint();
-    }
-}

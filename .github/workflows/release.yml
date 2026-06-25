@@ -98,7 +98,7 @@ jobs:
             -DestinationPath "./Vistumbler-v${version}-win-${{ matrix.arch }}.zip"
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-artifact-${{ matrix.arch }}
           path: Vistumbler-v${{ needs.release-check.outputs.version }}-win-${{ matrix.arch }}.zip

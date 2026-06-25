@@ -52,11 +52,20 @@ jobs:
       release_type: ${{ steps.check.outputs.release_type }}
 
   build:
-    name: Build Windows release
-    runs-on: windows-latest
+    name: Build Windows release (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     needs: release-check
     if: ${{ needs.release-check.outputs.published == 'false' }}
     environment: release
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            rid: win-x64
+          - arch: arm64
+            runner: windows-11-arm
+            rid: win-arm64
 
     steps:
       - uses: actions/checkout@v4
@@ -69,32 +78,30 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore VistumblerCS.sln
 
-      - name: Publish self-contained single-file exe (x64)
+      - name: Publish self-contained single-file exe (${{ matrix.arch }})
         run: |
           dotnet publish Vistumbler.UI/Vistumbler.UI.csproj `
             --configuration Release `
-            --runtime win-x64 `
+            --runtime ${{ matrix.rid }} `
             --self-contained true `
             -p:PublishSingleFile=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
             -p:PublishReadyToRun=true `
-            --output ./publish/x64
+            --output ./publish/${{ matrix.arch }}
 
-      - name: Package release artifacts
+      - name: Package release artifact
         shell: pwsh
         run: |
           $version = "${{ needs.release-check.outputs.version }}"
-
-          # x64 zip
           Compress-Archive `
-            -Path "./publish/x64/*" `
-            -DestinationPath "./Vistumbler-v${version}-win-x64.zip"
+            -Path "./publish/${{ matrix.arch }}/*" `
+            -DestinationPath "./Vistumbler-v${version}-win-${{ matrix.arch }}.zip"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-artifacts
-          path: Vistumbler-v${{ needs.release-check.outputs.version }}-win-x64.zip
+          name: release-artifact-${{ matrix.arch }}
+          path: Vistumbler-v${{ needs.release-check.outputs.version }}-win-${{ matrix.arch }}.zip
           retention-days: 7
 
   release:
@@ -110,8 +117,9 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: release-artifacts
+          pattern: release-artifact-*
           path: ./artifacts
+          merge-multiple: true
 
       - name: Extract changelog for version
         run: |
@@ -137,7 +145,7 @@ jobs:
           tag:        v${{ needs.release-check.outputs.version }}
           name:       v${{ needs.release-check.outputs.version }}
           bodyFile:   changelog_for_version.md
-          artifacts:  ./artifacts/Vistumbler-v${{ needs.release-check.outputs.version }}-win-x64.zip
+          artifacts:  ./artifacts/Vistumbler-v${{ needs.release-check.outputs.version }}-win-x64.zip,./artifacts/Vistumbler-v${{ needs.release-check.outputs.version }}-win-arm64.zip
           prerelease: ${{ steps.flags.outputs.prerelease }}
           allowUpdates: true
           draft: false

@@ -9,9 +9,6 @@
 
 ## 0.3.0
 ### ✨ Features and improvements
-
-### 🐞 Bug fixes
-
 - Fix single-file publish crash + GPS/WifiDB/Settings feature ([#3](https://github.com/acalcutt/VistumblerCS/pull/3)) (@acalcutt)
 
 ## 0.2.0

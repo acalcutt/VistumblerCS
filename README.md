@@ -1,6 +1,6 @@
 # Vistumbler CS - WiFi Scanner
 
-A modern C# rewrite of the Vistumbler WiFi scanner application, built with .NET 8, WPF, and clean architecture principles.
+A modern C# rewrite of the Vistumbler WiFi scanner application, built with .NET 10, WPF, and clean architecture principles.
 
 ## Project Structure
 
@@ -15,12 +15,17 @@ VistumblerCS/
 │   ├── WiFi/                     # WiFi scanning implementation
 │   ├── Gps/                      # GPS communication and NMEA parsing
 │   ├── Data/                     # SQLite database implementation
-│   └── Export/                   # Export functionality (KML, CSV, etc.)
+│   ├── Export/                   # Export functionality (KML, CSV, GPX, NS1, NetXML, Kismet, VS1/VSZ)
+│   ├── Import/                   # Import functionality (NS1, NetXML, Kismet, VS1/VSZ, CSV)
+│   ├── Sound/                    # Sound alert service
+│   └── Settings/                 # INI-based settings persistence
 ├── Vistumbler.UI/                # WPF user interface
 │   ├── ViewModels/               # MVVM ViewModels
 │   ├── Views/                    # XAML views
+│   ├── Controls/                 # Custom controls (SignalGraph, ChannelGraph)
+│   ├── Extensions/               # MapLibre WiFi layer extension methods
 │   ├── Converters/               # Value converters
-│   └── Resources/                # Images, styles, etc.
+│   └── Resources/                # Images, styles, sounds
 └── Vistumbler.Tests/             # Unit and integration tests
 ```
 
@@ -45,19 +50,20 @@ VistumblerCS/
 
 ### Key Technologies
 
-- **.NET 8.0**: Modern, cross-platform framework
-- **WPF**: Rich desktop UI framework
+- **.NET 10.0**: Modern, cross-platform framework
+- **WPF**: Rich desktop UI framework (AnyCPU — x64 and ARM64)
 - **SQLite**: Lightweight, file-based database (replaces Access MDB)
 - **Dapper**: Micro-ORM for efficient database operations
 - **ManagedNativeWifi**: Native WiFi API wrapper
 - **CommunityToolkit.Mvvm**: MVVM helpers and commands
+- **MapLibreNative.Maui.WPF**: Hardware-accelerated map rendering via P/Invoke (OpenGL)
 
 ## Features
 
 ### Implemented
 
 - ✅ WiFi network scanning using Native WiFi API
-- ✅ GPS integration with serial port communication
+- ✅ GPS integration — serial port (NMEA) and Windows Location API
 - ✅ NMEA sentence parsing (GPGGA, GPRMC)
 - ✅ SQLite database for storing access points and signal history
 - ✅ Real-time UI updates with MVVM pattern
@@ -65,26 +71,27 @@ VistumblerCS/
 - ✅ Signal strength tracking
 - ✅ Manufacturer lookup by MAC address
 - ✅ Custom labels for access points
-
-### Planned
-
-- ⏳ Signal strength graphs
-- ⏳ Channel graphs (2.4GHz and 5GHz visualization)
-- ⏳ GPS compass
-- ⏳ KML/GPX export for Google Earth
-- ⏳ CSV export
-- ⏳ VS1/VSZ format import/export
-- ⏳ Auto-save and recovery
-- ⏳ WiFiDB integration
-- ⏳ Multi-language support
-- ⏳ Sound alerts
+- ✅ Signal strength graph (line and bar modes)
+- ✅ Channel graphs (2.4 GHz, 5 GHz, 6 GHz)
+- ✅ Interactive MapLibre map view with live AP overlay
+- ✅ GPS location indicator on map
+- ✅ WifiDB vector tile layers (daily / weekly / monthly / 0–1 yr / 1–2 yr / 2–3 yr / 3+ yr)
+- ✅ AP info popup on map click (SSID, MAC, channel, auth, encryption, manufacturer, timestamps)
+- ✅ Export: KML, GPX, CSV, VS1/VSZ, NS1, NetXML, Kismet DB
+- ✅ Import: VS1/VSZ, NS1, NetXML, Kismet DB, CSV
+- ✅ Auto-save and auto-clear
+- ✅ Auto KML generation with optional Google Earth network link
+- ✅ Sound alerts (new AP, GPS fix, etc.)
+- ✅ WiFiDB locate lookup for selected AP
+- ✅ Multi-language support (INI-based language files)
+- ✅ Minimal GUI mode
 
 ## Getting Started
 
 ### Prerequisites
 
 - Visual Studio 2022 or later (or JetBrains Rider)
-- .NET 8.0 SDK
+- .NET 10.0 SDK
 - Windows 10/11 (for WiFi API support)
 - GPS device (optional, for location tracking)
 
@@ -166,13 +173,30 @@ The original Vistumbler used Microsoft Access (.mdb) files. This version uses SQ
 
 - Click an access point in the list to view details
 - See signal strength, manufacturer, security settings
-- View signal history graph (planned)
+- View signal history as a line or bar graph (toggle with Graph 1 / Graph 2 buttons)
+- Open channel graphs for 2.4 GHz, 5 GHz, or 6 GHz via the View menu
+- Switch to Map view to see scanned APs on a live MapLibre map
+
+### Map View
+
+1. Click the **Map** button in the toolbar to switch to map mode
+2. The map loads the WifiDB relief style by default
+3. Use the layer buttons (Daily, Weekly, Monthly, 0–1 yr, etc.) to toggle WifiDB vector tile overlays
+4. Scanned APs with GPS coordinates appear as colour-coded circles in real time:
+   - Green = Open, Orange = WEP, Red = WPA/Secure
+5. Click a circle on the WifiDB layers to see AP details in a popup
+6. The GPS location indicator tracks your current position when GPS is active
 
 ### Exporting Data
 
-- File → Export → Choose format (KML, CSV, VS1)
-- Select destination folder
+- File → Export → Choose format (KML, GPX, CSV, VS1, VSZ, NS1, NetXML, Kismet DB)
+- Select destination file
 - Choose filtered or all access points
+
+### Importing Data
+
+- File → Import
+- Supports VS1, VSZ, NS1, NetXML, Kismet DB, CSV
 
 ## Configuration
 
@@ -198,30 +222,27 @@ Compared to the original AutoIt version:
 
 ## Development Roadmap
 
-### Phase 1 (Current)
+### Completed
 - [x] Core architecture
 - [x] WiFi scanning
-- [x] GPS integration
+- [x] GPS integration (serial NMEA + Windows Location API)
 - [x] Basic UI
-- [x] Database layer
+- [x] Database layer (SQLite)
+- [x] Signal graphing (line and bar)
+- [x] Channel visualization (2.4 GHz, 5 GHz, 6 GHz)
+- [x] Export (KML, GPX, CSV, VS1/VSZ, NS1, NetXML, Kismet DB)
+- [x] Import (VS1/VSZ, NS1, NetXML, Kismet DB, CSV)
+- [x] Auto-save / auto-KML
+- [x] Sound alerts
+- [x] WiFiDB locate lookup
+- [x] Multi-language support
+- [x] MapLibre interactive map with live AP overlay and WifiDB vector tile layers
 
-### Phase 2
-- [ ] Signal graphing
-- [ ] Channel visualization
-- [ ] Export functionality
-- [ ] Import functionality
-
-### Phase 3
-- [ ] Advanced filtering
-- [ ] Auto-save/recovery
-- [ ] Sound alerts
-- [ ] Settings dialog
-
-### Phase 4
-- [ ] WiFiDB integration
-- [ ] Map integration
-- [ ] Multi-language support
-- [ ] Google Earth integration
+### Planned / In Progress
+- [ ] GPS compass widget
+- [ ] Google Earth auto-open integration
+- [ ] Advanced filtering presets
+- [ ] MDB → SQLite migration tool
 
 ## Contributing
 
@@ -273,7 +294,7 @@ A: Yes, import functionality is planned for Phase 2.
 A: A migration tool is planned. For now, you can export to VS1 and re-import.
 
 **Q: Is this compatible with WiFiDB?**
-A: WiFiDB integration is planned for Phase 4.
+A: Yes — the app can look up a selected AP on WifiDB, and the Map view can display WifiDB vector tile layers for daily, weekly, monthly, and historical data.
 
 ## Support
 
@@ -283,9 +304,13 @@ A: WiFiDB integration is planned for Phase 4.
 
 ## Version History
 
-### 1.0.0-alpha (Current)
+### 0.1.0 (Current)
 - Initial C# implementation
 - Core scanning functionality
-- GPS support
+- GPS support (serial NMEA + Windows Location API)
 - SQLite database
-- Basic WPF UI
+- WPF UI with signal graphs, channel graphs, and MapLibre map view
+- Full import/export suite (KML, GPX, CSV, VS1/VSZ, NS1, NetXML, Kismet DB)
+- WifiDB vector tile map layers
+- Sound alerts, auto-save, auto-KML
+- Multi-language support

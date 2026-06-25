@@ -1,7 +1,10 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Linq;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using MapLibreNative.Maui.WPF;
 using Vistumbler.Core.Services;
 using Vistumbler.UI.ViewModels;
 using Vistumbler.UI.Extensions;
@@ -96,6 +99,9 @@ public partial class MainWindow : Window
 
         // Apply on load so the initial Hidden state collapses the rows immediately
         Loaded += (_, _) => ApplyGraphRowVisibility();
+
+        // Show AP info popup when a WifiDB circle is clicked on the map
+        MapHost.MapClicked += OnMapHostClicked;
     }
 
     // ── Filter menu (dynamic filter items) ─────────────────────────────────────
@@ -223,6 +229,78 @@ public partial class MainWindow : Window
 
     // ── WifiDB layer buttons ──────────────────────────────────────────────────
 
+    private void OnMapHostClicked(object? sender, MlnMapClickEventArgs e)
+    {
+        // Only query if at least one WifiDB vector layer is active
+        if (_activeWifiDbLayers.Count == 0) return;
+
+        // Build comma-separated list of the circle layer IDs for the active buckets
+        var circleLayerIds = _activeWifiDbLayers
+            .SelectMany(sourceId => new[]
+            {
+                sourceId + "_open",
+                sourceId + "_wep",
+                sourceId + "_secure",
+            })
+            .ToArray();
+
+        string? json = MapHost.QueryRenderedFeaturesInBox(e.ScreenX, e.ScreenY, thresholdPx: 6,
+            layerIds: circleLayerIds);
+        if (string.IsNullOrWhiteSpace(json)) return;
+
+        // Parse the GeoJSON FeatureCollection returned by QueryRenderedFeaturesInBox
+        try
+        {
+            using var doc  = JsonDocument.Parse(json);
+            var root       = doc.RootElement;
+            JsonElement features;
+            if (root.ValueKind == JsonValueKind.Array)
+                features = root;
+            else if (root.TryGetProperty("features", out features) && features.ValueKind != JsonValueKind.Array)
+                return;
+
+            if (features.GetArrayLength() == 0) return;
+
+            // Pick the first feature
+            var feat  = features[0];
+            if (!feat.TryGetProperty("properties", out var props)) return;
+
+            var lines = new System.Text.StringBuilder();
+            AppendProp(lines, "SSID",        props, "ssid");
+            AppendProp(lines, "MAC",         props, "mac");
+            AppendProp(lines, "Channel",     props, "chan");
+            AppendProp(lines, "Auth",        props, "auth");
+            AppendProp(lines, "Encrypt",     props, "encry");
+            AppendProp(lines, "Manufacturer",props, "manuf");
+            AppendProp(lines, "Net Type",    props, "nt");
+            AppendProp(lines, "Radio",       props, "radio");
+            AppendProp(lines, "First Seen",  props, "fa");
+            AppendProp(lines, "Last Seen",   props, "la");
+            AppendProp(lines, "High Signal", props, "high_gps_sig");
+            AppendProp(lines, "High RSSI",   props, "high_gps_rssi");
+            AppendProp(lines, "Alt",         props, "alt");
+
+            ApInfoText.Text = lines.ToString().TrimEnd('\n');
+
+            // Placement="RelativePoint" with PlacementTarget=MapHost means offsets are
+            // relative to MapHost's top-left corner in DIPs. Convert physical px → DIPs.
+            var ps = PresentationSource.FromVisual(MapHost);
+            double scaleX = ps?.CompositionTarget?.TransformFromDevice.M11 ?? 1.0;
+            double scaleY = ps?.CompositionTarget?.TransformFromDevice.M22 ?? 1.0;
+            ApInfoPopup.HorizontalOffset = e.ScreenX * scaleX;
+            ApInfoPopup.VerticalOffset   = e.ScreenY * scaleY;
+            ApInfoPopup.IsOpen = true;
+        }
+        catch { /* ignore malformed JSON */ }
+    }
+
+    private static void AppendProp(System.Text.StringBuilder sb, string label,
+        JsonElement props, string key)
+    {
+        if (props.TryGetProperty(key, out var val) && val.ValueKind != JsonValueKind.Null)
+            sb.AppendLine($"{label}: {val}");
+    }
+
 
     /// <summary>
     /// Toggles a WifiDB GeoJSON layer on/off. The button Tag property must
@@ -237,33 +315,35 @@ public partial class MainWindow : Window
         var viewModel   = (MainViewModel)DataContext!;
         string urlBase  = viewModel.Settings.WifiDbUrl.TrimEnd('/');
 
-        // Daily uses the API endpoint (last 36 hours, all users — no credentials needed).
-        // All other layers use pre-generated static GeoJSON files.
-        string url = tag switch
+        // Map each button tag to its MVT bucket name — all buckets use the pre-generated
+        // MVT tile endpoint so MapLibre only fetches tiles in view.
+        // bucket = the layer name inside each MVT tile (matches tilejson.php/mvt.php).
+        string? bucket = tag switch
         {
-            "WifiDB_daily"    => $"{urlBase}/api/geojson.php?func=exp_daily&json=1",
-            "WifiDB_weekly"   => $"{urlBase}/out/geojson/WifiDB_weekly.json",
-            "WifiDB_monthly"  => $"{urlBase}/out/geojson/WifiDB_monthly.json",
-            "WifiDB_0to1year" => $"{urlBase}/out/geojson/WifiDB_0to1year.json",
-            "WifiDB_1to2year" => $"{urlBase}/out/geojson/WifiDB_1to2year.json",
-            "WifiDB_2to3year" => $"{urlBase}/out/geojson/WifiDB_2to3year.json",
-            "WifiDB_Legacy"   => $"{urlBase}/out/geojson/WifiDB_Legacy.json",
-            _                 => string.Empty,
+            "WifiDB_daily"    => "daily",
+            "WifiDB_weekly"   => "weekly",
+            "WifiDB_monthly"  => "monthly",
+            "WifiDB_0to1year" => "0to1year",
+            "WifiDB_1to2year" => "1to2year",
+            "WifiDB_2to3year" => "2to3year",
+            "WifiDB_Legacy"   => "legacy",
+            _                 => null,
         };
 
-        if (string.IsNullOrEmpty(url)) return;
+        if (bucket is null) return;
 
         if (_activeWifiDbLayers.Contains(sourceId))
         {
-            MapHost.RemoveWifiGeoJsonLayer(sourceId);
+            MapHost.RemoveWifiVectorLayer(sourceId);
             _activeWifiDbLayers.Remove(sourceId);
-            btn.Content = btn.ToolTip;          // restore original label
+            btn.Content = btn.ToolTip;
         }
         else
         {
-            MapHost.SetWifiGeoJsonLayer(sourceId, url);
+            string tileJsonUrl = $"{urlBase}/api/tilejson.php?bucket={bucket}";
+            MapHost.SetWifiVectorLayer(sourceId, tileJsonUrl, bucket);
             _activeWifiDbLayers.Add(sourceId);
-            btn.Content = "\u25a0 " + btn.ToolTip; // filled square = active
+            btn.Content = "\u25a0 " + btn.ToolTip;
         }
     }
 }

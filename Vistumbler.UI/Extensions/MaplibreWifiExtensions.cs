@@ -44,6 +44,68 @@ public static class MaplibreWifiExtensions
         map.RemoveSource(sourceId);
     }
 
+    /// <summary>
+    /// Add a vector tile source from a TileJSON URL with the three security-type
+    /// circle layers. The <paramref name="sourceLayer"/> must match the layer name
+    /// inside the MVT tiles (tilejson.php uses the bucket name, e.g. "weekly").
+    /// </summary>
+    public static void SetWifiVectorLayer(this MlnMapHost map, string sourceId, string tileJsonUrl, string sourceLayer)
+    {
+        map.AddVectorSourceUrl(sourceId, tileJsonUrl);
+        AddWifiCircleLayersVector(map, sourceId, sourceLayer);
+    }
+
+    /// <summary>Remove a vector wifi layer set (3 circle layers + source).</summary>
+    public static void RemoveWifiVectorLayer(this MlnMapHost map, string sourceId)
+    {
+        map.RemoveLayer(sourceId + "_open");
+        map.RemoveLayer(sourceId + "_wep");
+        map.RemoveLayer(sourceId + "_secure");
+        map.RemoveSource(sourceId);
+    }
+
+    // Colors graduate from dark/muted (oldest) to bright/saturated (newest),
+    // matching the wifidb.net maplibre-gl-js style.
+    private static readonly Dictionary<string, (string Open, string Wep, string Secure)> BucketColors = new()
+    {
+        ["legacy"]   = ("#00802b", "#cc7a00", "#b30000"),
+        ["2to3year"] = ("#00b33c", "#e68a00", "#cc0000"),
+        ["1to2year"] = ("#00e64d", "#ff9900", "#e60000"),
+        ["0to1year"] = ("#1aff66", "#ffad33", "#ff1a1a"),
+        ["monthly"]  = ("#1aff66", "#ffad33", "#ff1a1a"),
+        ["weekly"]   = ("#1aff66", "#ffad33", "#ff1a1a"),
+        ["daily"]    = ("#1aff66", "#ffad33", "#ff1a1a"),
+    };
+
+    private static void AddWifiCircleLayersVector(MlnMapHost map, string sourceId, string sourceLayer)
+    {
+        var colors = BucketColors.TryGetValue(sourceLayer, out var c) ? c : (Open: "#1aff66", Wep: "#ffad33", Secure: "#ff1a1a");
+
+        AddWifiCircleLayer(
+            map,
+            layerName:   sourceId + "_open",
+            sourceName:  sourceId,
+            color:       colors.Open,
+            sourceLayer: sourceLayer,
+            filterJson:  "[\"any\",[\"==\",[\"get\",\"sectype\"],1],[\"==\",[\"get\",\"sectype\"],\"1\"]]");
+
+        AddWifiCircleLayer(
+            map,
+            layerName:   sourceId + "_wep",
+            sourceName:  sourceId,
+            color:       colors.Wep,
+            sourceLayer: sourceLayer,
+            filterJson:  "[\"any\",[\"==\",[\"get\",\"sectype\"],2],[\"==\",[\"get\",\"sectype\"],\"2\"]]");
+
+        AddWifiCircleLayer(
+            map,
+            layerName:   sourceId + "_secure",
+            sourceName:  sourceId,
+            color:       colors.Secure,
+            sourceLayer: sourceLayer,
+            filterJson:  "[\"any\",[\"==\",[\"get\",\"sectype\"],3],[\"==\",[\"get\",\"sectype\"],\"3\"]]");
+    }
+
     private static void AddWifiCircleLayers(MlnMapHost map, string sourceId)
     {
         // Each layer gets a filter so only features matching that security type are drawn.
@@ -77,27 +139,25 @@ public static class MaplibreWifiExtensions
         string layerName,
         string sourceName,
         string color,
-        string filterJson)
+        string filterJson,
+        string? sourceLayer = null)
     {
-        // Use reflection to check if layer exists and set filter
-        // This is a workaround since the public API doesn't expose layer checking
         try
         {
-            // Try to add the circle layer - AddCircleLayer will skip if it already exists
             map.AddCircleLayer(
                 layerName: layerName,
                 sourceName: sourceName,
                 belowLayerId: null,
-                sourceLayer: null,
+                sourceLayer: sourceLayer,
                 properties: new Dictionary<string, object?>
                 {
-                    ["circle-color"] = color,
-                    ["circle-radius"] = 5.0,
-                    ["circle-opacity"] = 0.85
+                    ["circle-color"]   = color,
+                    ["circle-radius"]  = 2.0,
+                    ["circle-opacity"] = 1.0,
+                    ["circle-blur"]    = 0.5
                 });
 
-            // Now we need to set the filter on the layer
-            // We'll use reflection to access the internal _style and get the layer
+            // Set the filter via reflection (public API doesn't expose layer.SetFilter).
             var mapType = map.GetType();
             var styleField = mapType.GetField("_style", 
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);

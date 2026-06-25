@@ -343,6 +343,21 @@
                 Margin="10,10,10,0"
                 StyleUrl="https://tiles.wifidb.net/styles/WDB_COLOR_RELIEF/style.json"/>
 
+            <!-- AP info popup shown when a WifiDB map circle is clicked -->
+            <Popup x:Name="ApInfoPopup"
+                   PlacementTarget="{Binding ElementName=MapHost}"
+                   Placement="RelativePoint"
+                   StaysOpen="False"
+                   AllowsTransparency="True">
+                <Border Background="White" BorderBrush="#555" BorderThickness="1"
+                        Padding="8,6" CornerRadius="4">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="6" ShadowDepth="2" Opacity="0.35" Direction="270"/>
+                    </Border.Effect>
+                    <TextBlock x:Name="ApInfoText" FontSize="11" MaxWidth="320" TextWrapping="Wrap"/>
+                </Border>
+            </Popup>
+
             <!-- WifiDB layer buttons: fetch and show GeoJSON from the WifiDB database -->
             <WrapPanel Grid.Row="1" Margin="10,4,10,4" Orientation="Horizontal">
 

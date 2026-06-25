@@ -60,6 +60,13 @@ public class IniSettingsService : ISettingsService
         File.WriteAllText(SettingsFilePath, sb.ToString(), Encoding.UTF8);
     }
 
+    public void Reload()
+    {
+        _data.Clear();
+        if (File.Exists(SettingsFilePath))
+            ParseFile(SettingsFilePath);
+    }
+
     // ── Parsing ──────────────────────────────────────────────────────────
 
     private void ParseFile(string path)

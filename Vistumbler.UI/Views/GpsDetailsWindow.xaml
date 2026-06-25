@@ -1,0 +1,70 @@
+<Window x:Class="Vistumbler.UI.Views.GpsDetailsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="GPS Details" Width="340" SizeToContent="Height"
+        MinWidth="300" ResizeMode="CanResizeWithGrip"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Latitude:"   Margin="0,0,12,6" FontWeight="SemiBold"/>
+        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Latitude}"   Margin="0,0,0,6"/>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Longitude:"  Margin="0,0,12,6" FontWeight="SemiBold"/>
+        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Longitude}"  Margin="0,0,0,6"/>
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Altitude:"   Margin="0,0,12,6" FontWeight="SemiBold"/>
+        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Altitude}"   Margin="0,0,0,6"/>
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Satellites:" Margin="0,0,12,6" FontWeight="SemiBold"/>
+        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding NumberOfSatellites}" Margin="0,0,0,6"/>
+
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="HDOP:"       Margin="0,0,12,6" FontWeight="SemiBold"/>
+        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding HorizontalDilution}" Margin="0,0,0,6"/>
+
+        <TextBlock Grid.Row="5" Grid.Column="0" Text="Speed:"      Margin="0,0,12,6" FontWeight="SemiBold"/>
+        <StackPanel Grid.Row="5" Grid.Column="1" Margin="0,0,0,6">
+            <TextBlock Text="{Binding SpeedMph}"/>
+            <TextBlock Text="{Binding SpeedKmh}" Foreground="DimGray"/>
+            <TextBlock Text="{Binding SpeedKnots}" Foreground="DimGray"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="6" Grid.Column="0" Text="Track Angle:" Margin="0,0,12,6" FontWeight="SemiBold"/>
+        <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding TrackAngle}" Margin="0,0,0,6"/>
+
+        <TextBlock Grid.Row="7" Grid.Column="0" Text="Quality:"    Margin="0,0,12,6" FontWeight="SemiBold"/>
+        <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding Quality}"    Margin="0,0,0,6"/>
+
+        <TextBlock Grid.Row="8" Grid.Column="0" Text="Timestamp:"  Margin="0,0,12,6" FontWeight="SemiBold"/>
+        <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding Timestamp}"  Margin="0,0,0,6"/>
+
+        <TextBlock Grid.Row="9" Grid.ColumnSpan="2" Margin="0,8,0,0"
+                   Text="Waiting for GPS fix…" Foreground="DarkRed" FontStyle="Italic">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasFix}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+    </Grid>
+</Window>

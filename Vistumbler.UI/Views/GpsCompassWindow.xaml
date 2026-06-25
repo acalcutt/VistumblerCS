@@ -1,0 +1,48 @@
+<Window x:Class="Vistumbler.UI.Views.GpsCompassWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="GPS Compass" Width="280" Height="340"
+        MinWidth="240" MinHeight="300"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Viewbox Grid.Row="0" Stretch="Uniform">
+            <Canvas Width="220" Height="220">
+                <!-- Compass face -->
+                <Ellipse Canvas.Left="0" Canvas.Top="0" Width="220" Height="220"
+                         Stroke="DimGray" StrokeThickness="2" Fill="#FFF7FAF0"/>
+                <Ellipse Canvas.Left="10" Canvas.Top="10" Width="200" Height="200"
+                         Stroke="#FFB0C0A0" StrokeThickness="1"/>
+
+                <!-- Cardinal labels (centered around the face) -->
+                <TextBlock Canvas.Left="104" Canvas.Top="14"  Text="N" FontWeight="Bold" Foreground="DarkRed"/>
+                <TextBlock Canvas.Left="105" Canvas.Top="186" Text="S" FontWeight="Bold"/>
+                <TextBlock Canvas.Left="16"  Canvas.Top="100" Text="W" FontWeight="Bold"/>
+                <TextBlock Canvas.Left="192" Canvas.Top="100" Text="E" FontWeight="Bold"/>
+
+                <!-- Heading needle, drawn centred on (110,110) and rotated about it -->
+                <Path Fill="DarkRed" Data="M 110,30 L 122,120 L 110,110 L 98,120 Z">
+                    <Path.RenderTransform>
+                        <RotateTransform Angle="{Binding HeadingForRotation}" CenterX="110" CenterY="110"/>
+                    </Path.RenderTransform>
+                </Path>
+                <Path Fill="#FF606060" Data="M 110,190 L 122,100 L 110,110 L 98,100 Z">
+                    <Path.RenderTransform>
+                        <RotateTransform Angle="{Binding HeadingForRotation}" CenterX="110" CenterY="110"/>
+                    </Path.RenderTransform>
+                </Path>
+
+                <Ellipse Canvas.Left="103" Canvas.Top="103" Width="14" Height="14" Fill="DimGray"/>
+            </Canvas>
+        </Viewbox>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+            <TextBlock Text="Heading: " FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding TrackAngle}"/>
+        </StackPanel>
+    </Grid>
+</Window>

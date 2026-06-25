@@ -195,14 +195,16 @@
                 <MenuItem Header="5 GHz Channel Graph (Experimental)"   Command="{Binding Open5GHzGraphCommand}"/>
                 <MenuItem Header="6 GHz Channel Graph (Experimental)"   Command="{Binding Open6GHzGraphCommand}"/>
                 <Separator/>
-                <MenuItem Header="GPS Details"/>
-                <MenuItem Header="GPS Compass"/>
+                <MenuItem Header="GPS Details" Command="{Binding OpenGpsDetailsCommand}"/>
+                <MenuItem Header="GPS Compass" Command="{Binding OpenGpsCompassCommand}"/>
+                <Separator/>
+                <MenuItem Header="Upload APs to WifiDB" Command="{Binding UploadToWifiDbCommand}"/>
                 <Separator/>
                 <MenuItem Header="Open KML Network Link"/>
-                <MenuItem Header="Open Save Folder"/>
+                <MenuItem Header="Open Save Folder" Command="{Binding OpenSaveFolderCommand}"/>
                 <Separator/>
-                <MenuItem Header="Export Settings"/>
-                <MenuItem Header="Import Settings"/>
+                <MenuItem Header="Export Settings" Command="{Binding ExportSettingsCommand}"/>
+                <MenuItem Header="Import Settings" Command="{Binding ImportSettingsCommand}"/>
                 <Separator/>
                 <MenuItem Header="Update Manufacturers" Command="{Binding UpdateManufacturersCommand}"/>
             </MenuItem>

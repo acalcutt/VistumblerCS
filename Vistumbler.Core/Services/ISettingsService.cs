@@ -17,4 +17,7 @@ public interface ISettingsService
 
     /// <summary>Flush any pending writes to disk.</summary>
     void Save();
+
+    /// <summary>Discard in-memory values and re-read them from the settings file on disk.</summary>
+    void Reload();
 }

@@ -9,11 +9,7 @@
 
 ## 0.2.0
 ### ✨ Features and improvements
-
-### 🐞 Bug fixes
-
 - Migrate map rendering from MaplibreNative.NET (C++/CLI) to MapLibreNative.Maui.WPF (P/Invoke) + interactive map view ([#1](https://github.com/acalcutt/VistumblerCS/pull/1)) (@acalcutt)
-
 
 ## 0.1.0
 ### ✨ Features and improvements

@@ -7,6 +7,10 @@
 ### 🐞 Bug fixes
 - _...Add new stuff here..._
 
+## 0.3.0
+### ✨ Features and improvements
+- Fix single-file publish crash + GPS/WifiDB/Settings feature ([#3](https://github.com/acalcutt/VistumblerCS/pull/3)) (@acalcutt)
+
 ## 0.2.0
 ### ✨ Features and improvements
 - Migrate map rendering from MaplibreNative.NET (C++/CLI) to MapLibreNative.Maui.WPF (P/Invoke) + interactive map view ([#1](https://github.com/acalcutt/VistumblerCS/pull/1)) (@acalcutt)

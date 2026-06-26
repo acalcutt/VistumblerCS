@@ -13,11 +13,20 @@ concurrency:
 
 jobs:
   build-and-test:
-    name: Build and test
-    runs-on: windows-latest
+    name: Build and test (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            rid: win-x64
+          - arch: arm64
+            runner: windows-11-arm
+            rid: win-arm64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
@@ -32,3 +41,20 @@ jobs:
 
       - name: Test
         run: dotnet test VistumblerCS.sln --configuration Release --no-build --verbosity normal
+
+      - name: Publish (${{ matrix.arch }})
+        run: |
+          dotnet publish Vistumbler.UI/Vistumbler.UI.csproj `
+            --configuration Release `
+            --runtime ${{ matrix.rid }} `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            --output ./publish/${{ matrix.arch }}
+
+      - name: Upload CI build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: VistumblerCS-ci-${{ matrix.arch }}-${{ github.sha }}
+          path: ./publish/${{ matrix.arch }}/
+          retention-days: 7

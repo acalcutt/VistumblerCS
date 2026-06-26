@@ -1,4 +1,4 @@
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.IO.Compression;
@@ -163,38 +163,35 @@ public class ExportService : IExportService
         {
             if (File.Exists(filePath)) File.Delete(filePath);
 
-            var connectionString = $"Data Source={filePath};Version=3;";
-            using var connection = new SQLiteConnection(connectionString);
+            var connectionString = $"Data Source={filePath};";
+            using var connection = new SqliteConnection(connectionString);
             connection.Open();
 
             using var transaction = connection.BeginTransaction();
 
-            using (var cmd = new SQLiteCommand(connection))
+            var schemaStatements = new[]
             {
-                // Create Schema (idempotent: IF NOT EXISTS / INSERT OR REPLACE)
-                cmd.CommandText = @"
-                    CREATE TABLE IF NOT EXISTS KISMET (kismet_version TEXT, db_version INTEGER, db_module TEXT);
-                    INSERT OR REPLACE INTO KISMET (kismet_version, db_version, db_module) VALUES ('2023-07', 10, 'kismetlog');
-
-                    CREATE TABLE IF NOT EXISTS alerts (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, devmac TEXT, lat REAL, lon REAL, header TEXT, json BLOB);
-                    
-                    CREATE TABLE IF NOT EXISTS data (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, devmac TEXT, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, datasource TEXT, type TEXT, json BLOB, signal INTEGER);
-                    
-                    CREATE TABLE IF NOT EXISTS datasources (uuid TEXT, typestring TEXT, definition TEXT, name TEXT, interface TEXT, json BLOB, UNIQUE(uuid) ON CONFLICT REPLACE);
-                    INSERT OR REPLACE INTO datasources (uuid, typestring, definition, name, interface, json) VALUES ('00000000-0000-0000-0000-000000000000', 'vistumbler', 'vistumbler', 'vistumbler', 'vistumbler', '{}');
-
-                    CREATE TABLE IF NOT EXISTS devices (first_time INTEGER, last_time INTEGER, devkey TEXT, phyname TEXT, devmac TEXT, strongest_signal INTEGER, min_lat REAL, min_lon REAL, max_lat REAL, max_lon REAL, avg_lat REAL, avg_lon REAL, bytes_data INTEGER, type TEXT, device BLOB, UNIQUE(phyname, devmac) ON CONFLICT REPLACE);
-                    CREATE INDEX IF NOT EXISTS idx_devices_devkey ON devices(devkey);
-                    CREATE INDEX IF NOT EXISTS idx_devices_devmac ON devices(devmac);
-
-                    CREATE TABLE IF NOT EXISTS messages (ts_sec INTEGER, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, msgtype TEXT, message TEXT);
-
-                    CREATE TABLE IF NOT EXISTS packets (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, sourcemac TEXT, destmac TEXT, transmac TEXT, frequency REAL, devkey TEXT, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, packet_len INTEGER, signal INTEGER, datasource TEXT, dlt INTEGER, packet BLOB, error INTEGER, tags TEXT, datarate REAL, hash INTEGER, packetid INTEGER, packet_full_len INTEGER);
-                    CREATE INDEX IF NOT EXISTS idx_packets_sourcemac ON packets(sourcemac);
-
-                    CREATE TABLE IF NOT EXISTS snapshots (ts_sec INTEGER, ts_usec INTEGER, lat REAL, lon REAL, snaptype TEXT, json TEXT);
-                ";
-                cmd.ExecuteNonQuery();
+                "CREATE TABLE IF NOT EXISTS KISMET (kismet_version TEXT, db_version INTEGER, db_module TEXT)",
+                "INSERT OR REPLACE INTO KISMET (kismet_version, db_version, db_module) VALUES ('2023-07', 10, 'kismetlog')",
+                "CREATE TABLE IF NOT EXISTS alerts (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, devmac TEXT, lat REAL, lon REAL, header TEXT, json BLOB)",
+                "CREATE TABLE IF NOT EXISTS data (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, devmac TEXT, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, datasource TEXT, type TEXT, json BLOB, signal INTEGER)",
+                "CREATE TABLE IF NOT EXISTS datasources (uuid TEXT, typestring TEXT, definition TEXT, name TEXT, interface TEXT, json BLOB, UNIQUE(uuid) ON CONFLICT REPLACE)",
+                "INSERT OR REPLACE INTO datasources (uuid, typestring, definition, name, interface, json) VALUES ('00000000-0000-0000-0000-000000000000', 'vistumbler', 'vistumbler', 'vistumbler', 'vistumbler', '{}')",
+                "CREATE TABLE IF NOT EXISTS devices (first_time INTEGER, last_time INTEGER, devkey TEXT, phyname TEXT, devmac TEXT, strongest_signal INTEGER, min_lat REAL, min_lon REAL, max_lat REAL, max_lon REAL, avg_lat REAL, avg_lon REAL, bytes_data INTEGER, type TEXT, device BLOB, UNIQUE(phyname, devmac) ON CONFLICT REPLACE)",
+                "CREATE INDEX IF NOT EXISTS idx_devices_devkey ON devices(devkey)",
+                "CREATE INDEX IF NOT EXISTS idx_devices_devmac ON devices(devmac)",
+                "CREATE TABLE IF NOT EXISTS messages (ts_sec INTEGER, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, msgtype TEXT, message TEXT)",
+                "CREATE TABLE IF NOT EXISTS packets (ts_sec INTEGER, ts_usec INTEGER, phyname TEXT, sourcemac TEXT, destmac TEXT, transmac TEXT, frequency REAL, devkey TEXT, lat REAL, lon REAL, alt REAL, speed REAL, heading REAL, packet_len INTEGER, signal INTEGER, datasource TEXT, dlt INTEGER, packet BLOB, error INTEGER, tags TEXT, datarate REAL, hash INTEGER, packetid INTEGER, packet_full_len INTEGER)",
+                "CREATE INDEX IF NOT EXISTS idx_packets_sourcemac ON packets(sourcemac)",
+                "CREATE TABLE IF NOT EXISTS snapshots (ts_sec INTEGER, ts_usec INTEGER, lat REAL, lon REAL, snaptype TEXT, json TEXT)",
+            };
+            using (var cmd = connection.CreateCommand())
+            {
+                foreach (var sql in schemaStatements)
+                {
+                    cmd.CommandText = sql;
+                    cmd.ExecuteNonQuery();
+                }
             }
 
             int packetId = 1;
@@ -218,7 +215,7 @@ public class ExportService : IExportService
                 if (ap.NetworkType == NetworkType.Adhoc) type = "Wi-Fi Ad-Hoc";
                 // If it's a client/probe, logic differs, but AccessPoint usually implies AP.
 
-                using (var cmd = new SQLiteCommand(connection))
+                using (var cmd = connection.CreateCommand())
                 {
                     cmd.CommandText = @"
                         INSERT INTO devices (first_time, last_time, devkey, phyname, devmac, strongest_signal, min_lat, min_lon, max_lat, max_lon, avg_lat, avg_lon, bytes_data, type, device)
@@ -272,7 +269,7 @@ public class ExportService : IExportService
                         // Legacy `_KismetDB_GenerateRadiotapBeacon` takes frequency.
                         // Let's use MHz.
 
-                        using (var cmd = new SQLiteCommand(connection))
+                        using (var cmd = connection.CreateCommand())
                         {
                             cmd.CommandText = @"
                                 INSERT INTO packets (ts_sec, ts_usec, phyname, sourcemac, destmac, transmac, frequency, devkey, lat, lon, alt, speed, heading, packet_len, signal, datasource, dlt, packet, error, tags, datarate, hash, packetid, packet_full_len)

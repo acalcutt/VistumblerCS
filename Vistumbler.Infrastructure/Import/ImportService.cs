@@ -2,7 +2,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using System.Text.Json;
 using Vistumbler.Core.Models;
 using Vistumbler.Core.Services;
@@ -303,11 +303,11 @@ public class ImportService : IImportService
 
          try 
          {
-             using var conn = new SQLiteConnection($"Data Source={filePath};Version=3;Read Only=True;");
+             using var conn = new SqliteConnection($"Data Source={filePath};Mode=ReadOnly;");
              await conn.OpenAsync();
              
              // Check if 'devices' table exists
-             using (var checkCmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='devices';", conn))
+             using (var checkCmd = new SqliteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name='devices';", conn))
              {
                  var tableExists = await checkCmd.ExecuteScalarAsync();
                  if (tableExists == null) return accessPoints;
@@ -316,7 +316,7 @@ public class ImportService : IImportService
              var sql = @"SELECT devmac, type, strongest_signal, min_lat, min_lon, device FROM devices 
                          WHERE type IN ('Wi-Fi AP','Wi-Fi Ad-Hoc','Wi-Fi','infrastructure','ad-hoc')";
              
-             using var cmd = new SQLiteCommand(sql, conn);
+             using var cmd = new SqliteCommand(sql, conn);
              using var reader = await cmd.ExecuteReaderAsync();
              
              while (await reader.ReadAsync())

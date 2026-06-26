@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Get version and check GitHub releases
         id: check
@@ -68,7 +68,7 @@ jobs:
             rid: win-arm64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
@@ -170,7 +170,7 @@ jobs:
             -DestinationPath "./Vistumbler-v${version}-win-${{ matrix.arch }}.zip"
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-artifact-${{ matrix.arch }}
           path: Vistumbler-v${{ needs.release-check.outputs.version }}-win-${{ matrix.arch }}.zip
@@ -184,10 +184,10 @@ jobs:
     environment: release
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: release-artifact-*
           path: ./artifacts

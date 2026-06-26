@@ -9,9 +9,6 @@
 
 ## 0.3.1
 ### ✨ Features and improvements
-
-### 🐞 Bug fixes
-
 - add icon and release signing ([#10](https://github.com/acalcutt/VistumblerCS/pull/10)) (@acalcutt)
 
 ## 0.3.0

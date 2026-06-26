@@ -10,6 +10,7 @@
         Title="Vistumbler CS - WiFi Scanner" Height="700" Width="1200"
         WindowStartupLocation="CenterScreen"
         MinHeight="500" MinWidth="800"
+        Icon="pack://application:,,,/Assets/Vistumbler.ico"
         Background="{StaticResource PrimaryBrush}">
     
     <Window.Resources>

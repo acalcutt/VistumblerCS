@@ -10,8 +10,13 @@
     <Version>0.2.0</Version>
     <AssemblyVersion>0.2.0.0</AssemblyVersion>
     <FileVersion>0.2.0.0</FileVersion>
+    <AssemblyTitle>Vistumbler</AssemblyTitle>
     <Product>Vistumbler</Product>
     <Description>WiFi stumbler for Windows</Description>
+    <Company>TechIdiots LLC</Company>
+    <Authors>TechIdiots LLC</Authors>
+    <Copyright>Copyright © TechIdiots LLC</Copyright>
+    <ApplicationIcon>Assets\Vistumbler.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,6 +37,12 @@
     <Content Include="Sounds\*.wav">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+
+  <!-- Application icon assets (also exposed as WPF Resource for XAML use) -->
+  <ItemGroup>
+    <Resource Include="Assets\Vistumbler.ico" />
+    <Resource Include="Assets\VistumblerIcon.png" />
   </ItemGroup>
 
 </Project>

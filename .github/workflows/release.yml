@@ -89,6 +89,78 @@ jobs:
             -p:PublishReadyToRun=true `
             --output ./publish/${{ matrix.arch }}
 
+      - name: Sign published executables
+        shell: pwsh
+        env:
+          SIG_PFX: ${{ secrets.SIG_PFX }}
+          SIG_PFX_PASS: ${{ secrets.SIG_PFX_PASS }}
+        run: |
+          if (-not $env:SIG_PFX) {
+            Write-Warning "No SIG_PFX secret found, skipping signing."
+            exit 0
+          }
+
+          # Decode PFX from base64 secret
+          $pfxPath = Join-Path $PWD 'cert.pfx'
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:SIG_PFX))
+
+          # Find signtool.exe inside Windows Kits
+          $signtoolPath = ""
+          $programFiles = ${env:ProgramFiles(x86)}
+          if (-not $programFiles) { $programFiles = $env:ProgramFiles }
+
+          $candidates = Get-ChildItem -Path "$programFiles\Windows Kits" -Include signtool.exe -Recurse -ErrorAction SilentlyContinue
+          if ($candidates) {
+            $arch = "${{ matrix.arch }}"
+            $best = $null
+            if ($arch -eq 'arm64') {
+              # Prefer native arm64 signtool when running on arm64 runner
+              $best = $candidates | Where-Object { $_.FullName -match '\\arm64\\' } | Select-Object -First 1
+            }
+            if (-not $best) {
+              $best = $candidates | Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1
+            }
+            if (-not $best) {
+              $best = $candidates | Where-Object { $_.FullName -match '\\x86\\' } | Select-Object -First 1
+            }
+            if (-not $best) {
+              $best = $candidates | Where-Object { $_.FullName -notmatch '\\arm' } | Select-Object -First 1
+            }
+            if (-not $best) { $best = $candidates | Select-Object -First 1 }
+            if ($best) { $signtoolPath = $best.FullName }
+          }
+
+          if (-not $signtoolPath) {
+            $cmd = Get-Command signtool.exe -ErrorAction SilentlyContinue
+            if ($cmd) { $signtoolPath = $cmd.Path }
+          }
+
+          if (-not $signtoolPath) {
+            Write-Warning "signtool.exe not found, skipping signing"
+            Remove-Item -Path $pfxPath -Force -ErrorAction SilentlyContinue
+            exit 0
+          }
+          Write-Host "Using signtool: $signtoolPath"
+
+          # Sign every executable in the publish folder
+          $targets = Get-ChildItem -Path "./publish/${{ matrix.arch }}" -Recurse -Include *.exe -ErrorAction SilentlyContinue
+          if (-not $targets) {
+            Write-Warning "No executables found under ./publish/${{ matrix.arch }} to sign"
+            Remove-Item -Path $pfxPath -Force -ErrorAction SilentlyContinue
+            exit 0
+          }
+
+          foreach ($exe in $targets) {
+            Write-Host "Signing $($exe.FullName)"
+            & $signtoolPath sign /f $pfxPath /p $env:SIG_PFX_PASS /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $exe.FullName
+            if ($LASTEXITCODE -ne 0) {
+              Remove-Item -Path $pfxPath -Force -ErrorAction SilentlyContinue
+              throw "signtool failed for $($exe.FullName) (exit $LASTEXITCODE)"
+            }
+          }
+
+          Remove-Item -Path $pfxPath -Force -ErrorAction SilentlyContinue
+
       - name: Package release artifact
         shell: pwsh
         run: |

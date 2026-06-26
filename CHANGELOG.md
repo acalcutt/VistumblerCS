@@ -7,6 +7,10 @@
 ### 🐞 Bug fixes
 - _...Add new stuff here..._
 
+## 0.3.1
+### ✨ Features and improvements
+- add icon and release signing ([#10](https://github.com/acalcutt/VistumblerCS/pull/10)) (@acalcutt)
+
 ## 0.3.0
 ### ✨ Features and improvements
 - Fix single-file publish crash + GPS/WifiDB/Settings feature ([#3](https://github.com/acalcutt/VistumblerCS/pull/3)) (@acalcutt)

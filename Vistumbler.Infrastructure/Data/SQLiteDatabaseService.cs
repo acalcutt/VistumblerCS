@@ -363,6 +363,10 @@ public class SQLiteDatabaseService : IDatabaseService
         if (_connection != null)
         {
             await _connection.CloseAsync();
+            // Clear the pool BEFORE disposing: Microsoft.Data.Sqlite pools
+            // connections by default, so the OS file handle survives Dispose()
+            // and keeps the .db locked — blocking any later File.Delete.
+            SqliteConnection.ClearPool(_connection);
             _connection.Dispose();
             _connection = null;
         }

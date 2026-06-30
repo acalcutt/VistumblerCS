@@ -1,186 +1,199 @@
-﻿using MapLibreNative.Maui.WPF;
+using MapLibreNative.Maui.WPF;
 
 namespace Vistumbler.UI.Extensions;
 
 /// <summary>
-/// Extension methods for MlnMapHost that provide WiFi-specific GeoJSON layer handling,
-/// maintaining compatibility with the old MaplibreNative.NET.WPF MaplibreMapHost API.
+/// Extension methods for MlnMapHost that provide WiFi/cell-tower vector and GeoJSON
+/// layer handling. Color, radius and z-order match WifiDB's map.php and
+/// VistumblerMAUI's MapViewModel so all three clients render history layers identically.
 /// </summary>
 public static class MaplibreWifiExtensions
 {
+    // ── Per-bucket style ──────────────────────────────────────────────────────
+    // Colors graduate from bright (newest) to dark/muted (oldest); radius shrinks
+    // the same way. Cell buckets use a single graduated purple (no sectype split —
+    // cells use `type` for LTE/GSM/CDMA etc., not an open/WEP/secure split), so
+    // Wep/Secure just repeat Open for those entries.
+    private record BucketStyle(string Open, string Wep, string Secure, double Radius);
+
+    private static readonly BucketStyle DefaultStyle = new("#1aff66", "#ffad33", "#ff1a1a", 3.0);
+
+    private static readonly Dictionary<string, BucketStyle> BucketStyles = new()
+    {
+        ["daily"]          = new("#1aff66", "#ffad33", "#ff1a1a", 3.0),
+        ["weekly"]         = new("#1aff66", "#ffad33", "#ff1a1a", 3.0),
+        ["monthly"]        = new("#1aff66", "#ffad33", "#ff1a1a", 3.0),
+        ["0to1year"]       = new("#1aff66", "#ffad33", "#ff1a1a", 3.0),
+        ["1to2year"]       = new("#00e64d", "#ff9900", "#e60000", 2.75),
+        ["2to3year"]       = new("#00b33c", "#e68a00", "#cc0000", 2.5),
+        ["3to5year"]       = new("#009933", "#d98000", "#c00000", 2.25),
+        ["5to10year"]      = new("#00802b", "#cc7a00", "#b30000", 2.0),
+        ["10yrplus"]       = new("#005c1f", "#996000", "#800000", 1.5),
+        ["cell_daily"]     = new("#b296e3", "#b296e3", "#b296e3", 3.0),
+        ["cell_weekly"]    = new("#9d78d8", "#9d78d8", "#9d78d8", 3.0),
+        ["cell_monthly"]   = new("#885fcd", "#885fcd", "#885fcd", 3.0),
+        ["cell_0to1year"]  = new("#885fcd", "#885fcd", "#885fcd", 3.0),
+        ["cell_1to2year"]  = new("#7a4dc0", "#7a4dc0", "#7a4dc0", 2.75),
+        ["cell_2to3year"]  = new("#6f40b3", "#6f40b3", "#6f40b3", 2.5),
+        ["cell_3to5year"]  = new("#5e3599", "#5e3599", "#5e3599", 2.25),
+        ["cell_5to10year"] = new("#4d2b80", "#4d2b80", "#4d2b80", 2.0),
+        ["cell_10yrplus"]  = new("#3d2266", "#3d2266", "#3d2266", 1.5),
+    };
+
+    // Canonical z-order, newest → oldest, wifi tiers then cell tiers.
+    // "live_aps" (the local Vistumbler scan layer) is always the top anchor.
+    private static readonly string[] BucketOrder =
+    [
+        "daily", "weekly", "monthly", "0to1year", "1to2year",
+        "2to3year", "3to5year", "5to10year", "10yrplus",
+        "cell_daily", "cell_weekly", "cell_monthly", "cell_0to1year",
+        "cell_1to2year", "cell_2to3year", "cell_3to5year",
+        "cell_5to10year", "cell_10yrplus",
+    ];
+
+    // bucket → currently-added layer name, so BelowLayerFor() can find the
+    // nearest newer bucket already present in the style regardless of toggle order.
+    private static readonly Dictionary<string, string> _activeLayersByBucket = new();
+
+    /// Returns the layerId to insert below for the given bucket: the nearest
+    /// newer bucket already present in the style, or "live_aps" as the top anchor.
+    private static string BelowLayerFor(string bucket)
+    {
+        int idx = Array.IndexOf(BucketOrder, bucket);
+        if (idx <= 0) return "live_aps";
+        for (int i = idx - 1; i >= 0; i--)
+        {
+            if (_activeLayersByBucket.TryGetValue(BucketOrder[i], out var layerName))
+                return layerName;
+        }
+        return "live_aps";
+    }
+
+    // MapLibre GL "case" expression: sectype==2→WEP, sectype==3→secure, default→open.
+    private static object[] SeCtypeColorExpr(BucketStyle s) =>
+    [
+        "case",
+        new object[] { "==", new object[] { "get", "sectype" }, 2 }, s.Wep,
+        new object[] { "==", new object[] { "get", "sectype" }, 3 }, s.Secure,
+        s.Open,
+    ];
+
+    // MapLibre GL zoom-interpolated radius function.
+    // base=1.5 is the interpolation curve (fixed); the per-bucket size difference
+    // lives in the stop VALUES, not the base.
+    private static Dictionary<string, object?> RadiusExpr(double baseRadius) => new()
+    {
+        ["base"]  = 1.5,
+        ["stops"] = new object[] {
+            new object[] { 1,  baseRadius * 0.5 },
+            new object[] { 4,  baseRadius },
+            new object[] { 12, baseRadius },
+            new object[] { 20, 20.0 },
+        },
+    };
+
+    // ── GeoJSON-backed live layer ────────────────────────────────────────────
+
     /// <summary>
-    /// Add or update a GeoJSON source that fetches from a URL, with circle
-    /// layers for open (green), WEP (orange) and secure (red) access points.
+    /// Add or update a GeoJSON source that fetches from a URL, with a single
+    /// sectype-coloured circle layer (open/WEP/secure).
     /// </summary>
     public static void SetWifiGeoJsonLayer(this MlnMapHost map, string sourceId, string geoJsonUrl)
     {
-        // Add or update the GeoJSON source from URL
         map.AddGeoJsonSourceUrl(sourceId, geoJsonUrl);
-        
-        // Add the three security-type circle layers if they don't exist
-        AddWifiCircleLayers(map, sourceId);
+        AddWifiCircleLayer(map, sourceId, sourceId, sourceLayer: null, belowLayerId: null);
     }
 
     /// <summary>
     /// Update an existing GeoJSON source with inline GeoJSON string data.
     /// Use this for live/frequently-updated data to avoid HTTP round-trips.
-    /// If the source does not exist yet, it is created (with circle layers).
+    /// If the source does not exist yet, it is created (with its circle layer).
     /// </summary>
     public static void SetWifiGeoJsonLayerData(this MlnMapHost map, string sourceId, string geoJson)
     {
-        // Add or update the GeoJSON source with inline data
         map.AddGeoJsonSource(sourceId, geoJson);
-        
-        // Add the three security-type circle layers if they don't exist
-        AddWifiCircleLayers(map, sourceId);
+        AddWifiCircleLayer(map, sourceId, sourceId, sourceLayer: null, belowLayerId: null);
     }
 
-    /// <summary>Remove a GeoJSON wifi layer set (3 security-type circle layers + source).</summary>
+    /// <summary>Remove a GeoJSON wifi layer (circle layer + source).</summary>
     public static void RemoveWifiGeoJsonLayer(this MlnMapHost map, string sourceId)
     {
-        map.RemoveLayer(sourceId + "_open");
-        map.RemoveLayer(sourceId + "_wep");
-        map.RemoveLayer(sourceId + "_secure");
+        map.RemoveLayer(sourceId);
         map.RemoveSource(sourceId);
     }
+
+    // ── Vector tile layers (history buckets) ─────────────────────────────────
 
     /// <summary>
-    /// Add a vector tile source from a TileJSON URL with the three security-type
-    /// circle layers. The <paramref name="sourceLayer"/> must match the layer name
-    /// inside the MVT tiles (tilejson.php uses the bucket name, e.g. "weekly").
+    /// Add a vector tile source from a TileJSON URL with a single sectype-coloured
+    /// circle layer. <paramref name="bucket"/> must match the layer name inside the
+    /// MVT tiles (tilejson.php uses the bucket name, e.g. "weekly") and selects the
+    /// per-bucket color/radius and the layer's position in the z-order stack.
     /// </summary>
-    public static void SetWifiVectorLayer(this MlnMapHost map, string sourceId, string tileJsonUrl, string sourceLayer)
+    public static void SetWifiVectorLayer(this MlnMapHost map, string sourceId, string tileJsonUrl, string bucket)
     {
         map.AddVectorSourceUrl(sourceId, tileJsonUrl);
-        AddWifiCircleLayersVector(map, sourceId, sourceLayer);
+        AddWifiCircleLayer(map, sourceId, sourceId, bucket, BelowLayerFor(bucket));
+        _activeLayersByBucket[bucket] = sourceId;
     }
 
-    /// <summary>Remove a vector wifi layer set (3 circle layers + source).</summary>
-    public static void RemoveWifiVectorLayer(this MlnMapHost map, string sourceId)
+    /// <summary>Remove a wifi vector layer (circle layer + source) for the given bucket.</summary>
+    public static void RemoveWifiVectorLayer(this MlnMapHost map, string sourceId, string bucket)
     {
-        map.RemoveLayer(sourceId + "_open");
-        map.RemoveLayer(sourceId + "_wep");
-        map.RemoveLayer(sourceId + "_secure");
+        map.RemoveLayer(sourceId);
         map.RemoveSource(sourceId);
+        _activeLayersByBucket.Remove(bucket);
     }
 
-    // Colors graduate from dark/muted (oldest) to bright/saturated (newest),
-    // matching the wifidb.net maplibre-gl-js style.
-    private static readonly Dictionary<string, (string Open, string Wep, string Secure)> BucketColors = new()
+    private static void AddWifiCircleLayer(MlnMapHost map, string layerName, string sourceName,
+        string? sourceLayer, string? belowLayerId)
     {
-        ["legacy"]   = ("#00802b", "#cc7a00", "#b30000"),
-        ["2to3year"] = ("#00b33c", "#e68a00", "#cc0000"),
-        ["1to2year"] = ("#00e64d", "#ff9900", "#e60000"),
-        ["0to1year"] = ("#1aff66", "#ffad33", "#ff1a1a"),
-        ["monthly"]  = ("#1aff66", "#ffad33", "#ff1a1a"),
-        ["weekly"]   = ("#1aff66", "#ffad33", "#ff1a1a"),
-        ["daily"]    = ("#1aff66", "#ffad33", "#ff1a1a"),
-    };
-
-    private static void AddWifiCircleLayersVector(MlnMapHost map, string sourceId, string sourceLayer)
-    {
-        var colors = BucketColors.TryGetValue(sourceLayer, out var c) ? c : (Open: "#1aff66", Wep: "#ffad33", Secure: "#ff1a1a");
-
-        AddWifiCircleLayer(
-            map,
-            layerName:   sourceId + "_open",
-            sourceName:  sourceId,
-            color:       colors.Open,
-            sourceLayer: sourceLayer,
-            filterJson:  "[\"any\",[\"==\",[\"get\",\"sectype\"],1],[\"==\",[\"get\",\"sectype\"],\"1\"]]");
-
-        AddWifiCircleLayer(
-            map,
-            layerName:   sourceId + "_wep",
-            sourceName:  sourceId,
-            color:       colors.Wep,
-            sourceLayer: sourceLayer,
-            filterJson:  "[\"any\",[\"==\",[\"get\",\"sectype\"],2],[\"==\",[\"get\",\"sectype\"],\"2\"]]");
-
-        AddWifiCircleLayer(
-            map,
-            layerName:   sourceId + "_secure",
-            sourceName:  sourceId,
-            color:       colors.Secure,
-            sourceLayer: sourceLayer,
-            filterJson:  "[\"any\",[\"==\",[\"get\",\"sectype\"],3],[\"==\",[\"get\",\"sectype\"],\"3\"]]");
-    }
-
-    private static void AddWifiCircleLayers(MlnMapHost map, string sourceId)
-    {
-        // Each layer gets a filter so only features matching that security type are drawn.
-        // Filters accept both int and string sectype values (mirrors the Android app pattern).
-        // sectype: 1=Open(green), 2=WEP(orange), 3=Secure/WPA*(red)
-        
-        AddWifiCircleLayer(
-            map,
-            layerName: sourceId + "_open",
-            sourceName: sourceId,
-            color: "#00802b",
-            filterJson: "[\"any\",[\"==\",[\"get\",\"sectype\"],1],[\"==\",[\"get\",\"sectype\"],\"1\"]]");
-
-        AddWifiCircleLayer(
-            map,
-            layerName: sourceId + "_wep",
-            sourceName: sourceId,
-            color: "#cc7a00",
-            filterJson: "[\"any\",[\"==\",[\"get\",\"sectype\"],2],[\"==\",[\"get\",\"sectype\"],\"2\"]]");
-
-        AddWifiCircleLayer(
-            map,
-            layerName: sourceId + "_secure",
-            sourceName: sourceId,
-            color: "#b30000",
-            filterJson: "[\"any\",[\"==\",[\"get\",\"sectype\"],3],[\"==\",[\"get\",\"sectype\"],\"3\"]]");
-    }
-
-    private static void AddWifiCircleLayer(
-        MlnMapHost map,
-        string layerName,
-        string sourceName,
-        string color,
-        string filterJson,
-        string? sourceLayer = null)
-    {
-        try
-        {
-            map.AddCircleLayer(
-                layerName: layerName,
-                sourceName: sourceName,
-                belowLayerId: null,
-                sourceLayer: sourceLayer,
-                properties: new Dictionary<string, object?>
-                {
-                    ["circle-color"]   = color,
-                    ["circle-radius"]  = 2.0,
-                    ["circle-opacity"] = 1.0,
-                    ["circle-blur"]    = 0.5
-                });
-
-            // Set the filter via reflection (public API doesn't expose layer.SetFilter).
-            var mapType = map.GetType();
-            var styleField = mapType.GetField("_style", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            
-            if (styleField?.GetValue(map) is object style)
+        var style = sourceLayer != null && BucketStyles.TryGetValue(sourceLayer, out var s) ? s : DefaultStyle;
+        map.AddCircleLayer(
+            layerName:    layerName,
+            sourceName:   sourceName,
+            belowLayerId: belowLayerId,
+            sourceLayer:  sourceLayer,
+            properties: new Dictionary<string, object?>
             {
-                var styleType = style.GetType();
-                var getLayerMethod = styleType.GetMethod("GetLayer", 
-                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                
-                if (getLayerMethod?.Invoke(style, new object[] { layerName }) is object layer)
-                {
-                    var layerType = layer.GetType();
-                    var setFilterMethod = layerType.GetMethod("SetFilter",
-                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-                    
-                    setFilterMethod?.Invoke(layer, new object[] { filterJson });
-                }
-            }
-        }
-        catch
-        {
-            // Silently ignore if reflection fails - layer may already exist with correct filter
-        }
+                ["circle-color"]   = SeCtypeColorExpr(style),
+                ["circle-radius"]  = RadiusExpr(style.Radius),
+                ["circle-opacity"] = 1.0,
+                ["circle-blur"]    = 0.5,
+            });
+    }
+
+    // ── Cell tower layers ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Add a vector tile source from a TileJSON URL with a single graduated-purple
+    /// circle layer for cell towers. Cell tiles use <c>type</c> (LTE/GSM/etc.) instead
+    /// of <c>sectype</c>, so only one color (no security-type split) is used per bucket.
+    /// </summary>
+    public static void SetCellVectorLayer(this MlnMapHost map, string sourceId, string tileJsonUrl, string bucket)
+    {
+        map.AddVectorSourceUrl(sourceId, tileJsonUrl);
+        var style = BucketStyles.TryGetValue(bucket, out var s) ? s : BucketStyles["cell_monthly"];
+        map.AddCircleLayer(
+            layerName:    sourceId,
+            sourceName:   sourceId,
+            belowLayerId: BelowLayerFor(bucket),
+            sourceLayer:  bucket,
+            properties: new Dictionary<string, object?>
+            {
+                ["circle-color"]   = style.Open,   // cells: Open/Wep/Secure are all equal
+                ["circle-radius"]  = RadiusExpr(style.Radius),
+                ["circle-opacity"] = 1.0,
+                ["circle-blur"]    = 0.5,
+            });
+        _activeLayersByBucket[bucket] = sourceId;
+    }
+
+    /// <summary>Remove a cell vector layer (circle layer + source) for the given bucket.</summary>
+    public static void RemoveCellVectorLayer(this MlnMapHost map, string sourceId, string bucket)
+    {
+        map.RemoveLayer(sourceId);
+        map.RemoveSource(sourceId);
+        _activeLayersByBucket.Remove(bucket);
     }
 }

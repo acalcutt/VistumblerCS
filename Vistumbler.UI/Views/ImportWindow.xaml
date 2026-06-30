@@ -8,7 +8,7 @@
         Title="Import" Height="290" Width="510" ResizeMode="NoResize" WindowStartupLocation="CenterOwner">
 
     <Window.Resources>
-        <Style TargetType="RadioButton">
+        <Style TargetType="RadioButton" BasedOn="{StaticResource AppRadioButtonStyle}">
             <Setter Property="Margin" Value="0,3,0,3"/>
         </Style>
     </Window.Resources>

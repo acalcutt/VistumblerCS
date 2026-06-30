@@ -1,0 +1,82 @@
+<Window x:Class="Vistumbler.UI.Views.ImportFolderWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Import Folder" Height="330" Width="540"
+        ResizeMode="NoResize" WindowStartupLocation="CenterOwner">
+
+    <Window.Resources>
+        <Style TargetType="RadioButton" BasedOn="{StaticResource AppRadioButtonStyle}">
+            <Setter Property="Margin" Value="0,3,0,3"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Folder path + Browse -->
+        <TextBlock Grid.Row="0" Text="Select a folder — all matching files will be imported." Margin="0,0,0,6"/>
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox Text="{Binding FolderPath}" IsReadOnly="True" VerticalAlignment="Center" Margin="0,0,5,0"/>
+            <Button Content="Browse…" Grid.Column="1" Command="{Binding BrowseCommand}" Padding="10,2"/>
+        </Grid>
+
+        <!-- File type radio buttons -->
+        <GroupBox Grid.Row="2" Header="File Type" Margin="0,0,0,8" Padding="6,4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <RadioButton Content="Vistumbler file (VS1, VSZ)"
+                                 IsChecked="{Binding SelectedImportType, Converter={StaticResource EnumBoolConverter}, ConverterParameter=VistumblerFile}"/>
+                    <RadioButton Content="Vistumbler Detailed CSV (CSV)"
+                                 IsChecked="{Binding SelectedImportType, Converter={StaticResource EnumBoolConverter}, ConverterParameter=VistumblerDetailedCsv}"/>
+                    <RadioButton Content="NetStumbler Files (TXT, NS1)"
+                                 IsChecked="{Binding SelectedImportType, Converter={StaticResource EnumBoolConverter}, ConverterParameter=Netstumbler}"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                    <RadioButton Content="Kismet Files (KISMET, NETXML)"
+                                 IsChecked="{Binding SelectedImportType, Converter={StaticResource EnumBoolConverter}, ConverterParameter=KismetFiles}"/>
+                    <RadioButton Content="Wardrive-android file (DB3)"
+                                 IsChecked="{Binding SelectedImportType, Converter={StaticResource EnumBoolConverter}, ConverterParameter=WardriveAndroid}"/>
+                    <RadioButton Content="WigleWifi 1.6 Compatible CSV (CSV)"
+                                 IsChecked="{Binding SelectedImportType, Converter={StaticResource EnumBoolConverter}, ConverterParameter=WigleCsv}"/>
+                </StackPanel>
+            </Grid>
+        </GroupBox>
+
+        <!-- Extension hint -->
+        <TextBlock Grid.Row="3" Margin="0,0,0,8"
+                   Text="{Binding ExtensionHint, StringFormat='Will search for: {0}'}"
+                   FontStyle="Italic" Foreground="Gray"/>
+
+        <!-- Import / Close buttons -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,8">
+            <Button Content="Import All" Command="{Binding ImportCommand}" Margin="0,0,10,0" Padding="50,5" IsDefault="True"/>
+            <Button Content="Close"      Command="{Binding CloseCommand}"  Padding="50,5" IsCancel="True"/>
+        </StackPanel>
+
+        <!-- Progress bar -->
+        <ProgressBar Grid.Row="5" Height="18" Minimum="0" Maximum="100"
+                     Value="{Binding ProgressValue}" Margin="0,0,0,4"/>
+
+        <!-- Status label -->
+        <TextBlock Grid.Row="6" Text="{Binding ProgressLabel}" TextWrapping="Wrap" VerticalAlignment="Top"/>
+    </Grid>
+</Window>

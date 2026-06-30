@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -62,6 +63,36 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _statusMessage = "Ready";
+
+    [ObservableProperty]
+    private string _windowTitle = BuildDefaultTitle();
+
+    private string? _currentDbPath;
+    private bool    _keepSession;   // true only when "Exit (Save DB)" was chosen
+
+    // KML Network Link
+    private Timer?  _kmlTimer;
+    private string? _kmlLiveFile;       // path to the data KML that is re-exported each tick
+    private string? _kmlNetworkLink;    // path to the wrapper network-link KML opened in Google Earth
+    [ObservableProperty] private bool _isKmlNetworkLinkActive;
+
+    private static string BuildDefaultTitle()
+    {
+        var ver = Assembly.GetEntryAssembly()
+            ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion
+            .Split('+')[0]   // strip git hash suffix
+            ?? "?";
+        return $"Vistumbler CS v{ver} - By TechIdiots LLC";
+    }
+
+    private void UpdateWindowTitle()
+    {
+        var base_ = BuildDefaultTitle();
+        WindowTitle = _currentDbPath is null
+            ? base_
+            : $"{base_} - ({Path.GetFileName(_currentDbPath)})";
+    }
 
     [ObservableProperty]
     private int _activeApCount;
@@ -163,7 +194,11 @@ public partial class MainViewModel : ViewModelBase
     public ICommand SaveAndClearCommand { get; }
     public ICommand ClearAllCommand { get; }
     public ICommand ExitCommand { get; }
+    public ICommand ExitSaveDbCommand { get; }
+    public ICommand NewSessionCommand { get; }
     public ICommand OpenImportWindowCommand { get; }
+    public ICommand OpenImportFolderCommand { get; }
+    public ICommand ToggleKmlNetworkLinkCommand { get; }
     public ICommand ExportVs1Command { get; }
     public ICommand ExportVszCommand { get; }
     public ICommand ExportCsvCommand { get; }
@@ -234,6 +269,7 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ExportSettingsCommand { get; }
     public ICommand ImportSettingsCommand { get; }
     public ICommand UploadToWifiDbCommand { get; }
+    public ICommand ShowAboutCommand { get; }
 
     public MainViewModel(
         IWiFiScannerService wifiScanner,
@@ -276,8 +312,11 @@ public partial class MainViewModel : ViewModelBase
         ToggleGpsCommand = new AsyncRelayCommand(() => IsGpsActive ? Task.Run(StopGps) : StartGpsAsync());
         SaveAndClearCommand = new AsyncRelayCommand(SaveAndClearAsync);
         ClearAllCommand = new AsyncRelayCommand(ClearAllAsync);
-        ExitCommand = new RelayCommand(Exit);
+        ExitCommand       = new AsyncRelayCommand(ExitAsync);
+        ExitSaveDbCommand = new AsyncRelayCommand(ExitSaveDbAsync);
         OpenImportWindowCommand = new RelayCommand(OpenImportWindow);
+        OpenImportFolderCommand = new RelayCommand(OpenImportFolderWindow);
+        ToggleKmlNetworkLinkCommand = new RelayCommand(ToggleKmlNetworkLink);
         ExportVs1Command = new AsyncRelayCommand(ExportVs1);
         ExportVszCommand = new AsyncRelayCommand(ExportVsz);
         ExportCsvCommand = new AsyncRelayCommand(ExportCsv);
@@ -344,23 +383,73 @@ public partial class MainViewModel : ViewModelBase
         UploadToWifiDbCommand = new AsyncRelayCommand(UploadToWifiDb);
         SelectAdapterCommand    = new RelayCommand<WiFiAdapter>(SelectAdapter);
         RefreshInterfacesCommand = new AsyncRelayCommand(LoadAdaptersAsync);
-
-        // Initialize database then load adapters once DB is ready
-        InitializeDatabaseAsync();
+        ShowAboutCommand   = new RelayCommand(ShowAbout);
+        NewSessionCommand  = new RelayCommand(StartNewSession);
     }
 
-    private async void InitializeDatabaseAsync()
+    /// <summary>
+    /// Launch a new independent instance of the application with a fresh session.
+    /// The current window and DB are left open and unaffected.
+    /// </summary>
+    private static void StartNewSession()
+    {
+        var exe = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(exe)) return;
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName        = exe,
+            Arguments       = "--new-session",
+            UseShellExecute = false,
+        });
+    }
+
+    /// <summary>Sessions folder — all timestamped .db files live here.</summary>
+    public static string SessionsFolder =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                     "Vistumbler", "sessions");
+
+    /// <summary>Generate a new timestamped session path without creating the file.</summary>
+    public static string NewSessionPath() =>
+        Path.Combine(SessionsFolder,
+                     DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss") + ".db");
+
+    /// <summary>
+    /// Return all .db files in the sessions folder that are not currently
+    /// locked by another process, sorted newest-first.
+    /// </summary>
+    public static List<string> FindExistingSessions()
+    {
+        var dir = SessionsFolder;
+        if (!Directory.Exists(dir)) return [];
+
+        var result = new List<string>();
+        foreach (var f in new DirectoryInfo(dir).GetFiles("*.db")
+                          .OrderByDescending(fi => fi.LastWriteTime))
+        {
+            // Skip files locked by another instance
+            try
+            {
+                using var fs = new FileStream(f.FullName, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                result.Add(f.FullName);
+            }
+            catch (IOException) { /* in use — skip */ }
+        }
+        return result;
+    }
+
+    private async void InitializeDatabaseAsync() { /* replaced by InitializeWithPathAsync */ }
+
+    /// <summary>
+    /// Called by App.OnStartup after the session picker has resolved a path.
+    /// Initializes the database and loads startup data.
+    /// </summary>
+    public async Task InitializeWithPathAsync(string dbPath)
     {
         try
         {
-            var dbPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                "Vistumbler",
-                "vistumbler.db");
-
-            Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
             await _databaseService.InitializeAsync(dbPath);
-
+            _currentDbPath = dbPath;
+            UpdateWindowTitle();
             StatusMessage = "Database initialized";
         }
         catch (Exception ex)
@@ -368,7 +457,6 @@ public partial class MainViewModel : ViewModelBase
             StatusMessage = $"Database error: {ex.Message}";
         }
 
-        // Load adapters after DB is initialised (fire-and-forget on startup)
         await LoadAdaptersAsync();
         await LoadFiltersAsync();
     }
@@ -936,9 +1024,71 @@ public partial class MainViewModel : ViewModelBase
         window.Show();
     }
 
-    private void Exit()
+    private async Task ExitAsync()
     {
         Application.Current.Shutdown();
+        await Task.CompletedTask;
+    }
+
+    private async Task ExitSaveDbAsync()
+    {
+        _keepSession = true;   // tell CloseSessionAsync to leave the file alone
+        Application.Current.Shutdown();
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Called from App.OnExit on every exit path (X button, menu items, etc.).
+    /// Closes the DB connection then deletes the session file unless the user
+    /// explicitly chose "Exit (Save DB)". On a crash OnExit does not run,
+    /// so the file survives for recovery.
+    /// </summary>
+    public async Task CloseSessionAsync()
+    {
+        await _databaseService.CloseAsync();
+
+        if (!_keepSession && _currentDbPath != null && File.Exists(_currentDbPath))
+        {
+            // Retry briefly: the OS may take a moment to release the SQLite
+            // file handle after the pool is cleared.
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    File.Delete(_currentDbPath);
+                    break;
+                }
+                catch (IOException)
+                {
+                    await Task.Delay(50);
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    await Task.Delay(50);
+                }
+            }
+        }
+    }
+
+    private void ShowAbout()
+    {
+        var asm     = Assembly.GetEntryAssembly()!;
+        var ver     = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                        ?.InformationalVersion.Split('+')[0] ?? "?";
+        var product = asm.GetCustomAttribute<AssemblyProductAttribute>()?.Product ?? "Vistumbler";
+        var company = asm.GetCustomAttribute<AssemblyCompanyAttribute>()?.Company ?? "TechIdiots LLC";
+        var copy    = asm.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright ?? string.Empty;
+        var built   = File.GetLastWriteTime(asm.Location).ToString("yyyy-MM-dd");
+
+        MessageBox.Show(
+            $"{product}\n" +
+            $"Version: {ver}\n" +
+            $"Publisher: {company}\n" +
+            $"{copy}\n" +
+            $"Build date: {built}",
+            $"About {product}",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     // ── Treeview selection handler ────────────────────────────────────────────
@@ -1319,6 +1469,88 @@ public partial class MainViewModel : ViewModelBase
         window.ShowDialog();
         
         LoadAccessPointsFromDatabase();
+    }
+
+    private void OpenImportFolderWindow()
+    {
+        var window = _serviceProvider.GetRequiredService<Views.ImportFolderWindow>();
+        window.Owner = Application.Current.MainWindow;
+        window.ShowDialog();
+        LoadAccessPointsFromDatabase();
+    }
+
+    // ── KML Network Link ──────────────────────────────────────────────────────
+    // Exports the current APs to a fixed live.kml every 5 seconds while active.
+    // A wrapper networklink.kml (opened once in Google Earth) tells GE to poll
+    // live.kml on the same interval, giving reliable auto-refresh without an
+    // HTTP server or manual re-opens.
+    private static string KmlFolder =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                     "Vistumbler", "kml");
+
+    private void ToggleKmlNetworkLink()
+    {
+        if (IsKmlNetworkLinkActive)
+        {
+            _kmlTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+            _kmlTimer?.Dispose();
+            _kmlTimer = null;
+            IsKmlNetworkLinkActive = false;
+            StatusMessage = "KML Network Link stopped.";
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(KmlFolder);
+            _kmlLiveFile    = Path.Combine(KmlFolder, "live.kml");
+            _kmlNetworkLink = Path.Combine(KmlFolder, "networklink.kml");
+
+            // Write the wrapper network-link KML once
+            var kmlContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                             "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n" +
+                             "  <NetworkLink>\n" +
+                             "    <name>Vistumbler CS Live</name>\n" +
+                             "    <refreshVisibility>0</refreshVisibility>\n" +
+                             "    <flyToView>0</flyToView>\n" +
+                             "    <Link>\n" +
+                             $"      <href>{_kmlLiveFile}</href>\n" +
+                             "      <refreshMode>onInterval</refreshMode>\n" +
+                             "      <refreshInterval>5</refreshInterval>\n" +
+                             "    </Link>\n" +
+                             "  </NetworkLink>\n" +
+                             "</kml>\n";
+            File.WriteAllText(_kmlNetworkLink, kmlContent);
+
+            // Export immediately then start the 5-second refresh timer
+            ExportKmlLive();
+            _kmlTimer = new Timer(_ => ExportKmlLive(), null, 5000, 5000);
+            IsKmlNetworkLinkActive = true;
+            StatusMessage = "KML Network Link active — opening in Google Earth…";
+
+            // Open the network-link file in Google Earth (or default handler)
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName        = _kmlNetworkLink,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"KML Network Link error: {ex.Message}";
+        }
+    }
+
+    private void ExportKmlLive()
+    {
+        if (_kmlLiveFile == null) return;
+        try
+        {
+            var aps = GetAccessPointsModels();
+            _exportService.ExportToKmlAsync(_kmlLiveFile, aps, new Core.Services.ExportOptions())
+                          .GetAwaiter().GetResult();
+        }
+        catch { /* best-effort — timer thread, swallow silently */ }
     }
 
     private async void LoadAccessPointsFromDatabase()

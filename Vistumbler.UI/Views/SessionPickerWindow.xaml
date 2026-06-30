@@ -1,0 +1,48 @@
+<Window x:Class="Vistumbler.UI.Views.SessionPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Vistumbler CS — Session Recovery"
+        Width="560" SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        Icon="pack://application:,,,/Assets/Vistumbler.ico">
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" TextWrapping="Wrap" Margin="0,0,0,10"
+                   Text="Existing session databases were found. Select one to resume, or start a new session."/>
+
+        <ListView x:Name="SessionList" Grid.Row="1" Height="180"
+                  SelectionMode="Single" Margin="0,0,0,8"
+                  MouseDoubleClick="SessionList_DoubleClick">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="File" Width="220"
+                                    DisplayMemberBinding="{Binding FileName}"/>
+                    <GridViewColumn Header="Modified" Width="140"
+                                    DisplayMemberBinding="{Binding Modified}"/>
+                    <GridViewColumn Header="Size" Width="80"
+                                    DisplayMemberBinding="{Binding Size}"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
+
+        <!-- Delete row -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button Content="Delete Selected" Width="130" Click="Delete_Click"/>
+        </StackPanel>
+
+        <!-- Action buttons -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Exit" Width="90" Margin="0,0,8,0" Click="Exit_Click"/>
+            <Button Content="New Session" Width="110" Margin="0,0,8,0" Click="NewSession_Click"/>
+            <Button Content="Resume Selected" Width="130" IsDefault="True" Click="Resume_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

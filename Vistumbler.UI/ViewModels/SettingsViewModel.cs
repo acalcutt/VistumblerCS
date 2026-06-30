@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Windows;
+using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Vistumbler.Core.Enums;
@@ -307,6 +309,9 @@ public partial class SettingsViewModel : ViewModelBase
         ButtonInactiveColorHex     = V("Vistumbler",  "ButtonInactiveColor",       "0xF2D0D0").TrimStart('0', 'x').TrimStart('X');
         GuiTextSize                = D("Vistumbler",  "TextSize",                  8.5);
 
+        // Apply all color/font settings to the live WPF resource dictionary
+        ApplyColorsToResources();
+
         // Save
         SaveDir             = V("Vistumbler",      "SaveDir",             defaultDir);
         SaveDirAuto         = V("Vistumbler",      "SaveDirAuto",         defaultDir);
@@ -467,6 +472,48 @@ public partial class SettingsViewModel : ViewModelBase
         FirstActiveWidth      = I("Column_Width", "Column_FirstActive",       130);
         LastActiveWidth       = I("Column_Width", "Column_LastActive",        130);
     }
+
+    // ── Dynamic theming ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Push all current color/font settings into Application.Current.Resources
+    /// so every window (using DynamicResource) updates immediately.
+    /// </summary>
+    public void ApplyColorsToResources()
+    {
+        if (Application.Current == null) return;
+        var res = Application.Current.Resources;
+        res["PrimaryBrush"]  = HexToBrush(BackgroundColorHex,     "99B4A1");
+        res["ControlBrush"]  = HexToBrush(ControlColorHex,        "D7E4C2");
+        res["TextBrush"]     = HexToBrush(FontColorHex,           "000000");
+        res["ActiveBrush"]   = HexToBrush(ButtonActiveColorHex,   "E1F2D0");
+        res["InactiveBrush"] = HexToBrush(ButtonInactiveColorHex, "F2D0D0");
+        res["GuiFontSize"]   = GuiTextSize > 0 ? GuiTextSize : 11.0;
+    }
+
+    private static SolidColorBrush HexToBrush(string hex, string fallback)
+    {
+        try
+        {
+            hex = hex?.Trim().TrimStart('#') ?? "";
+            if (hex.Length == 6)
+            {
+                var color = (Color)new ColorConverter().ConvertFrom("#" + hex)!;
+                return new SolidColorBrush(color);
+            }
+        }
+        catch { /* ignore invalid hex */ }
+        var fallbackColor = (Color)new ColorConverter().ConvertFrom("#" + fallback)!;
+        return new SolidColorBrush(fallbackColor);
+    }
+
+    // CommunityToolkit.Mvvm partial callbacks — update resources whenever a color/size changes
+    partial void OnBackgroundColorHexChanged(string value)     => ApplyColorsToResources();
+    partial void OnControlColorHexChanged(string value)        => ApplyColorsToResources();
+    partial void OnFontColorHexChanged(string value)           => ApplyColorsToResources();
+    partial void OnButtonActiveColorHexChanged(string value)   => ApplyColorsToResources();
+    partial void OnButtonInactiveColorHexChanged(string value) => ApplyColorsToResources();
+    partial void OnGuiTextSizeChanged(double value)            => ApplyColorsToResources();
 
     /// <summary>Write all current property values back to the INI file and flush.</summary>
     public void SaveSettings()

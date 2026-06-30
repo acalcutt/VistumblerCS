@@ -7,21 +7,21 @@
         xmlns:controls="clr-namespace:Vistumbler.UI.Controls"
         xmlns:mlwpf="clr-namespace:MapLibreNative.Maui.WPF;assembly=MapLibreNative.Maui.WPF"
         mc:Ignorable="d"
-        Title="Vistumbler CS - WiFi Scanner" Height="700" Width="1200"
+        Title="{Binding WindowTitle}" Height="700" Width="1200"
         WindowStartupLocation="CenterScreen"
         MinHeight="500" MinWidth="800"
         Icon="pack://application:,,,/Assets/Vistumbler.ico"
-        Background="{StaticResource PrimaryBrush}">
+        Background="{DynamicResource PrimaryBrush}">
     
     <Window.Resources>
-        <Style TargetType="Button">
-            <Setter Property="Margin" Value="5"/>
-            <Setter Property="Padding" Value="10,5"/>
+        <Style TargetType="Button" BasedOn="{StaticResource AppButtonStyle}">
+            <Setter Property="Margin"   Value="5"/>
+            <Setter Property="Padding"  Value="10,5"/>
             <Setter Property="MinWidth" Value="100"/>
         </Style>
         
-        <Style TargetType="TextBlock">
-            <Setter Property="Margin" Value="5,2"/>
+        <Style TargetType="TextBlock" BasedOn="{StaticResource AppTextBlockStyle}">
+            <Setter Property="Margin"            Value="5,2"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
     </Window.Resources>
@@ -39,10 +39,10 @@
         <!-- Menu Bar -->
         <Menu Grid.Row="0">
             <MenuItem Header="_File">
-                <MenuItem Header="New Session"/>
+                <MenuItem Header="New Session" Command="{Binding NewSessionCommand}"/>
                 <MenuItem Header="Import">
                     <MenuItem Header="Import" Command="{Binding OpenImportWindowCommand}"/>
-                    <MenuItem Header="Import Folder"/>
+                    <MenuItem Header="Import Folder" Command="{Binding OpenImportFolderCommand}"/>
                 </MenuItem>
                 <MenuItem Header="Export">
                     <MenuItem Header="Export To VS1" Command="{Binding ExportVs1Command}"/>
@@ -55,8 +55,8 @@
                     <MenuItem Header="Export To KismetDB" Command="{Binding ExportKismetDbCommand}"/>
                 </MenuItem>
                 <Separator/>
-                <MenuItem Header="Exit (Save DB)"/>
-                <MenuItem Header="E_xit" Command="{Binding ExitCommand}"/>
+                <MenuItem Header="Exit (Save DB)" Command="{Binding ExitSaveDbCommand}"/>
+                <MenuItem Header="Exit" Command="{Binding ExitCommand}"/>
             </MenuItem>
             <MenuItem Header="_Edit">
                 <MenuItem Header="_Copy AP Info" Command="{Binding CopyApInfoCommand}"/>
@@ -201,7 +201,8 @@
                 <Separator/>
                 <MenuItem Header="Upload APs to WifiDB" Command="{Binding UploadToWifiDbCommand}"/>
                 <Separator/>
-                <MenuItem Header="Open KML Network Link"/>
+                <MenuItem Header="Open KML Network Link" Command="{Binding ToggleKmlNetworkLinkCommand}"
+                          IsCheckable="True" IsChecked="{Binding IsKmlNetworkLinkActive, Mode=OneWay}"/>
                 <MenuItem Header="Open Save Folder" Command="{Binding OpenSaveFolderCommand}"/>
                 <Separator/>
                 <MenuItem Header="Export Settings" Command="{Binding ExportSettingsCommand}"/>
@@ -210,26 +211,26 @@
                 <MenuItem Header="Update Manufacturers" Command="{Binding UpdateManufacturersCommand}"/>
             </MenuItem>
             <MenuItem Header="_Help">
-                <MenuItem Header="About"/>
+                <MenuItem Header="About" Command="{Binding ShowAboutCommand}"/>
             </MenuItem>
         </Menu>
         
         <!-- Toolbar: two rows via ToolBarTray -->
-        <ToolBarTray Grid.Row="1" Background="{StaticResource AccentBrush}" IsLocked="True">
+        <ToolBarTray Grid.Row="1" Background="{DynamicResource ControlBrush}" IsLocked="True">
 
             <!-- Row 1: Scan / GPS / Save + status info -->
-            <ToolBar Band="0" BandIndex="0" Background="{StaticResource AccentBrush}">
+            <ToolBar Band="0" BandIndex="0" Background="{DynamicResource ControlBrush}">
 
                 <!-- Scan toggle -->
                 <Button Command="{Binding ToggleScanCommand}" Height="30" Padding="8,2">
                     <Button.Style>
-                        <Style TargetType="Button">
+                        <Style TargetType="Button" BasedOn="{StaticResource AppButtonStyle}">
                             <Setter Property="Content" Value="Scan APs"/>
-                            <Setter Property="Background" Value="{StaticResource InactiveBrush}"/>
+                            <Setter Property="Background" Value="{DynamicResource InactiveBrush}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsScanning}" Value="True">
                                     <Setter Property="Content" Value="Stop Scan"/>
-                                    <Setter Property="Background" Value="{StaticResource ActiveBrush}"/>
+                                    <Setter Property="Background" Value="{DynamicResource ActiveBrush}"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -239,13 +240,13 @@
                 <!-- GPS toggle -->
                 <Button Command="{Binding ToggleGpsCommand}" Height="30" Padding="8,2">
                     <Button.Style>
-                        <Style TargetType="Button">
+                        <Style TargetType="Button" BasedOn="{StaticResource AppButtonStyle}">
                             <Setter Property="Content" Value="Use GPS"/>
-                            <Setter Property="Background" Value="{StaticResource InactiveBrush}"/>
+                            <Setter Property="Background" Value="{DynamicResource InactiveBrush}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsGpsActive}" Value="True">
                                     <Setter Property="Content" Value="Stop GPS"/>
-                                    <Setter Property="Background" Value="{StaticResource ActiveBrush}"/>
+                                    <Setter Property="Background" Value="{DynamicResource ActiveBrush}"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -268,7 +269,7 @@
             </ToolBar>
 
             <!-- Row 2: Graph view toggles + show/hide panels -->
-            <ToolBar Band="1" BandIndex="0" Background="{StaticResource AccentBrush}">
+            <ToolBar Band="1" BandIndex="0" Background="{DynamicResource ControlBrush}">
 
                 <!-- Graph toggles: Command-only (no conflicting TwoWay binding) -->
                 <ToggleButton Command="{Binding ToggleGraphOffCommand}"
@@ -400,12 +401,34 @@
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
-                <Button Tag="WifiDB_Legacy"
-                        ToolTip="3+ Year"
-                        Content="3+ Year"
+                <Button Tag="WifiDB_3to5year"
+                        ToolTip="3-5 Year"
+                        Content="3-5 Year"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
+                <Button Tag="WifiDB_5to10year"
+                        ToolTip="5-10 Year"
+                        Content="5-10 Year"
+                        Click="WifiDbLayerButton_Click"
+                        Height="22" Padding="8,2" Margin="0,0,4,0"
+                        FontSize="11"/>
+                <Button Tag="WifiDB_10yrplus"
+                        ToolTip="10+ Year"
+                        Content="10+ Year"
+                        Click="WifiDbLayerButton_Click"
+                        Height="22" Padding="8,2" Margin="0,0,4,0"
+                        FontSize="11"/>
+
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}"
+                           Margin="4,0" VerticalAlignment="Stretch"/>
+
+                <Button ToolTip="Cell Networks"
+                        Content="Cell Networks"
+                        Click="CellNetworksButton_Click"
+                        Height="22" Padding="8,2" Margin="0,0,4,0"
+                        FontSize="11"
+                        Foreground="#885fcd"/>
             </WrapPanel>
         </Grid>
 
@@ -415,7 +438,7 @@
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Stretch"
                       ResizeDirection="Rows"
-                      Background="{StaticResource AccentBrush}"
+                      Background="{DynamicResource ControlBrush}"
                       Cursor="SizeNS"/>
 
         <!-- Main Content: hidden entirely in Minimal GUI mode -->
@@ -532,7 +555,7 @@
         </Grid>
         
         <!-- Status Bar -->
-        <StatusBar Grid.Row="5" Background="{StaticResource AccentBrush}">
+        <StatusBar Grid.Row="5" Background="{DynamicResource ControlBrush}">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusMessage}"/>
             </StatusBarItem>

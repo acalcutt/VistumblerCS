@@ -4,8 +4,23 @@ namespace Vistumbler.UI.Extensions;
 
 /// <summary>
 /// Extension methods for MlnMapHost that provide WiFi/cell-tower vector and GeoJSON
-/// layer handling. Color, radius and z-order match WifiDB's map.php and
-/// VistumblerMAUI's MapViewModel so all three clients render history layers identically.
+/// layer handling. Color and radius graduation matches WifiDB's map.php and
+/// VistumblerMAUI's MapViewModel; z-order keeps newest tiers on top.
+///
+/// circle-color uses the property-function form (<c>{"property":"sectype",
+/// "stops":[[1,open],[2,wep],[3,sec]]}</c>). Earlier investigation suspected this
+/// maplibre-native build couldn't render data-driven (per-feature) paint properties
+/// at all — that was wrong. A minimal repro in maplibre-maui-ac's WPF sample app
+/// (see its investigate/runtime-data-driven-circle-color branch) proved property+
+/// stops, case and match expressions all render correctly via this exact runtime
+/// AddCircleLayer API. The real bug was server-side: WifiDB's out/tiles/.htaccess
+/// used "Header always set Content-Encoding gzip", which Apache also applies to
+/// its own 404 HTML error page for any tile with no data (the common case —
+/// most of the world has none). This client correctly gzip-decodes the
+/// Content-Encoding it's told, gets HTML instead, fails ("incorrect header
+/// check"), and silently drops that tile's geometry — indistinguishable from a
+/// rendering bug regardless of how circle-color is set. Fixed upstream in WifiDB
+/// by dropping "always" so the header only applies to genuine 2xx/3xx responses.
 /// </summary>
 public static class MaplibreWifiExtensions
 {
@@ -69,24 +84,31 @@ public static class MaplibreWifiExtensions
         return "live_aps";
     }
 
-    // MapLibre GL "case" expression: sectype==2→WEP, sectype==3→secure, default→open.
-    private static object[] SeCtypeColorExpr(BucketStyle s) =>
-    [
-        "case",
-        new object[] { "==", new object[] { "get", "sectype" }, 2 }, s.Wep,
-        new object[] { "==", new object[] { "get", "sectype" }, 3 }, s.Secure,
-        s.Open,
-    ];
+    // Property function (no "type" — defaults to Exponential, the form confirmed
+    // by dependencies/maplibre-native's own passing render tests for circle-color).
+    // sectype is always exactly 1/2/3 (never fractional), so the implicit
+    // interpolation between stops never actually blends colors in practice.
+    private static Dictionary<string, object?> SeCtypeStopsExpr(BucketStyle s) => new()
+    {
+        ["property"] = "sectype",
+        ["stops"]    = new object[] {
+            new object[] { 1, s.Open },
+            new object[] { 2, s.Wep },
+            new object[] { 3, s.Secure },
+        },
+    };
 
     // MapLibre GL zoom-interpolated radius function.
-    // base=1.5 is the interpolation curve (fixed); the per-bucket size difference
-    // lives in the stop VALUES, not the base.
+    // Holds at baseRadius from the lowest zoom up through z12 (never shrinks below
+    // the per-bucket size, unlike a curve that scales down at low zoom — at z1 a
+    // 1.5px dot blurred by circle-blur=0.5 is effectively invisible on a desktop-size
+    // viewport showing a whole wardriving area), then grows up to 20px by z20 so
+    // dots stay easy to tap/click at street level.
     private static Dictionary<string, object?> RadiusExpr(double baseRadius) => new()
     {
         ["base"]  = 1.5,
         ["stops"] = new object[] {
-            new object[] { 1,  baseRadius * 0.5 },
-            new object[] { 4,  baseRadius },
+            new object[] { 1,  baseRadius },
             new object[] { 12, baseRadius },
             new object[] { 20, 20.0 },
         },
@@ -156,7 +178,7 @@ public static class MaplibreWifiExtensions
             sourceLayer:  sourceLayer,
             properties: new Dictionary<string, object?>
             {
-                ["circle-color"]   = SeCtypeColorExpr(style),
+                ["circle-color"]   = SeCtypeStopsExpr(style),
                 ["circle-radius"]  = RadiusExpr(style.Radius),
                 ["circle-opacity"] = 1.0,
                 ["circle-blur"]    = 0.5,
@@ -168,7 +190,8 @@ public static class MaplibreWifiExtensions
     /// <summary>
     /// Add a vector tile source from a TileJSON URL with a single graduated-purple
     /// circle layer for cell towers. Cell tiles use <c>type</c> (LTE/GSM/etc.) instead
-    /// of <c>sectype</c>, so only one color (no security-type split) is used per bucket.
+    /// of <c>sectype</c>, so only one literal color (no security-type split) is used
+    /// per bucket.
     /// </summary>
     public static void SetCellVectorLayer(this MlnMapHost map, string sourceId, string tileJsonUrl, string bucket)
     {

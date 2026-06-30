@@ -237,7 +237,7 @@ public partial class MainWindow : Window
         // Only query if at least one layer is active
         if (_activeWifiDbLayers.Count == 0 && _activeCellSources.Count == 0) return;
 
-        // Each bucket now maps to a single combined circle layer (sourceId itself).
+        // Each bucket maps to a single combined circle layer (sourceId itself).
         var circleLayerIds = _activeWifiDbLayers.Concat(_activeCellSources).ToArray();
 
         string? json = MapHost.QueryRenderedFeaturesInBox(e.ScreenX, e.ScreenY, thresholdPx: 6,
@@ -348,7 +348,7 @@ public partial class MainWindow : Window
                 MapHost.RemoveCellVectorLayer(sourceId, bucket);
                 _activeCellSources.Remove(sourceId);
             }
-            btn.Content = btn.ToolTip;
+            SetLayerButtonActive(btn, false);
         }
         else
         {
@@ -360,7 +360,7 @@ public partial class MainWindow : Window
                 MapHost.SetCellVectorLayer(sourceId, tileJsonUrl, bucket);
                 _activeCellSources.Add(sourceId);
             }
-            btn.Content = "\u25a0 " + btn.ToolTip;
+            SetLayerButtonActive(btn, true);
         }
     }
 
@@ -401,14 +401,37 @@ public partial class MainWindow : Window
         {
             MapHost.RemoveWifiVectorLayer(sourceId, bucket);
             _activeWifiDbLayers.Remove(sourceId);
-            btn.Content = btn.ToolTip;
+            SetLayerButtonActive(btn, false);
         }
         else
         {
             string tileJsonUrl = $"{urlBase}/api/tilejson.php?bucket={bucket}";
             MapHost.SetWifiVectorLayer(sourceId, tileJsonUrl, bucket);
             _activeWifiDbLayers.Add(sourceId);
-            btn.Content = "\u25a0 " + btn.ToolTip;
+            SetLayerButtonActive(btn, true);
         }
+    }
+
+    // Marker prepended to a layer button's label while its layer(s) are shown.
+    private const string ActiveLayerMarker = "■ ";
+
+    /// <summary>
+    /// Toggles a WifiDB/cell layer button's label between plain and active ("■ "-prefixed)
+    /// state. The base label is taken from the button's current Content (the short name set in
+    /// XAML), independent of its ToolTip — which now carries descriptive hover text. Also
+    /// dismisses any open tooltip so it can't linger as a "ghost" over the map HwndHost when
+    /// the Content changes underneath it.
+    /// </summary>
+    private static void SetLayerButtonActive(Button btn, bool active)
+    {
+        string label = btn.Content as string ?? string.Empty;
+        if (label.StartsWith(ActiveLayerMarker, StringComparison.Ordinal))
+            label = label[ActiveLayerMarker.Length..];
+        btn.Content = active ? ActiveLayerMarker + label : label;
+
+        // Toggling IsEnabled closes a currently-displayed tooltip; it remains available
+        // for future hovers.
+        ToolTipService.SetIsEnabled(btn, false);
+        ToolTipService.SetIsEnabled(btn, true);
     }
 }

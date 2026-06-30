@@ -26,7 +26,7 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
-    <PackageReference Include="MapLibreNative.Maui.WPF" Version="3.2.8" />
+    <PackageReference Include="MapLibreNative.Maui.WPF" Version="3.2.10" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
     <!-- MapLibre MAUI WPF control (uses P/Invoke instead of C++/CLI) -->

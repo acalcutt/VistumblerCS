@@ -362,59 +362,63 @@
                 </Border>
             </Popup>
 
-            <!-- WifiDB layer buttons: fetch and show GeoJSON from the WifiDB database -->
+            <!-- WifiDB layer buttons: fetch and show GeoJSON from the WifiDB database.
+                 Each button's ToolTip describes the age range it represents (distinct from the
+                 short Content label). The active-state "■ " marker is toggled on Content by the
+                 click handlers, which derive the base label from Content itself (not from ToolTip)
+                 and dismiss the tooltip on click so it can't orphan over the map HwndHost. -->
             <WrapPanel Grid.Row="1" Margin="10,4,10,4" Orientation="Horizontal">
 
                 <Button Tag="WifiDB_daily"
-                        ToolTip="Daily"
+                        ToolTip="WiFi APs active in the last 36 hours"
                         Content="Daily"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
                 <Button Tag="WifiDB_weekly"
-                        ToolTip="Weekly"
+                        ToolTip="WiFi APs active in the last 7 days"
                         Content="Weekly"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
                 <Button Tag="WifiDB_monthly"
-                        ToolTip="Monthly"
+                        ToolTip="WiFi APs active 1 week to 1 month ago"
                         Content="Monthly"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
                 <Button Tag="WifiDB_0to1year"
-                        ToolTip="0-1 Year"
+                        ToolTip="WiFi APs active 1 month to 1 year ago"
                         Content="0-1 Year"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
                 <Button Tag="WifiDB_1to2year"
-                        ToolTip="1-2 Year"
+                        ToolTip="WiFi APs active 1 to 2 years ago"
                         Content="1-2 Year"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
                 <Button Tag="WifiDB_2to3year"
-                        ToolTip="2-3 Year"
+                        ToolTip="WiFi APs active 2 to 3 years ago"
                         Content="2-3 Year"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
                 <Button Tag="WifiDB_3to5year"
-                        ToolTip="3-5 Year"
+                        ToolTip="WiFi APs active 3 to 5 years ago"
                         Content="3-5 Year"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
                 <Button Tag="WifiDB_5to10year"
-                        ToolTip="5-10 Year"
+                        ToolTip="WiFi APs active 5 to 10 years ago"
                         Content="5-10 Year"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"/>
                 <Button Tag="WifiDB_10yrplus"
-                        ToolTip="10+ Year"
+                        ToolTip="WiFi APs last active more than 10 years ago"
                         Content="10+ Year"
                         Click="WifiDbLayerButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"
@@ -423,7 +427,7 @@
                 <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}"
                            Margin="4,0" VerticalAlignment="Stretch"/>
 
-                <Button ToolTip="Cell Networks"
+                <Button ToolTip="Cell towers from all WifiDB observations"
                         Content="Cell Networks"
                         Click="CellNetworksButton_Click"
                         Height="22" Padding="8,2" Margin="0,0,4,0"

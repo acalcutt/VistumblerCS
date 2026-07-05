@@ -2,7 +2,10 @@
 
 ## master
 ### ✨ Features and improvements
-- _...Add new stuff here..._
+- **New airspace-free map renderer (MapLibreNative.Maui.WPF 4.0.0)** — the map moved from the old `MlnMapHost` (HwndHost + floating overlay popups) to `MlnMapImage`, a true in-tree WPF `Image` element whose navigation/GPS controls are ordinary WPF children with correct z-order, clipping, DPI and hit-testing — no more popup realignment/airspace quirks.
+- **Offline map caching** — the map now keeps a persistent tile cache, so already-viewed areas keep rendering with no network. A new map-toolbar **Save Map Area** button pre-caches the current view (current zoom + 2 levels) for offline use, and an **Offline** toggle forces MapLibre to serve only cached tiles; caching progress and offline/online state are reported in the status bar. Downloaded tiles share the live map's cache, so they render immediately.
+- **Offline area management (Settings → Map)** — the Map settings tab lists every saved offline area with its name, zoom range, cached size and download status, and can Refresh, Delete one, Delete All, or Clear the (non-saved) tile cache to reclaim disk space.
+- **Configurable map AP colors (Settings → Map)** — the per-age-bucket circle colors (Open / WEP / Secure, live-active through 10+ years) are now editable from the Map settings tab and applied to the live map without a restart.
 
 ### 🐞 Bug fixes
 - _...Add new stuff here..._

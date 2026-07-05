@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using MapLibreNative.Maui;
 using MapLibreNative.Maui.WPF;
 using Vistumbler.Core.Services;
 using Vistumbler.UI.ViewModels;
@@ -16,14 +17,25 @@ public partial class MainWindow : Window
     private double _savedHeight;
     private double _savedMinHeight;
 
-    // Track which WifiDB GeoJSON layers are currently visible (sourceId → on/off)
-    private readonly System.Collections.Generic.HashSet<string> _activeWifiDbLayers = new();
+    // Track which WifiDB history layers are currently visible: sourceId (== layerId) → bucket.
+    // The bucket is kept so the layers can be re-added after a basemap style reload.
+    private readonly System.Collections.Generic.Dictionary<string, string> _activeWifiDbLayers = new();
 
-    // Track which cell tile sources are currently visible (all 9 added/removed together)
-    private readonly System.Collections.Generic.HashSet<string> _activeCellSources = new();
+    // Track which cell tile sources are currently visible (all 9 added/removed together):
+    // sourceId (== layerId) → bucket.
+    private readonly System.Collections.Generic.Dictionary<string, string> _activeCellSources = new();
+
+    // Last live-scan GeoJSON pushed to the map, so the "live_aps" layer can be re-added
+    // after a basemap style reload (which drops all overlay layers).
+    private string? _lastLiveApGeoJson;
 
     // Saved height of the map/graph row (Row 2) so it can be restored after hiding
     private double _mapGraphRowHeight = 300;
+
+    // Lazily created when the user first pre-caches a map area for offline use. Shares
+    // the map's own cache database (MbglCache.DefaultPath), so downloaded tiles are
+    // served to the live map automatically — including when forced offline.
+    private MbglOfflineManager? _offlineManager;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -56,14 +68,20 @@ public partial class MainWindow : Window
         // Push live AP GeoJSON to the map after each scan cycle
         viewModel.LiveApGeoJsonUpdated += (_, geoJson) =>
         {
+            _lastLiveApGeoJson = geoJson;
             if (viewModel.GraphMode == Vistumbler.Core.Enums.GraphMode.Map)
-                MapHost.SetWifiGeoJsonLayerData("live_aps", geoJson);
+                MapHost.SetLiveApGeoJsonLayer("live_aps", geoJson);
         };
 
-        // Update the location indicator on the map whenever a GPS fix arrives.
-        // UpdateLocationIndicator handles the "style not yet loaded" case gracefully.
+        // Re-color overlay layers when the user changes the Map-tab AP colors (Apply/OK).
+        viewModel.Settings.MapColorsChanged += OnMapColorsChanged;
+
+        // Feed each GPS fix to the on-map GPS control. Its 4-state button
+        // (Off / Show / Follow / FollowBearing) decides whether the location puck is
+        // drawn and whether the camera follows — the user cycles the mode by tapping
+        // the GPS button. UpdateGpsLocation handles the "style not yet loaded" case.
         viewModel.GpsLocationUpdated += (_, e) =>
-            MapHost.UpdateLocationIndicator(e.Latitude, e.Longitude, e.Bearing, e.AccuracyMeters);
+            MapHost.UpdateGpsLocation(e.Latitude, e.Longitude, e.Bearing, e.AccuracyMeters);
 
         // Remove the indicator when GPS is stopped
         viewModel.PropertyChanged += (_, e) =>
@@ -105,6 +123,75 @@ public partial class MainWindow : Window
 
         // Show AP info popup when a WifiDB circle is clicked on the map
         MapHost.MapClicked += OnMapHostClicked;
+        // Re-apply overlays whenever a new basemap style finishes loading (e.g. after the
+        // user changes the map style in Settings), so they don't have to re-toggle layers.
+        MapHost.StyleLoaded += OnMapStyleLoaded;
+
+        // Release the offline download manager (if one was created) on window close.
+        Closed += (_, _) => _offlineManager?.Dispose();
+    }
+
+    /// <summary>
+    /// A new basemap style just loaded. Any overlay layers added to the previous style are
+    /// gone, so re-add the live-scan layer and every active WifiDB history/cell layer, in
+    /// canonical z-order. No-op on the very first style load (nothing active yet).
+    /// </summary>
+    private void OnMapStyleLoaded(object? sender, EventArgs e)
+    {
+        if (_lastLiveApGeoJson is null && _activeWifiDbLayers.Count == 0 && _activeCellSources.Count == 0)
+            return;
+
+        // Rebuild the z-order tracking from scratch — the old style's layers are gone.
+        Extensions.MaplibreWifiExtensions.ResetActiveLayerTracking();
+        ReaddOverlays();
+    }
+
+    /// <summary>
+    /// The Map-tab AP colors changed. circle-color is baked into a layer's paint when it
+    /// is added, so drop every overlay circle layer and re-add it to pick up the new
+    /// colors (their sources are kept). No-op if no overlays are present yet.
+    /// </summary>
+    private void OnMapColorsChanged(object? sender, EventArgs e)
+    {
+        if (_lastLiveApGeoJson is null && _activeWifiDbLayers.Count == 0 && _activeCellSources.Count == 0)
+            return;
+
+        MapHost.RemoveLayer("live_aps");
+        foreach (var id in _activeWifiDbLayers.Keys) MapHost.RemoveLayer(id);
+        foreach (var id in _activeCellSources.Keys) MapHost.RemoveLayer(id);
+
+        Extensions.MaplibreWifiExtensions.ResetActiveLayerTracking();
+        ReaddOverlays();
+    }
+
+    /// <summary>
+    /// Re-add the live-scan layer (top anchor) and every active WifiDB history/cell layer
+    /// in canonical z-order (newest → oldest). Sources that still exist are reused; only
+    /// the circle layers are (re)created, so this reflects the current bucket colors.
+    /// </summary>
+    private void ReaddOverlays()
+    {
+        var viewModel  = (MainViewModel)DataContext!;
+        string urlBase = viewModel.Settings.WifiDbUrl.TrimEnd('/');
+
+        // Live scan layer first: it's the top anchor the history layers insert below.
+        if (_lastLiveApGeoJson is not null)
+            MapHost.SetLiveApGeoJsonLayer("live_aps", _lastLiveApGeoJson);
+
+        // Re-add history + cell layers newest → oldest so each finds its correct anchor.
+        var ordered = _activeWifiDbLayers.Concat(_activeCellSources).OrderBy(kv =>
+        {
+            int i = Array.IndexOf(Extensions.MaplibreWifiExtensions.BucketOrder, kv.Value);
+            return i < 0 ? int.MaxValue : i;
+        });
+        foreach (var (sourceId, bucket) in ordered)
+        {
+            string tileJsonUrl = $"{urlBase}/api/tilejson.php?bucket={bucket}";
+            if (_activeCellSources.ContainsKey(sourceId))
+                MapHost.SetCellVectorLayer(sourceId, tileJsonUrl, bucket);
+            else
+                MapHost.SetWifiVectorLayer(sourceId, tileJsonUrl, bucket);
+        }
     }
 
     // ── Filter menu (dynamic filter items) ─────────────────────────────────────
@@ -237,8 +324,8 @@ public partial class MainWindow : Window
         // Only query if at least one layer is active
         if (_activeWifiDbLayers.Count == 0 && _activeCellSources.Count == 0) return;
 
-        // Each bucket maps to a single combined circle layer (sourceId itself).
-        var circleLayerIds = _activeWifiDbLayers.Concat(_activeCellSources).ToArray();
+        // Each bucket maps to a single combined circle layer (sourceId == layerId).
+        var circleLayerIds = _activeWifiDbLayers.Keys.Concat(_activeCellSources.Keys).ToArray();
 
         string? json = MapHost.QueryRenderedFeaturesInBox(e.ScreenX, e.ScreenY, thresholdPx: 6,
             layerIds: circleLayerIds);
@@ -358,7 +445,7 @@ public partial class MainWindow : Window
                 string sourceId    = "wifidb_" + bucket;
                 string tileJsonUrl = $"{urlBase}/api/tilejson.php?bucket={bucket}";
                 MapHost.SetCellVectorLayer(sourceId, tileJsonUrl, bucket);
-                _activeCellSources.Add(sourceId);
+                _activeCellSources[sourceId] = bucket;
             }
             SetLayerButtonActive(btn, true);
         }
@@ -397,7 +484,7 @@ public partial class MainWindow : Window
 
         if (bucket is null) return;
 
-        if (_activeWifiDbLayers.Contains(sourceId))
+        if (_activeWifiDbLayers.ContainsKey(sourceId))
         {
             MapHost.RemoveWifiVectorLayer(sourceId, bucket);
             _activeWifiDbLayers.Remove(sourceId);
@@ -407,7 +494,7 @@ public partial class MainWindow : Window
         {
             string tileJsonUrl = $"{urlBase}/api/tilejson.php?bucket={bucket}";
             MapHost.SetWifiVectorLayer(sourceId, tileJsonUrl, bucket);
-            _activeWifiDbLayers.Add(sourceId);
+            _activeWifiDbLayers[sourceId] = bucket;
             SetLayerButtonActive(btn, true);
         }
     }
@@ -433,5 +520,87 @@ public partial class MainWindow : Window
         // for future hovers.
         ToolTipService.SetIsEnabled(btn, false);
         ToolTipService.SetIsEnabled(btn, true);
+    }
+
+    // ── Offline map caching ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Lazily creates the shared offline manager and wires its progress/error events to
+    /// the status bar. The manager uses the same cache database as the map view, so any
+    /// tiles it downloads are served straight to the live map (online or offline).
+    /// </summary>
+    private MbglOfflineManager GetOfflineManager()
+    {
+        if (_offlineManager != null) return _offlineManager;
+
+        _offlineManager = new MbglOfflineManager();
+        var vm = (MainViewModel)DataContext!;
+
+        // Progress / error callbacks arrive on MapLibre's database thread — marshal to UI.
+        _offlineManager.RegionProgress += p => Dispatcher.Invoke(() =>
+            vm.StatusMessage = p.Complete
+                ? $"Offline map area ready — {p.CompletedResources} tiles, {p.CompletedBytes / 1024} KB cached"
+                : $"Caching map area\u2026 {p.CompletedResources} tiles, {p.CompletedBytes / 1024} KB");
+        _offlineManager.RegionError += e => Dispatcher.Invoke(() =>
+            vm.StatusMessage = $"Offline download error: {e.Message}");
+
+        return _offlineManager;
+    }
+
+    /// <summary>
+    /// Downloads the currently visible map region (at the current zoom, plus two levels
+    /// in) into the shared cache so it stays available with no network connection.
+    /// </summary>
+    private async void SaveMapAreaButton_Click(object sender, RoutedEventArgs e)
+    {
+        var vm = (MainViewModel)DataContext!;
+        try
+        {
+            var span = MapHost.GetVisibleRegion();
+            if (span is null)
+            {
+                vm.StatusMessage = "Map not ready — pan/zoom the map, then try again";
+                return;
+            }
+
+            double latSw = span.Center.Latitude  - span.LatitudeDegrees  / 2.0;
+            double latNe = span.Center.Latitude  + span.LatitudeDegrees  / 2.0;
+            double lonSw = span.Center.Longitude - span.LongitudeDegrees / 2.0;
+            double lonNe = span.Center.Longitude + span.LongitudeDegrees / 2.0;
+
+            double minZoom = Math.Max(0, Math.Floor(span.ToZoomLevel()));
+            double maxZoom = Math.Min(minZoom + 2, 16);
+
+            var mgr = GetOfflineManager();
+            vm.StatusMessage = $"Caching map area (z{minZoom:0}\u2013{maxZoom:0})\u2026";
+
+            // Name the region so the Settings → Map tab's "Offline Map Areas" list
+            // can show something friendlier than a database id.
+            var metadata = System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(
+                new { name = $"Map area {DateTime.Now:yyyy-MM-dd HH:mm}" }));
+
+            var region = await mgr.CreateRegionAsync(
+                MapHost.StyleUrl, latSw, lonSw, latNe, lonNe, minZoom, maxZoom,
+                includeIdeographs: false, metadata: metadata);
+
+            mgr.ObserveRegion(region.Id);
+            mgr.SetDownloadState(region.Id, active: true);
+        }
+        catch (Exception ex)
+        {
+            vm.StatusMessage = $"Offline download failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Forces MapLibre offline (serve only cached / already-downloaded tiles) or back online.
+    /// </summary>
+    private void OfflineToggle_Click(object sender, RoutedEventArgs e)
+    {
+        bool offline = OfflineToggle.IsChecked == true;
+        MbglNetwork.Online = !offline;
+        ((MainViewModel)DataContext!).StatusMessage = offline
+            ? "Offline mode \u2014 showing cached map tiles only"
+            : "Online mode \u2014 map tiles load from the network";
     }
 }

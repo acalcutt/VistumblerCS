@@ -1387,6 +1387,10 @@ public partial class MainViewModel : ViewModelBase
                 _ => ap.Encryption == Vistumbler.Core.Models.EncryptionType.WEP ? 2 : 3,
             };
 
+            // Fold active/dead + sectype into a single 1..6 style index the map's live
+            // layer colors from: active APs 1/2/3, this session's dead APs 4/5/6.
+            int styidx = ap.IsActive ? sectype : sectype + 3;
+
             sb.Append("{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[");
             sb.Append(ap.Longitude.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
             sb.Append(',');
@@ -1399,6 +1403,10 @@ public partial class MainViewModel : ViewModelBase
             sb.Append(ap.Signal ?? 0);
             sb.Append(",\"sectype\":");
             sb.Append(sectype);
+            sb.Append(",\"active\":");
+            sb.Append(ap.IsActive ? 1 : 0);
+            sb.Append(",\"styidx\":");
+            sb.Append(styidx);
             sb.Append("}}");
         }
         sb.Append("]}");

@@ -17,6 +17,7 @@ public partial class SettingsWindow : Window
         {
             await vm.LoadManufacturersAsync();
             await vm.LoadLabelsAsync();
+            await vm.RefreshOfflineRegionsCommand.ExecuteAsync(null);
         }
     }
 

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows;
@@ -250,6 +251,246 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private bool   _enableAutoUpApsToWifiDb     = false;
     [ObservableProperty] private int    _autoUpApsToWifiDbTimeS      = 60;
 
+    // ── Map tab ─────────────────────────────────────────────────────────────
+    public const string DefaultMapStyleUrl = "https://tiles.wifidb.net/styles/WDB_OSM/style.json";
+    private const string CustomMapStyleName = "Custom…";
+
+    // Display name → style.json URL (order preserved); a "Custom…" entry is appended.
+    private static readonly (string Name, string Url)[] MapStylePresets =
+    {
+        ("WifiDB OSM",                 "https://tiles.wifidb.net/styles/WDB_OSM/style.json"),
+        ("WifiDB Color Relief",        "https://tiles.wifidb.net/styles/WDB_COLOR_RELIEF/style.json"),
+        ("WifiDB Color Relief (Dark)", "https://tiles.wifidb.net/styles/WDB_COLOR_RELIEF_DARK/style.json"),
+    };
+
+    public ObservableCollection<string> MapStyleOptions { get; } =
+        new(MapStylePresets.Select(p => p.Name).Append(CustomMapStyleName));
+
+    /// <summary>Effective basemap style URL — bound by the map via Settings.MapStyleUrl.</summary>
+    [ObservableProperty] private string _mapStyleUrl       = DefaultMapStyleUrl;
+    [ObservableProperty] private string _selectedMapStyle  = "WifiDB OSM";
+    [ObservableProperty] private string _customMapStyleUrl = string.Empty;
+    [ObservableProperty] private bool   _isCustomMapStyle;
+
+    partial void OnSelectedMapStyleChanged(string value)
+    {
+        if (value == CustomMapStyleName)
+        {
+            IsCustomMapStyle = true;
+            if (!string.IsNullOrWhiteSpace(CustomMapStyleUrl)) MapStyleUrl = CustomMapStyleUrl;
+        }
+        else
+        {
+            IsCustomMapStyle = false;
+            var preset = MapStylePresets.FirstOrDefault(p => p.Name == value);
+            if (preset.Url is not null) MapStyleUrl = preset.Url;
+        }
+    }
+
+    partial void OnCustomMapStyleUrlChanged(string value)
+    {
+        if (IsCustomMapStyle && !string.IsNullOrWhiteSpace(value)) MapStyleUrl = value;
+    }
+
+    // Derive the dropdown selection / custom state from the loaded MapStyleUrl.
+    private void SyncMapStyleSelection()
+    {
+        var preset = MapStylePresets.FirstOrDefault(p => p.Url == MapStyleUrl);
+        if (preset.Name is not null)
+        {
+            IsCustomMapStyle = false;
+            SelectedMapStyle = preset.Name;
+        }
+        else
+        {
+            IsCustomMapStyle  = true;
+            CustomMapStyleUrl = MapStyleUrl;
+            SelectedMapStyle  = CustomMapStyleName;
+        }
+    }
+
+    // ── Map tab: per-bucket AP colors ────────────────────────────────────────
+    // The live scan's active APs are the brightest; each subsequent row is dimmer so
+    // dead (this-session) APs and then progressively older WifiDB history buckets are
+    // easy to tell apart. Rows are seeded from BaseOpen/Wep/Secure scaled by a per-row
+    // brightness factor; the user can override any cell in the settings table.
+    private const string BaseOpen   = "1AFF66";
+    private const string BaseWep    = "FFAD33";
+    private const string BaseSecure = "FF1A1A";
+
+    // (rendererKey, display name, brightness factor 0..1 applied to the base colors)
+    private static readonly (string Key, string Name, double Factor)[] MapColorDefaults =
+    {
+        ("live_active", "Live (Active)", 1.00),
+        ("live_dead",   "Live (Dead)",   0.78),
+        ("daily",       "Daily",         0.65),
+        ("weekly",      "Weekly",        0.60),
+        ("monthly",     "Monthly",       0.55),
+        ("0to1year",    "0 – 1 year",    0.50),
+        ("1to2year",    "1 – 2 years",   0.45),
+        ("2to3year",    "2 – 3 years",   0.40),
+        ("3to5year",    "3 – 5 years",   0.35),
+        ("5to10year",   "5 – 10 years",  0.28),
+        ("10yrplus",    "10+ years",     0.20),
+    };
+
+    /// <summary>Rows bound by the Map settings color table (one per bucket).</summary>
+    public ObservableCollection<MapBucketColorRow> MapBucketColors { get; } = new();
+
+    /// <summary>Raised after the map colors are pushed to the renderer (on load and save).</summary>
+    public event EventHandler? MapColorsChanged;
+
+    // Scale a 6-hex color toward black by <paramref name="factor"/> (1 = unchanged).
+    private static string ScaleHex(string hex, double factor)
+    {
+        if (hex.Length != 6 || !int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out int rgb))
+            return hex;
+        int Scale(int c) => Math.Clamp((int)Math.Round(c * factor), 0, 255);
+        int r = Scale((rgb >> 16) & 0xFF), g = Scale((rgb >> 8) & 0xFF), b = Scale(rgb & 0xFF);
+        return $"{r:X2}{g:X2}{b:X2}";
+    }
+
+    // Strip a leading '#' or '0x'/'0X' prefix only — never legitimate leading zeros of
+    // the hex color itself (e.g. "0A6629" must stay "0A6629").
+    private static string NormalizeHex(string hex)
+    {
+        hex = (hex ?? string.Empty).Trim();
+        if (hex.StartsWith("#")) hex = hex[1..];
+        if (hex.StartsWith("0x") || hex.StartsWith("0X")) hex = hex[2..];
+        return hex.ToUpperInvariant();
+    }
+
+    private static bool IsValidHex(string hex) =>
+        hex.Length == 6 && int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out _);
+
+    // Create the rows with their default (computed) colors; called once from the ctor.
+    private void BuildDefaultMapColorRows()
+    {
+        MapBucketColors.Clear();
+        foreach (var (key, name, factor) in MapColorDefaults)
+            MapBucketColors.Add(new MapBucketColorRow(key, name,
+                ScaleHex(BaseOpen, factor), ScaleHex(BaseWep, factor), ScaleHex(BaseSecure, factor)));
+    }
+
+    /// <summary>Push the current row colors into the map renderer and notify listeners.</summary>
+    public void ApplyMapColorsToRenderer()
+    {
+        var dict = new Dictionary<string, (string Open, string Wep, string Secure)>();
+        foreach (var row in MapBucketColors)
+        {
+            string o = NormalizeHex(row.OpenHex), w = NormalizeHex(row.WepHex), s = NormalizeHex(row.SecureHex);
+            if (IsValidHex(o) && IsValidHex(w) && IsValidHex(s))
+                dict[row.BucketKey] = ("#" + o, "#" + w, "#" + s);
+        }
+        Vistumbler.UI.Extensions.MaplibreWifiExtensions.ApplyColors(dict);
+        MapColorsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    // ── Offline map areas (Map tab) ───────────────────────────────────────
+    // Management of the regions saved via the map toolbar's "Save Map Area"
+    // button. The manager shares the map's cache database (MbglCache.DefaultPath),
+    // so it sees the same regions the map serves offline.
+
+    /// <summary>Rows bound by the "Offline Map Areas" list on the Map tab.</summary>
+    public ObservableCollection<OfflineRegionRow> OfflineRegions { get; } = new();
+
+    [ObservableProperty] private OfflineRegionRow? _selectedOfflineRegion;
+    [ObservableProperty] private string _offlineStatus = string.Empty;
+
+    private MapLibreNative.Maui.MbglOfflineManager? _offlineMgr;
+    private MapLibreNative.Maui.MbglOfflineManager OfflineMgr => _offlineMgr ??= new();
+
+    private static string RegionNameFromMetadata(byte[]? metadata, long id)
+    {
+        if (metadata is { Length: > 0 })
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(metadata);
+                if (doc.RootElement.TryGetProperty("name", out var name) &&
+                    name.ValueKind == JsonValueKind.String)
+                    return name.GetString()!;
+            }
+            catch (JsonException) { /* opaque/foreign metadata — fall through */ }
+        }
+        return $"Area #{id}";
+    }
+
+    [RelayCommand]
+    private async Task RefreshOfflineRegionsAsync()
+    {
+        try
+        {
+            var regions = await OfflineMgr.ListRegionsAsync();
+            OfflineRegions.Clear();
+            foreach (var r in regions)
+            {
+                var status = await OfflineMgr.GetRegionStatusAsync(r.Id);
+                OfflineRegions.Add(new OfflineRegionRow(
+                    r.Id,
+                    RegionNameFromMetadata(OfflineMgr.GetRegionMetadata(r.Id), r.Id),
+                    $"z{r.MinZoom:0}–{r.MaxZoom:0}",
+                    $"{status.CompletedResourceSize / 1024:N0} KB",
+                    status.Complete ? "Complete"
+                        : $"{status.CompletedResourceCount}/{status.RequiredResourceCount}"));
+            }
+            OfflineStatus = OfflineRegions.Count == 0
+                ? "No saved map areas — use 'Save Map Area' on the map toolbar."
+                : $"{OfflineRegions.Count} saved area(s).";
+        }
+        catch (Exception ex)
+        {
+            OfflineStatus = $"Could not list offline areas: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task DeleteOfflineRegionAsync()
+    {
+        if (SelectedOfflineRegion is not { } sel) return;
+        try
+        {
+            await OfflineMgr.DeleteRegionAsync(sel.Id);
+            OfflineStatus = $"Deleted '{sel.Name}'.";
+            await RefreshOfflineRegionsAsync();
+        }
+        catch (Exception ex)
+        {
+            OfflineStatus = $"Delete failed: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task DeleteAllOfflineRegionsAsync()
+    {
+        try
+        {
+            var regions = await OfflineMgr.ListRegionsAsync();
+            foreach (var r in regions)
+                await OfflineMgr.DeleteRegionAsync(r.Id);
+            OfflineStatus = $"Deleted {regions.Length} saved area(s).";
+            await RefreshOfflineRegionsAsync();
+        }
+        catch (Exception ex)
+        {
+            OfflineStatus = $"Delete failed: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task ClearAmbientCacheAsync()
+    {
+        try
+        {
+            await OfflineMgr.ClearAmbientCacheAsync();
+            OfflineStatus = "Cached (non-saved) map tiles cleared.";
+        }
+        catch (Exception ex)
+        {
+            OfflineStatus = $"Clear failed: {ex.Message}";
+        }
+    }
+
     // ── Cameras tab ───────────────────────────────────────────────────────
     public ObservableCollection<CameraEntryViewModel> Cameras { get; } = new();
     [ObservableProperty] private string _newCameraName  = string.Empty;
@@ -279,6 +520,7 @@ public partial class SettingsViewModel : ViewModelBase
         SaveDirAutoRecovery = defaultDir;
         SaveDirKml          = defaultDir;
         GpsLogLocation      = Path.Combine(defaultDir, "gps_nmea_log.txt");
+        BuildDefaultMapColorRows();
     }
 
     // ── INI persistence ───────────────────────────────────────────────────
@@ -402,6 +644,19 @@ public partial class SettingsViewModel : ViewModelBase
         WifiDbGpsLocateRefreshTimeS   = I("WifiDbWifiTools", "WiFiDbLocateRefreshTime",   5);
         EnableAutoUpApsToWifiDb       = B("WifiDbWifiTools", "AutoUpApsToWifiDB",         false);
         AutoUpApsToWifiDbTimeS        = I("WifiDbWifiTools", "AutoUpApsToWifiDBTime",     60);
+
+        // Map
+        MapStyleUrl = V("Map", "StyleUrl", DefaultMapStyleUrl);
+        SyncMapStyleSelection();
+
+        // Map AP colors — each cell falls back to its computed default when not set.
+        foreach (var row in MapBucketColors)
+        {
+            row.OpenHex   = NormalizeHex(V("MapColors", row.BucketKey + "_Open",   row.OpenHex));
+            row.WepHex    = NormalizeHex(V("MapColors", row.BucketKey + "_Wep",    row.WepHex));
+            row.SecureHex = NormalizeHex(V("MapColors", row.BucketKey + "_Secure", row.SecureHex));
+        }
+        ApplyMapColorsToRenderer();
 
         // Camera
         EnableCameraTrigger        = B("Cam", "CamTrigger",      false);
@@ -618,6 +873,18 @@ public partial class SettingsViewModel : ViewModelBase
         WI("WifiDbWifiTools", "WiFiDbLocateRefreshTime",    WifiDbGpsLocateRefreshTimeS);
         WB("WifiDbWifiTools", "AutoUpApsToWifiDB",          EnableAutoUpApsToWifiDb);
         WI("WifiDbWifiTools", "AutoUpApsToWifiDBTime",      AutoUpApsToWifiDbTimeS);
+
+        // Map
+        W ("Map", "StyleUrl", MapStyleUrl);
+
+        // Map AP colors
+        foreach (var row in MapBucketColors)
+        {
+            W("MapColors", row.BucketKey + "_Open",   NormalizeHex(row.OpenHex));
+            W("MapColors", row.BucketKey + "_Wep",    NormalizeHex(row.WepHex));
+            W("MapColors", row.BucketKey + "_Secure", NormalizeHex(row.SecureHex));
+        }
+        ApplyMapColorsToRenderer();
 
         // Camera
         WB("Cam", "CamTrigger",       EnableCameraTrigger);

@@ -183,8 +183,9 @@
                 <MenuItem Header="Set Column Widths"          Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="6"/>
                 <MenuItem Header="Auto KML / AutoSort"        Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="7"/>
                 <MenuItem Header="Sound"                      Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="8"/>
-                <MenuItem Header="WifiDB"                     Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="9"/>
-                <MenuItem Header="Set Cameras"                Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="10"/>
+                <MenuItem Header="Map"                        Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="9"/>
+                <MenuItem Header="WifiDB"                     Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="10"/>
+                <MenuItem Header="Set Cameras"                Command="{Binding OpenSettingsAtTabCommand}" CommandParameter="11"/>
             </MenuItem>
             <MenuItem Header="_Interface" x:Name="InterfaceMenu">
                 <MenuItem Header="Refresh Interfaces" Command="{Binding RefreshInterfacesCommand}"/>
@@ -341,11 +342,13 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <mlwpf:MlnMapHost
+            <mlwpf:MlnMapImage
                 x:Name="MapHost"
                 Grid.Row="0"
                 Margin="10,10,10,0"
-                StyleUrl="https://tiles.wifidb.net/styles/WDB_COLOR_RELIEF/style.json"/>
+                ShowNavigationControls="True"
+                ShowGpsControl="True"
+                StyleUrl="{Binding Settings.MapStyleUrl}"/>
 
             <!-- AP info popup shown when a WifiDB map circle is clicked -->
             <Popup x:Name="ApInfoPopup"
@@ -433,6 +436,23 @@
                         Height="22" Padding="8,2" Margin="0,0,4,0"
                         FontSize="11"
                         Foreground="#885fcd"/>
+
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}"
+                           Margin="4,0" VerticalAlignment="Stretch"/>
+
+                <!-- Offline: pre-cache the current map view and force MapLibre to serve
+                     only cached tiles. Tiles are shared with the live map's own cache. -->
+                <Button ToolTip="Download the current map view for offline use"
+                        Content="Save Map Area"
+                        Click="SaveMapAreaButton_Click"
+                        Height="22" Padding="8,2" Margin="0,0,4,0"
+                        FontSize="11"/>
+                <ToggleButton x:Name="OfflineToggle"
+                        ToolTip="Serve only cached / already-downloaded tiles (no network)"
+                        Content="Offline"
+                        Click="OfflineToggle_Click"
+                        Height="22" Padding="8,2" Margin="0,0,4,0"
+                        FontSize="11"/>
             </WrapPanel>
         </Grid>
 

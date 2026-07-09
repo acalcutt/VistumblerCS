@@ -7,6 +7,12 @@
 ### 🐞 Bug fixes
 - _...Add new stuff here..._
 
+## 0.4.1
+### ✨ Features and improvements
+- **Updated map renderer to MapLibreNative.Maui.WPF 4.1.3** (from 4.0.0) — picks up the 4.1.x fixes on top of the airspace-free 4.0.0 renderer: `AddLineLayer`/`AddFillLayer`/`AddRasterLayer` wrappers on `MlnMapImage` (4.1.0), the attribution overlay now refreshes when sources are added after the style loads (4.1.1), and the runtime source-layer relayout fix moved to the upstream maplibre-native fix (4.1.3).
+
+### 🐞 Bug fixes
+
 ## 0.4.0
 ### ✨ Features and improvements
 - **New airspace-free map renderer (MapLibreNative.Maui.WPF 4.0.0)** — the map moved from the old `MlnMapHost` (HwndHost + floating overlay popups) to `MlnMapImage`, a true in-tree WPF `Image` element whose navigation/GPS controls are ordinary WPF children with correct z-order, clipping, DPI and hit-testing — no more popup realignment/airspace quirks.

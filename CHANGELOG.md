@@ -7,6 +7,12 @@
 ### 🐞 Bug fixes
 - _...Add new stuff here..._
 
+## 0.4.2
+### ✨ Features and improvements
+- **Updated map renderer to MapLibreNative.Maui.WPF 4.2.0** (from 4.1.3) — 4.2.0 is an Android-focused release (map-open crash, two-finger gestures, rotation/tile-render fixes) with no Windows-facing changes; bumped to stay current on the released package.
+
+### 🐞 Bug fixes
+
 ## 0.4.1
 ### ✨ Features and improvements
 - **Updated map renderer to MapLibreNative.Maui.WPF 4.1.3** (from 4.0.0) — picks up the 4.1.x fixes on top of the airspace-free 4.0.0 renderer: `AddLineLayer`/`AddFillLayer`/`AddRasterLayer` wrappers on `MlnMapImage` (4.1.0), the attribution overlay now refreshes when sources are added after the style loads (4.1.1), and the runtime source-layer relayout fix moved to the upstream maplibre-native fix (4.1.3).

@@ -7,6 +7,10 @@
 ### 🐞 Bug fixes
 - _...Add new stuff here..._
 
+## 0.4.3
+### 🐞 Bug fixes
+- **Attribution overlay no longer re-expands on every runtime source refresh** — updated the map renderer to MapLibreNative.Maui.WPF 4.2.1, whose WPF control only rewrites and re-expands the attribution overlay when the attribution content actually changes. Previously any periodically-updated runtime source (e.g. a live GeoJSON overlay) made the overlay pop open on every update.
+
 ## 0.4.2
 ### ✨ Features and improvements
 - **Updated map renderer to MapLibreNative.Maui.WPF 4.2.0** (from 4.1.3) — 4.2.0 is an Android-focused release (map-open crash, two-finger gestures, rotation/tile-render fixes) with no Windows-facing changes; bumped to stay current on the released package.

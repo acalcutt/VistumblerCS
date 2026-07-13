@@ -7,6 +7,11 @@
 ### 🐞 Bug fixes
 - _...Add new stuff here..._
 
+## 0.4.4
+### ✨ Features and improvements
+- **Reworked GPS map buttons: separate tracking and bearing controls** — updated the map renderer to MapLibreNative.Maui.WPF 4.4.0 (from 4.2.1). The top GPS button now cycles the tracking mode Off ○ → Show ⊙ → Follow ◎, and the bottom button (previously a plain reset-to-north) cycles the camera bearing mode Free ↺ → North-up N → GPS bearing ➤. Dragging the map while in Follow drops back to Show (one click re-enters Follow), and manually rotating the map drops the bearing mode back to Free. The location dot now always points in the direction of travel.
+- Also picks up 4.2.2–4.3.0: a manually opened attribution banner stays open longer (10 s) instead of collapsing almost immediately, and the renderer gains an opt-in `UiScale` property for honouring the OS font-scale setting.
+
 ## 0.4.3
 ### 🐞 Bug fixes
 - **Attribution overlay no longer re-expands on every runtime source refresh** — updated the map renderer to MapLibreNative.Maui.WPF 4.2.1, whose WPF control only rewrites and re-expands the attribution overlay when the attribution content actually changes. Previously any periodically-updated runtime source (e.g. a live GeoJSON overlay) made the overlay pop open on every update.

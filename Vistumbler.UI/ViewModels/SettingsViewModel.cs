@@ -254,9 +254,11 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private int    _wifiDbGpsLocateRefreshTimeS = 5;
 
     // The resolver is static (the map layers reach it without a view model), so it is
-    // told about the setting rather than reading it. Covers both the edit and the
-    // initial load, since LoadSettings assigns the property.
+    // told about these rather than reading them. Covers both the edit and the initial
+    // load, since LoadSettings assigns the properties.
     partial void OnWifiDbDataUrlChanged(string value) => WifiDbTileSources.DataRoot = value;
+    partial void OnWifiDbUrlChanged(string value) =>
+        WifiDbTileSources.ApiBaseUrl = value.TrimEnd('/') + "/api";
 
     [ObservableProperty] private bool   _enableAutoUpApsToWifiDb     = false;
     [ObservableProperty] private int    _autoUpApsToWifiDbTimeS      = 60;

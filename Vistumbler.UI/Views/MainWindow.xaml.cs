@@ -122,10 +122,11 @@ public partial class MainWindow : Window
         // Apply on load so the initial Hidden state collapses the rows immediately
         Loaded += (_, _) => ApplyGraphRowVisibility();
 
-        // Pick up bucket archives published since the last check. Deliberately not
-        // awaited: the built-in list already resolves every bucket, so nothing here
-        // waits on the network, and a refresh that fails changes nothing.
-        Loaded += (_, _) => _ = WifiDbTileSources.RefreshIfStaleAsync();
+        // Find out whether WifiDB's TileJSON endpoint can be reached, so the history
+        // layers fall back to the archives directly if it cannot. Deliberately not
+        // awaited: a layer is added synchronously and cannot wait for this, and until
+        // it answers the endpoint is assumed to work.
+        Loaded += (_, _) => _ = WifiDbTileSources.ProbeAsync();
 
         // Show AP info popup when a WifiDB circle is clicked on the map
         MapHost.MapClicked += OnMapHostClicked;

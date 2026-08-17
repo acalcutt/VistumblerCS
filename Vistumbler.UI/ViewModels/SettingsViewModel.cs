@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Vistumbler.Core.Enums;
 using Vistumbler.Core.Services;
+using Vistumbler.UI.Services;
 
 namespace Vistumbler.UI.ViewModels;
 
@@ -246,8 +247,17 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private string _wifiDbGraphUrl      = "https://api.wifidb.net/wifi/";
     [ObservableProperty] private string _wifiDbUrl           = "https://wifidb.net/";
     [ObservableProperty] private string _wifiDbApiUrl        = "https://api.wifidb.net/";
+    // Origin the map history overlays are read from — the published PMTiles archives
+    // and the feed listing them, which is a different host from the site and its API.
+    [ObservableProperty] private string _wifiDbDataUrl       = WifiDbTileSources.DefaultDataRoot;
     [ObservableProperty] private bool   _useWifiDbGpsLocate  = false;
     [ObservableProperty] private int    _wifiDbGpsLocateRefreshTimeS = 5;
+
+    // The resolver is static (the map layers reach it without a view model), so it is
+    // told about the setting rather than reading it. Covers both the edit and the
+    // initial load, since LoadSettings assigns the property.
+    partial void OnWifiDbDataUrlChanged(string value) => WifiDbTileSources.DataRoot = value;
+
     [ObservableProperty] private bool   _enableAutoUpApsToWifiDb     = false;
     [ObservableProperty] private int    _autoUpApsToWifiDbTimeS      = 60;
 
@@ -640,6 +650,7 @@ public partial class SettingsViewModel : ViewModelBase
         WifiDbGraphUrl                = V("WifiDbWifiTools", "WifiDb_GRAPH_URL",           WifiDbGraphUrl);
         WifiDbUrl                     = V("WifiDbWifiTools", "WiFiDB_URL",                 WifiDbUrl);
         WifiDbApiUrl                  = V("WifiDbWifiTools", "WifiDB_API_URL",             WifiDbApiUrl);
+        WifiDbDataUrl                 = V("WifiDbWifiTools", "WifiDB_DATA_URL",            WifiDbDataUrl);
         UseWifiDbGpsLocate            = B("WifiDbWifiTools", "UseWiFiDbGpsLocate",         false);
         WifiDbGpsLocateRefreshTimeS   = I("WifiDbWifiTools", "WiFiDbLocateRefreshTime",   5);
         EnableAutoUpApsToWifiDb       = B("WifiDbWifiTools", "AutoUpApsToWifiDB",         false);
@@ -869,6 +880,7 @@ public partial class SettingsViewModel : ViewModelBase
         W ("WifiDbWifiTools", "WifiDb_GRAPH_URL",           WifiDbGraphUrl);
         W ("WifiDbWifiTools", "WiFiDB_URL",                 WifiDbUrl);
         W ("WifiDbWifiTools", "WifiDB_API_URL",             WifiDbApiUrl);
+        W ("WifiDbWifiTools", "WifiDB_DATA_URL",            WifiDbDataUrl);
         WB("WifiDbWifiTools", "UseWiFiDbGpsLocate",         UseWifiDbGpsLocate);
         WI("WifiDbWifiTools", "WiFiDbLocateRefreshTime",    WifiDbGpsLocateRefreshTimeS);
         WB("WifiDbWifiTools", "AutoUpApsToWifiDB",          EnableAutoUpApsToWifiDb);

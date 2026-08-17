@@ -9,6 +9,7 @@ using MapLibreNative.Maui.WPF;
 using Vistumbler.Core.Services;
 using Vistumbler.UI.ViewModels;
 using Vistumbler.UI.Extensions;
+using Vistumbler.UI.Services;
 
 namespace Vistumbler.UI.Views;
 
@@ -121,6 +122,11 @@ public partial class MainWindow : Window
         // Apply on load so the initial Hidden state collapses the rows immediately
         Loaded += (_, _) => ApplyGraphRowVisibility();
 
+        // Pick up bucket archives published since the last check. Deliberately not
+        // awaited: the built-in list already resolves every bucket, so nothing here
+        // waits on the network, and a refresh that fails changes nothing.
+        Loaded += (_, _) => _ = WifiDbTileSources.RefreshIfStaleAsync();
+
         // Show AP info popup when a WifiDB circle is clicked on the map
         MapHost.MapClicked += OnMapHostClicked;
         // Re-apply overlays whenever a new basemap style finishes loading (e.g. after the
@@ -171,9 +177,6 @@ public partial class MainWindow : Window
     /// </summary>
     private void ReaddOverlays()
     {
-        var viewModel  = (MainViewModel)DataContext!;
-        string urlBase = viewModel.Settings.WifiDbUrl.TrimEnd('/');
-
         // Live scan layer first: it's the top anchor the history layers insert below.
         if (_lastLiveApGeoJson is not null)
             MapHost.SetLiveApGeoJsonLayer("live_aps", _lastLiveApGeoJson);
@@ -186,7 +189,7 @@ public partial class MainWindow : Window
         });
         foreach (var (sourceId, bucket) in ordered)
         {
-            string tileJsonUrl = $"{urlBase}/api/tilejson.php?bucket={bucket}";
+            string tileJsonUrl = WifiDbTileSources.TileJsonUrlFor(bucket);
             if (_activeCellSources.ContainsKey(sourceId))
                 MapHost.SetCellVectorLayer(sourceId, tileJsonUrl, bucket);
             else
@@ -423,8 +426,6 @@ public partial class MainWindow : Window
     private void CellNetworksButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn) return;
-        var viewModel  = (MainViewModel)DataContext!;
-        string urlBase = viewModel.Settings.WifiDbUrl.TrimEnd('/');
 
         if (_activeCellSources.Count > 0)
         {
@@ -443,7 +444,7 @@ public partial class MainWindow : Window
             foreach (var bucket in CellBuckets)
             {
                 string sourceId    = "wifidb_" + bucket;
-                string tileJsonUrl = $"{urlBase}/api/tilejson.php?bucket={bucket}";
+                string tileJsonUrl = WifiDbTileSources.TileJsonUrlFor(bucket);
                 MapHost.SetCellVectorLayer(sourceId, tileJsonUrl, bucket);
                 _activeCellSources[sourceId] = bucket;
             }
@@ -462,12 +463,11 @@ public partial class MainWindow : Window
         if (sender is not Button btn) return;
         string tag      = btn.Tag?.ToString() ?? "";
         string sourceId = "wifidb_" + tag;
-        var viewModel   = (MainViewModel)DataContext!;
-        string urlBase  = viewModel.Settings.WifiDbUrl.TrimEnd('/');
 
         // Map each button tag to its MVT bucket name — all buckets use the pre-generated
         // MVT tile endpoint so MapLibre only fetches tiles in view.
-        // bucket = the layer name inside each MVT tile (matches tilejson.php/mvt.php).
+        // bucket = the layer name inside each MVT tile, and the name WifiDbTileSources
+        // resolves to a published archive.
         string? bucket = tag switch
         {
             "WifiDB_daily"    => "daily",
@@ -492,7 +492,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            string tileJsonUrl = $"{urlBase}/api/tilejson.php?bucket={bucket}";
+            string tileJsonUrl = WifiDbTileSources.TileJsonUrlFor(bucket);
             MapHost.SetWifiVectorLayer(sourceId, tileJsonUrl, bucket);
             _activeWifiDbLayers[sourceId] = bucket;
             SetLayerButtonActive(btn, true);

@@ -233,7 +233,7 @@ public static class MaplibreWifiExtensions
     /// <summary>
     /// Add a vector tile source from a TileJSON URL with a single sectype-coloured
     /// circle layer. <paramref name="bucket"/> must match the layer name inside the
-    /// MVT tiles (tilejson.php uses the bucket name, e.g. "weekly") and selects the
+    /// MVT tiles (the archive uses the bucket name, e.g. "weekly") and selects the
     /// per-bucket color/radius and the layer's position in the z-order stack.
     /// </summary>
     public static void SetWifiVectorLayer(this MlnMapImage map, string sourceId, string tileJsonUrl, string bucket)

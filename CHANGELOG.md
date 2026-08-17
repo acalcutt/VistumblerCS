@@ -2,7 +2,8 @@
 
 ## master
 ### ✨ Features and improvements
-- _...Add new stuff here..._
+- **WifiDB history now comes from the PMTiles archives on data.wifidb.net** — the age-tier and cell overlays used to be rendered on demand by WifiDB's mvtd daemon behind `api/tilejson.php?bucket=`; each bucket is now a published archive read straight from `https://data.wifidb.net/latest/<category>/tiles.json`. Nothing changes on screen — same buckets, same layers, same colours — but the tiles no longer come off wifidb.net's own server. Every URL also carries the matching `.torrent` and magnet in its fragment, unused for now, so the handles are already in place when peer-to-peer tile loading arrives. The twenty bucket URLs ship built in, so the map draws on first launch and offline, and are refreshed in the background from the archive feed (at most every 6 hours) so a new or renamed bucket needs no app release. A refresh that fails leaves the built-in list working.
+- **New "WifiDB Data URL" setting (Settings → WifiDB → WifiDB URLs)** — the origin the map history archives and their feed are read from, separate from the site and API URLs because it is a different host. Defaults to `https://data.wifidb.net`; point it at a mirror to move both the tiles and the feed.
 
 ### 🐞 Bug fixes
 - _...Add new stuff here..._

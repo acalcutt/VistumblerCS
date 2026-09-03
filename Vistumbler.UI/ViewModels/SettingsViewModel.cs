@@ -400,7 +400,7 @@ public partial class SettingsViewModel : ViewModelBase
 
     // ── Offline map areas (Map tab) ───────────────────────────────────────
     // Management of the regions saved via the map toolbar's "Save Map Area"
-    // button. The manager shares the map's cache database (MbglCache.DefaultPath),
+    // button. The manager shares the map's cache database (MlnCache.DefaultPath),
     // so it sees the same regions the map serves offline.
 
     /// <summary>Rows bound by the "Offline Map Areas" list on the Map tab.</summary>
@@ -409,8 +409,8 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private OfflineRegionRow? _selectedOfflineRegion;
     [ObservableProperty] private string _offlineStatus = string.Empty;
 
-    private MapLibreNative.Maui.MbglOfflineManager? _offlineMgr;
-    private MapLibreNative.Maui.MbglOfflineManager OfflineMgr => _offlineMgr ??= new();
+    private MapLibreNative.Maui.MlnOfflineManager? _offlineMgr;
+    private MapLibreNative.Maui.MlnOfflineManager OfflineMgr => _offlineMgr ??= new();
 
     private static string RegionNameFromMetadata(byte[]? metadata, long id)
     {

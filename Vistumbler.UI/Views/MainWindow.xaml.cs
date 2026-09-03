@@ -34,9 +34,9 @@ public partial class MainWindow : Window
     private double _mapGraphRowHeight = 300;
 
     // Lazily created when the user first pre-caches a map area for offline use. Shares
-    // the map's own cache database (MbglCache.DefaultPath), so downloaded tiles are
+    // the map's own cache database (MlnCache.DefaultPath), so downloaded tiles are
     // served to the live map automatically — including when forced offline.
-    private MbglOfflineManager? _offlineManager;
+    private MlnOfflineManager? _offlineManager;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -530,11 +530,11 @@ public partial class MainWindow : Window
     /// the status bar. The manager uses the same cache database as the map view, so any
     /// tiles it downloads are served straight to the live map (online or offline).
     /// </summary>
-    private MbglOfflineManager GetOfflineManager()
+    private MlnOfflineManager GetOfflineManager()
     {
         if (_offlineManager != null) return _offlineManager;
 
-        _offlineManager = new MbglOfflineManager();
+        _offlineManager = new MlnOfflineManager();
         var vm = (MainViewModel)DataContext!;
 
         // Progress / error callbacks arrive on MapLibre's database thread — marshal to UI.
@@ -599,7 +599,7 @@ public partial class MainWindow : Window
     private void OfflineToggle_Click(object sender, RoutedEventArgs e)
     {
         bool offline = OfflineToggle.IsChecked == true;
-        MbglNetwork.Online = !offline;
+        MlnNetwork.Online = !offline;
         ((MainViewModel)DataContext!).StatusMessage = offline
             ? "Offline mode \u2014 showing cached map tiles only"
             : "Online mode \u2014 map tiles load from the network";

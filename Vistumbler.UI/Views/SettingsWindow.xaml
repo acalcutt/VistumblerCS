@@ -10,6 +10,16 @@
                                 <TextBlock Text="Changing the basemap reloads the map; re-toggle history layers if needed." TextWrapping="Wrap" Foreground="Gray" Margin="0,4,0,0"/>
                             </StackPanel>
                         </GroupBox>
+                        <GroupBox Header="GPS Follow Zoom">
+                            <StackPanel>
+                                <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,6"
+                                           Text="The zoom the map eases to when the GPS button enters Follow mode. Later fixes keep the zoom, so scrolling to a different level sticks until Follow is re-entered."/>
+                                <TextBlock Style="{StaticResource GroupLabel}" Text="On entering Follow"/>
+                                <ComboBox ItemsSource="{Binding FollowZoomOptions}" SelectedItem="{Binding SelectedFollowZoom}" Margin="0,0,0,6"/>
+                                <TextBlock Style="{StaticResource GroupLabel}" Text="Zoom level (1-22)" Visibility="{Binding IsManualFollowZoom, Converter={StaticResource BoolVis}}"/>
+                                <TextBox Text="{Binding ManualFollowZoom, UpdateSourceTrigger=LostFocus}" Visibility="{Binding IsManualFollowZoom, Converter={StaticResource BoolVis}}" Width="80" HorizontalAlignment="Left" Margin="0,0,0,4"/>
+                            </StackPanel>
+                        </GroupBox>
                         <GroupBox Header="Access Point Colors">
                             <StackPanel>
                                 <TextBlock TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,6"

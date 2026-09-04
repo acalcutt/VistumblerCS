@@ -15,8 +15,10 @@
             <SolidColorBrush x:Key="TextBrush"     Color="#000000"/>  <!-- Foreground / text     -->
             <SolidColorBrush x:Key="ActiveBrush"   Color="#E1F2D0"/>  <!-- Button active state   -->
             <SolidColorBrush x:Key="InactiveBrush" Color="#F2D0D0"/>  <!-- Button inactive state -->
-            <!-- Font size (also updated at runtime) -->
-            <sys:Double x:Key="GuiFontSize">11</sys:Double>
+            <!-- Font size in device-independent pixels, replaced once settings load with
+                 the GUI Text Size setting converted from points. 11.33 is the 8.5pt
+                 default that setting carries over from the original Vistumbler. -->
+            <sys:Double x:Key="GuiFontSize">11.33</sys:Double>
 
             <!-- Global Converters -->
             <conv:EnumToBooleanConverter x:Key="EnumBoolConverter"/>

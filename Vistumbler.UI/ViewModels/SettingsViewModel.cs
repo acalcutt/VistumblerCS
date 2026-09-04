@@ -809,7 +809,14 @@ public partial class SettingsViewModel : ViewModelBase
         res["TextBrush"]     = HexToBrush(FontColorHex,           "000000");
         res["ActiveBrush"]   = HexToBrush(ButtonActiveColorHex,   "E1F2D0");
         res["InactiveBrush"] = HexToBrush(ButtonInactiveColorHex, "F2D0D0");
-        res["GuiFontSize"]   = GuiTextSize > 0 ? GuiTextSize : 11.0;
+        // GUI Text Size is in points, as it is in the original Vistumbler -- the setting
+        // and its 8.5 default come straight from there, where it is handed to AutoIt's
+        // GUISetFont, which takes points. WPF's FontSize is in device-independent pixels
+        // (1/96in) rather than points (1/72in), so using the value directly rendered
+        // every label at 75% of the intended size: 8.5pt is 11.33px, not 8.5px. That is
+        // also why App.xaml's own default is 11 -- someone had already sized the XAML by
+        // eye against what the number should have produced.
+        res["GuiFontSize"]   = (GuiTextSize > 0 ? GuiTextSize : 8.5) * (96.0 / 72.0);
     }
 
     private static SolidColorBrush HexToBrush(string hex, string fallback)

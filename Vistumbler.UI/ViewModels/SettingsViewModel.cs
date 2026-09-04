@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -284,6 +284,53 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private string _customMapStyleUrl = string.Empty;
     [ObservableProperty] private bool   _isCustomMapStyle;
 
+    // ── GPS follow zoom ───────────────────────────────────────────────────────
+    // Which zoom the map eases to when the GPS control enters Follow mode. Later
+    // fixes never change it, so a manual scroll-zoom sticks until Follow is
+    // re-entered. Mirrors the same setting in VistumblerMAUI.
+
+    public const string FollowZoomAuto        = "Auto (fit GPS accuracy)";
+    public const string FollowZoomManual      = "Manual zoom level";
+    public const string FollowZoomKeepCurrent = "Keep current zoom";
+
+    public ObservableCollection<string> FollowZoomOptions { get; } =
+        new(new[] { FollowZoomAuto, FollowZoomManual, FollowZoomKeepCurrent });
+
+    [ObservableProperty] private string _selectedFollowZoom = FollowZoomAuto;
+    [ObservableProperty] private double _manualFollowZoom   = 16;
+    [ObservableProperty] private bool   _isManualFollowZoom;
+
+    /// <summary>
+    /// The renderer's mode for the current selection — what the map binds to.
+    /// </summary>
+    /// <remarks>
+    /// Auto maps to Accuracy, which picks a zoom from the fix's reported accuracy so a
+    /// sharp fix lands at street level and a coarse one stays out far enough to cover
+    /// its uncertainty. Note this app defaults to Auto while the renderer's own default
+    /// is KeepCurrent, so the mapping is what makes the default behaviour true rather
+    /// than a no-op.
+    /// </remarks>
+    public MapLibreNative.Maui.GpsFollowZoomMode MapGpsFollowZoomMode => SelectedFollowZoom switch
+    {
+        FollowZoomManual      => MapLibreNative.Maui.GpsFollowZoomMode.Fixed,
+        FollowZoomKeepCurrent => MapLibreNative.Maui.GpsFollowZoomMode.KeepCurrent,
+        _                     => MapLibreNative.Maui.GpsFollowZoomMode.Accuracy,
+    };
+
+    partial void OnSelectedFollowZoomChanged(string value)
+    {
+        IsManualFollowZoom = value == FollowZoomManual;
+        OnPropertyChanged(nameof(MapGpsFollowZoomMode));
+    }
+
+    partial void OnManualFollowZoomChanged(double value)
+    {
+        // The renderer clamps too, but keeping the stored value in range means the box
+        // shows what will actually be used.
+        var clamped = Math.Clamp(value, 1, 22);
+        if (clamped != value) ManualFollowZoom = clamped;
+    }
+
     partial void OnSelectedMapStyleChanged(string value)
     {
         if (value == CustomMapStyleName)
@@ -400,7 +447,7 @@ public partial class SettingsViewModel : ViewModelBase
 
     // ── Offline map areas (Map tab) ───────────────────────────────────────
     // Management of the regions saved via the map toolbar's "Save Map Area"
-    // button. The manager shares the map's cache database (MbglCache.DefaultPath),
+    // button. The manager shares the map's cache database (MlnCache.DefaultPath),
     // so it sees the same regions the map serves offline.
 
     /// <summary>Rows bound by the "Offline Map Areas" list on the Map tab.</summary>
@@ -409,8 +456,8 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private OfflineRegionRow? _selectedOfflineRegion;
     [ObservableProperty] private string _offlineStatus = string.Empty;
 
-    private MapLibreNative.Maui.MbglOfflineManager? _offlineMgr;
-    private MapLibreNative.Maui.MbglOfflineManager OfflineMgr => _offlineMgr ??= new();
+    private MapLibreNative.Maui.MlnOfflineManager? _offlineMgr;
+    private MapLibreNative.Maui.MlnOfflineManager OfflineMgr => _offlineMgr ??= new();
 
     private static string RegionNameFromMetadata(byte[]? metadata, long id)
     {
@@ -662,6 +709,12 @@ public partial class SettingsViewModel : ViewModelBase
         MapStyleUrl = V("Map", "StyleUrl", DefaultMapStyleUrl);
         SyncMapStyleSelection();
 
+        // GPS follow zoom. Stored as the option text so the file stays readable; an
+        // unrecognised value falls back to Auto rather than leaving the picker blank.
+        var followZoom = V("Map", "FollowZoomMode", FollowZoomAuto);
+        SelectedFollowZoom = FollowZoomOptions.Contains(followZoom) ? followZoom : FollowZoomAuto;
+        ManualFollowZoom   = D("Map", "FollowZoomLevel", 16);
+
         // Map AP colors — each cell falls back to its computed default when not set.
         foreach (var row in MapBucketColors)
         {
@@ -890,6 +943,8 @@ public partial class SettingsViewModel : ViewModelBase
 
         // Map
         W ("Map", "StyleUrl", MapStyleUrl);
+        W ("Map", "FollowZoomMode",  SelectedFollowZoom);
+        WD("Map", "FollowZoomLevel", ManualFollowZoom);
 
         // Map AP colors
         foreach (var row in MapBucketColors)

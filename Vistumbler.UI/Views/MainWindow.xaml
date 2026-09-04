@@ -348,6 +348,8 @@
                 Margin="10,10,10,0"
                 ShowNavigationControls="True"
                 ShowGpsControl="True"
+                GpsFollowZoomMode="{Binding Settings.MapGpsFollowZoomMode, Mode=OneWay}"
+                GpsFollowZoom="{Binding Settings.ManualFollowZoom, Mode=OneWay}"
                 StyleUrl="{Binding Settings.MapStyleUrl}"/>
 
             <!-- AP info popup shown when a WifiDB map circle is clicked -->

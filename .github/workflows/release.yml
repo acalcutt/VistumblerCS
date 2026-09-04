@@ -95,8 +95,13 @@ jobs:
           SIG_PFX: ${{ secrets.SIG_PFX }}
           SIG_PFX_PASS: ${{ secrets.SIG_PFX_PASS }}
         run: |
+          # Signing is optional -- a release without a certificate is still a usable
+          # release, unlike an Android one signed with the wrong key -- but it must not
+          # be a silent difference. An unsigned build is what SmartScreen warns users
+          # about, so say so as a workflow annotation, which surfaces on the run summary
+          # rather than only in the log.
           if (-not $env:SIG_PFX) {
-            Write-Warning "No SIG_PFX secret found, skipping signing."
+            Write-Output "::warning title=Unsigned release::SIG_PFX secret is not set - publishing unsigned executables."
             exit 0
           }
 

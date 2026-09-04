@@ -16,6 +16,9 @@ jobs:
     name: Build and test (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     strategy:
+      # The two architectures build on different runners and fail for different
+      # reasons; cancelling one because the other failed hides half the answer.
+      fail-fast: false
       matrix:
         include:
           - arch: x64

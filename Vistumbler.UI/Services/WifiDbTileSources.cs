@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
@@ -16,16 +16,22 @@ namespace Vistumbler.UI.Services;
 /// resolves the current build server-side, and it still serves tiles itself on an
 /// install with no swarm configured, neither of which an app can do for itself.
 ///
-/// The app now addresses those archives directly, as WifiDB's own map does, rather
-/// than going through the redirect. Two reasons. It is one request instead of two,
-/// and it still draws when wifidb.net is down but the archives are up. And it is the
-/// only way the app can hold the archive's torrent and magnet: those ride in the
-/// URL fragment, which a redirect the HTTP stack follows internally never surfaces.
-/// Nothing reads them yet — see <see cref="ArchiveUrlFor"/>.
+/// What the app keeps is a way to draw when that endpoint cannot be reached:
+/// <see cref="FallbackUrlFor"/> returns the same alias, built in, with a magnet in
+/// its fragment. <see cref="ProbeAsync"/> decides between them once per run.
 ///
-/// <see cref="TileJsonUrlFor"/> falls back to the endpoint for a bucket with no
-/// archive (cell_networks is not published as one) and when the archives cannot be
-/// reached at all; <see cref="ProbeAsync"/> decides the latter once per run.
+/// Do not "shortcut" this by asking for the archive alias first. It looks like a free
+/// win -- one request rather than two, and it draws while wifidb.net is down -- and it
+/// was tried; the reason it is wrong is that the endpoint is the only piece that can
+/// steer. It resolves which build is current, it can move the archives to another host
+/// or a mirror without an app release, and on an install with no swarm it serves the
+/// tiles itself. An address compiled into the app can do none of that, which is exactly
+/// why it belongs in the fallback and not in front.
+///
+/// Nor is going direct needed for peer-to-peer tile loading later. A torrent-aware
+/// source takes the archive's infohash and magnet from the `torrent` block in the
+/// TileJSON body, which is present whichever URL fetched it; the handles in the
+/// fragment here are the fallback for when that document cannot be had at all.
 ///
 /// The fallback magnets are BEP 46 mutable ones — a single public key with the
 /// category as the salt, so <c>wifidb-daily</c> resolves to whatever the newest
@@ -74,96 +80,98 @@ public static class WifiDbTileSources
     public static string CategoryFor(string bucket) => "wifidb-" + bucket.Replace('_', '-');
 
     /// <summary>
-    /// Source URL for a bucket: its archive on the swarm, or WifiDB's TileJSON
-    /// endpoint for a bucket that has no archive or when the archives are known
-    /// unreachable.
+    /// Source URL for a bucket: WifiDB's TileJSON endpoint, or the built-in swarm
+    /// alias once <see cref="ProbeAsync"/> has found that endpoint unreachable.
     /// </summary>
     public static string TileJsonUrlFor(string bucket) =>
-        _archivesReachable != false && ArchiveUrlFor(bucket) is { } archive
-            ? archive
+        _apiReachable == false
+            ? FallbackUrlFor(bucket)
             : $"{ApiBaseUrl.TrimEnd('/')}/tilejson.php?bucket={bucket}";
 
     /// <summary>
-    /// The bucket's archive addressed directly, or <see langword="null"/> for a bucket
-    /// that has no archive published.
+    /// The bucket's archive addressed directly, for when WifiDB cannot be reached.
     /// </summary>
     /// <remarks>
-    /// Carries the same handles in its fragment that WifiDB's endpoint redirects with:
-    /// the .torrent for anything wanting the metainfo up front, the magnet for anything
-    /// that would rather resolve it from the swarm. They fail in different directions --
-    /// the .torrent needs this host but is the only way to obtain piece hashes without a
-    /// peer, the magnet needs no host but does need one -- so both are offered, torrent
-    /// first, matching the order WifiDB emits.
-    ///
-    /// A fragment is never sent in an HTTP request, so this is inert to the map, which
-    /// fetches the TileJSON and ignores the rest. Nothing in the app reads the handles
-    /// yet; they are here so that a torrent-aware tile source has them the day one is
-    /// added, without every URL in the app having to change again. Do not "simplify"
-    /// these to bare tiles.json URLs.
+    /// Carries the same handles in its fragment that the endpoint would have
+    /// redirected with: the .torrent for anything wanting the metadata up front,
+    /// the magnet for anything that would rather resolve it from the swarm. A
+    /// fragment is never sent in an HTTP request, so MapLibre fetches the TileJSON
+    /// and ignores the rest. Do not "simplify" these to bare tiles.json URLs.
     /// </remarks>
-    public static string? ArchiveUrlFor(string bucket)
+    public static string FallbackUrlFor(string bucket)
     {
         string category = CategoryFor(bucket);
-        if (!Magnets.TryGetValue(category, out string? magnet))
-            return null;
-
         string alias = $"{DataRoot.TrimEnd('/')}/latest/{category}/tiles.json";
 
-        // WifiDB's own endpoint for the bucket's metainfo, which resolves the current
-        // build server-side. Deliberately not composed from the magnet's infohash: that
-        // names one build, so it would go stale as the archives are rebuilt, while the
-        // magnet beside it is a mutable one that stays current.
-        string torrentUrl = $"{ApiBaseUrl.TrimEnd('/')}/torrent.php?bucket={bucket}";
+        if (!Magnets.TryGetValue(category, out string? magnet))
+            return alias;
 
-        return $"{alias}#torrent={Uri.EscapeDataString(torrentUrl)}"
-             + $"&magnet={Uri.EscapeDataString(magnet)}";
+        string torrent = string.Empty;
+        if (InfoHashOf(magnet) is { } infoHash)
+        {
+            // A swarm addresses its archives by infohash, so this is composed rather
+            // than stored -- which also keeps it on whichever mirror DataRoot names.
+            string url = $"{DataRoot.TrimEnd('/')}/archives/{infoHash}/archive.torrent";
+            torrent = $"torrent={Uri.EscapeDataString(url)}&";
+        }
+
+        return $"{alias}#{torrent}magnet={Uri.EscapeDataString(magnet)}";
     }
 
     // -- Reachability ---------------------------------------------------------
 
-    private static bool? _archivesReachable;
+    private static bool? _apiReachable;
 
     /// <summary>
-    /// True once the published archives are known reachable, false once they are
-    /// known not to be, null before <see cref="ProbeAsync"/> has answered.
+    /// True once WifiDB's endpoint is known reachable, false once it is known not
+    /// to be, null before <see cref="ProbeAsync"/> has answered.
     /// </summary>
-    public static bool? ArchivesReachable => _archivesReachable;
+    public static bool? ApiReachable => _apiReachable;
 
     /// <summary>
-    /// Asks for one bucket's archive to find out whether they can be used at all.
+    /// Asks the endpoint for one bucket to find out whether it can be used at all.
     /// </summary>
     /// <remarks>
     /// One request decides for every bucket, because they all come from the same
-    /// origin. Until it answers, <see cref="TileJsonUrlFor"/> assumes they work: they
-    /// are the better source when they are up, and being wrong for the first moment of
-    /// a run costs one failed tile request before the endpoint takes over. Called on
-    /// startup, not per layer -- a layer is added synchronously and cannot wait.
+    /// endpoint. Until it answers, <see cref="TileJsonUrlFor"/> assumes the endpoint
+    /// works: it is the better source when it is up, and being wrong for the first
+    /// moment of a run costs one failed tile request. Called on startup, not per
+    /// layer -- a layer is added synchronously and cannot wait for this.
     /// </remarks>
     public static async Task<bool> ProbeAsync(CancellationToken ct = default)
     {
         try
         {
-            // The URL without its fragment: what is being asked is whether the origin
-            // serves the document, and a fragment plays no part in that.
-            string probe = $"{DataRoot.TrimEnd('/')}/latest/{CategoryFor("daily")}/tiles.json";
-
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             using var response = await http.GetAsync(
-                probe, HttpCompletionOption.ResponseHeadersRead, ct)
+                TileJsonUrlFor("daily"), HttpCompletionOption.ResponseHeadersRead, ct)
                 .ConfigureAwait(false);
 
-            _archivesReachable = response.IsSuccessStatusCode;
+            _apiReachable = response.IsSuccessStatusCode;
         }
         catch (Exception)
         {
             // Offline, DNS failure, timeout, TLS refusal -- all the same answer.
-            _archivesReachable = false;
+            _apiReachable = false;
         }
 
-        return _archivesReachable.Value;
+        return _apiReachable.Value;
     }
 
-    // -- Built-in archive handles ----------------------------------------------------
+    // -- Built-in fallback ----------------------------------------------------
+
+    /// <summary>Reads the btih infohash out of a magnet, or null if it carries none.</summary>
+    private static string? InfoHashOf(string magnet)
+    {
+        const string marker = "xt=urn:btih:";
+
+        int at = magnet.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (at < 0) return null;
+
+        int start = at + marker.Length;
+        int end = magnet.IndexOf('&', start);
+        return end < 0 ? magnet.Substring(start) : magnet.Substring(start, end - start);
+    }
 
     /// <summary>
     /// Mutable magnet per category, from WifiDB's own endpoint on 2026-08-17.

@@ -32,6 +32,13 @@ public partial class MainWindow : Window
     // after a basemap style reload (which drops all overlay layers).
     private string? _lastLiveApGeoJson;
 
+    /// <summary>
+    /// Bumped on every style load, so work started against one style can tell that a
+    /// later load has overtaken it. A style URL cannot answer that: switching A -> B -> A
+    /// leaves a stale callback comparing A against A and concluding it is still current.
+    /// </summary>
+    private int _styleGeneration;
+
     // Saved height of the map/graph row (Row 2) so it can be restored after hiding
     private double _mapGraphRowHeight = 300;
 
@@ -67,6 +74,16 @@ public partial class MainWindow : Window
             if (e.PropertyName == nameof(SettingsViewModel.ActiveFilterId))
                 RebuildFilterMenu();
         };
+
+        // Build both menus once now, because the collections are very likely
+        // already populated: App.OnStartup awaits InitializeWithPathAsync --
+        // which loads the adapters and filters -- and only then resolves this
+        // window. The CollectionChanged subscriptions above are therefore made
+        // after the events they exist to catch have already been raised, so
+        // without this the menus stay empty for the life of the process while
+        // the app scans quite happily on the adapter it picked.
+        RebuildInterfaceMenu();
+        RebuildFilterMenu();
 
         // Push live AP GeoJSON to the map after each scan cycle
         viewModel.LiveApGeoJsonUpdated += (_, geoJson) =>
@@ -147,6 +164,10 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnMapStyleLoaded(object? sender, EventArgs e)
     {
+        // A new style is live, so anything still running against the previous one is
+        // now stale. Bump first, so work started below carries the new number.
+        _styleGeneration++;
+
         // Before the early return below: the terrain button depends on the style, not
         // on whether any overlay is showing.
         RefreshTerrainControl();
@@ -175,7 +196,8 @@ public partial class MainWindow : Window
     /// </summary>
     private void RefreshTerrainControl()
     {
-        var styleUrl = (DataContext as MainViewModel)?.Settings.MapStyleUrl ?? string.Empty;
+        var styleUrl   = (DataContext as MainViewModel)?.Settings.MapStyleUrl ?? string.Empty;
+        var generation = _styleGeneration;
         MapHost.ShowTerrainControl = false;
 
         _ = Task.Run(async () =>
@@ -184,8 +206,13 @@ public partial class MainWindow : Window
 
             await Dispatcher.InvokeAsync(() =>
             {
-                // A newer style load may have overtaken this lookup; leave its answer alone.
-                if ((DataContext as MainViewModel)?.Settings.MapStyleUrl != styleUrl) return;
+                // Has a later style load overtaken this lookup? Compare the generation,
+                // not the URL: switching to another style and back gives a stale callback
+                // a URL that matches again, so it would sail past a URL check and touch
+                // the map on behalf of a style that is no longer loaded. The lookup is
+                // cached per URL, so on the way back it returns immediately and lands
+                // while the reload is still in flight.
+                if (generation != _styleGeneration) return;
 
                 try
                 {

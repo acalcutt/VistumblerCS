@@ -52,9 +52,52 @@ public partial class App : Application
             .Build();
     }
 
+    /// <summary>Where an unhandled exception gets written, beside the sessions.</summary>
+    private static string CrashLogPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+        "Vistumbler", "crash.log");
+
+    /// <summary>
+    /// Record an unhandled exception before the process goes.
+    /// </summary>
+    /// <remarks>
+    /// Nothing was catching these, so a crash left no trace at all: WPF tears the
+    /// process down, and Windows Error Reporting only archives a report for a native
+    /// fault, not for a managed exception escaping the dispatcher. The result was
+    /// crashes with nothing to go on -- no stack, no message, no file. This does not
+    /// change what happens (the app still terminates), it just leaves the stack behind.
+    ///
+    /// Appends rather than overwrites: an intermittent crash is much easier to place
+    /// when the previous ones are still there to compare against.
+    /// </remarks>
+    private static void LogCrash(string source, Exception? ex)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(CrashLogPath)!);
+            var text =
+                $"===== {DateTime.Now:yyyy-MM-dd HH:mm:ss}  {source} ====={Environment.NewLine}" +
+                (ex?.ToString() ?? "(no exception object)") + Environment.NewLine + Environment.NewLine;
+            File.AppendAllText(CrashLogPath, text);
+        }
+        catch
+        {
+            // Logging a crash must never cause one.
+        }
+    }
+
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Before anything else, so a failure during startup is recorded too.
+        DispatcherUnhandledException += (_, args) => LogCrash("DispatcherUnhandledException", args.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, args) => LogCrash("AppDomain.UnhandledException", args.ExceptionObject as Exception);
+        System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            LogCrash("UnobservedTaskException", args.Exception);
+            args.SetObserved();   // already logged; do not escalate a background fault
+        };
 
         await _host.StartAsync();
 

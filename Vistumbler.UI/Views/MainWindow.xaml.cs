@@ -1,6 +1,8 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -145,12 +147,85 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnMapStyleLoaded(object? sender, EventArgs e)
     {
+        // Before the early return below: the terrain button depends on the style, not
+        // on whether any overlay is showing.
+        RefreshTerrainControl();
+
         if (_lastLiveApGeoJson is null && _activeWifiDbLayers.Count == 0 && _activeCellSources.Count == 0)
             return;
 
         // Rebuild the z-order tracking from scratch — the old style's layers are gone.
         Extensions.MaplibreWifiExtensions.ResetActiveLayerTracking();
         ReaddOverlays();
+    }
+
+    /// <summary>
+    /// Show the map's 3D terrain button only for styles that can actually drape, and
+    /// point it at the right DEM.
+    ///
+    /// The renderer's terrain control adds no sources of its own — it toggles terrain
+    /// against a raster-dem that must already be in the style — so on a style without
+    /// one the button would do nothing. Which DEM matters too: the WifiDB relief styles
+    /// carry five, and the wrong pick drapes the map over GEBCO bathymetry instead of
+    /// land. A style with none still gets the button, from the app's own list.
+    ///
+    /// Runs on every style load, since the answer changes with the basemap and a reload
+    /// drops any source the app added. Hidden first, shown once the lookup lands; the
+    /// result is cached per URL, so only the first load of each style waits.
+    /// </summary>
+    private void RefreshTerrainControl()
+    {
+        var styleUrl = (DataContext as MainViewModel)?.Settings.MapStyleUrl ?? string.Empty;
+        MapHost.ShowTerrainControl = false;
+
+        _ = Task.Run(async () =>
+        {
+            var styleDem = await Services.TerrainSources.FindAsync(styleUrl).ConfigureAwait(false);
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                // A newer style load may have overtaken this lookup; leave its answer alone.
+                if ((DataContext as MainViewModel)?.Settings.MapStyleUrl != styleUrl) return;
+
+                try
+                {
+                    var sourceId = styleDem;
+
+                    if (sourceId is null)
+                    {
+                        var dem = Services.TerrainSources.DefaultFallback;
+                        if (dem.TileJsonUrl is { } tileJson)
+                        {
+                            MapHost.AddRasterDemSource(
+                                Services.TerrainSources.FallbackSourceId, tileJson, dem.TileSize);
+                        }
+                        else if (dem.TileUrlTemplates is { Length: > 0 } templates)
+                        {
+                            MapHost.AddRasterDemTilesSource(
+                                Services.TerrainSources.FallbackSourceId, templates, dem.TileSize,
+                                minZoom: 0, maxZoom: dem.MaxZoom,
+                                encoding: dem.Encoding, attribution: dem.Attribution);
+                        }
+                        else
+                        {
+                            return;   // nothing to add, so nothing to show
+                        }
+
+                        sourceId = Services.TerrainSources.FallbackSourceId;
+                    }
+
+                    MapHost.TerrainControlSourceId = sourceId;
+                    MapHost.ShowTerrainControl     = true;
+                }
+                catch (Exception ex)
+                {
+                    // A DEM that cannot be added is not worth breaking the map over —
+                    // leave the button hidden and carry on with a flat map.
+                    Debug.WriteLine($"[MainWindow] terrain setup failed: {ex}");
+                    MapHost.ShowTerrainControl = false;
+                }
+            });
+        });
     }
 
     /// <summary>

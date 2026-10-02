@@ -9,8 +9,7 @@
 
 ## 0.4.5
 ### ✨ Features and improvements
-
-### 🐞 Bug fixes
+- Test Release
 
 ## 0.4.4
 ### ✨ Features and improvements

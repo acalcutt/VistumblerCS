@@ -3,6 +3,8 @@
 # <project>/-/releases/<tag>/downloads/<file>
 param(
     [Parameter(Mandatory)][string]$PackageName,
+    # Release title prefix, e.g. "VistumblerCS" -> "VistumblerCS v1.2.3". Defaults to the GitLab project name.
+    [string]$ReleaseName = $env:CI_PROJECT_NAME,
     [string]$FilesDir = 'release-files'
 )
 
@@ -44,7 +46,7 @@ foreach ($file in $files) {
 }
 
 $release = @{
-    name        = if ($env:RELEASE_PRERELEASE -eq 'true') { "$tag (pre-release)" } else { $tag }
+    name        = if ($env:RELEASE_PRERELEASE -eq 'true') { "$ReleaseName $tag (pre-release)" } else { "$ReleaseName $tag" }
     tag_name    = $tag
     ref         = $env:CI_COMMIT_SHA
     description = $description

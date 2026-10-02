@@ -83,7 +83,7 @@ public partial class MainViewModel : ViewModelBase
             ?.InformationalVersion
             .Split('+')[0]   // strip git hash suffix
             ?? "?";
-        return $"Vistumbler CS v{ver} - By TechIdiots LLC";
+        return $"VistumblerCS v{ver} - By TechIdiots LLC";
     }
 
     private void UpdateWindowTitle()
@@ -1075,7 +1075,7 @@ public partial class MainViewModel : ViewModelBase
         var asm     = Assembly.GetEntryAssembly()!;
         var ver     = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
                         ?.InformationalVersion.Split('+')[0] ?? "?";
-        var product = asm.GetCustomAttribute<AssemblyProductAttribute>()?.Product ?? "Vistumbler";
+        var product = asm.GetCustomAttribute<AssemblyProductAttribute>()?.Product ?? "VistumblerCS";
         var company = asm.GetCustomAttribute<AssemblyCompanyAttribute>()?.Company ?? "TechIdiots LLC";
         var copy    = asm.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright ?? string.Empty;
         var built   = File.GetLastWriteTime(asm.Location).ToString("yyyy-MM-dd");

@@ -639,7 +639,7 @@ public class ExportService : IExportService
         await writer.WriteStartDocumentAsync();
         await writer.WriteStartElementAsync(null, "gpx", "http://www.topografix.com/GPX/1/1");
         await writer.WriteAttributeStringAsync(null, "version", null, "1.1");
-        await writer.WriteAttributeStringAsync(null, "creator", null, "Vistumbler CS");
+        await writer.WriteAttributeStringAsync(null, "creator", null, "VistumblerCS");
         
         foreach (var ap in accessPoints.Where(a => a.Latitude.HasValue && a.Longitude.HasValue))
         {

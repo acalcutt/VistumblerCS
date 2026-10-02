@@ -110,7 +110,7 @@ release-build:
         --output ./publish/$env:ARCH
     - ./.gitlab/scripts/sign-files.ps1 -Path (Get-ChildItem ./publish/$env:ARCH -Recurse -Filter *.exe).FullName
     - New-Item -ItemType Directory release-files -Force | Out-Null
-    - Compress-Archive -Path "./publish/$env:ARCH/*" -DestinationPath "./release-files/Vistumbler-v$env:RELEASE_VERSION-win-$env:ARCH.zip"
+    - Compress-Archive -Path "./publish/$env:ARCH/*" -DestinationPath "./release-files/VistumblerCS-v$env:RELEASE_VERSION-win-$env:ARCH.zip"
   artifacts:
     paths:
       - release-files/

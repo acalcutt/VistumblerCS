@@ -172,13 +172,13 @@ jobs:
           $version = "${{ needs.release-check.outputs.version }}"
           Compress-Archive `
             -Path "./publish/${{ matrix.arch }}/*" `
-            -DestinationPath "./Vistumbler-v${version}-win-${{ matrix.arch }}.zip"
+            -DestinationPath "./VistumblerCS-v${version}-win-${{ matrix.arch }}.zip"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:
           name: release-artifact-${{ matrix.arch }}
-          path: Vistumbler-v${{ needs.release-check.outputs.version }}-win-${{ matrix.arch }}.zip
+          path: VistumblerCS-v${{ needs.release-check.outputs.version }}-win-${{ matrix.arch }}.zip
           retention-days: 7
 
   release:
@@ -220,9 +220,9 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           tag:        v${{ needs.release-check.outputs.version }}
-          name:       v${{ needs.release-check.outputs.version }}
+          name:       VistumblerCS v${{ needs.release-check.outputs.version }}
           bodyFile:   changelog_for_version.md
-          artifacts:  ./artifacts/Vistumbler-v${{ needs.release-check.outputs.version }}-win-x64.zip,./artifacts/Vistumbler-v${{ needs.release-check.outputs.version }}-win-arm64.zip
+          artifacts:  ./artifacts/VistumblerCS-v${{ needs.release-check.outputs.version }}-win-x64.zip,./artifacts/VistumblerCS-v${{ needs.release-check.outputs.version }}-win-arm64.zip
           prerelease: ${{ steps.flags.outputs.prerelease }}
           allowUpdates: true
           draft: false

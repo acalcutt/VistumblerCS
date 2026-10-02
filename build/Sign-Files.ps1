@@ -13,7 +13,7 @@ if ([string]::IsNullOrWhiteSpace($env:SIG_PFX_B64)) {
 
 $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' -ErrorAction SilentlyContinue |
     Sort-Object { [version]$_.Directory.Parent.Name } -Descending | Select-Object -First 1
-if (-not $signtool) { throw 'signtool.exe not found. Install the Windows SDK signing tools on the runner.' }
+if (-not $signtool) { throw 'signtool.exe not found. Install the Windows SDK signing tools.' }
 Write-Host "Using $($signtool.FullName)"
 
 $pfxPath = Join-Path ([IO.Path]::GetTempPath()) ("sign-{0}.pfx" -f [guid]::NewGuid())

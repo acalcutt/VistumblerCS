@@ -174,11 +174,28 @@ jobs:
             -Path "./publish/${{ matrix.arch }}/*" `
             -DestinationPath "./VistumblerCS-v${version}-win-${{ matrix.arch }}.zip"
 
+      - name: Build installer
+        # NSIS installer (Start Menu shortcut, uninstaller) alongside the portable zip; build/ is shared with GitLab
+        shell: pwsh
+        env:
+          SIG_PFX_B64: ${{ secrets.SIG_PFX }}
+          SIG_PFX_PASS: ${{ secrets.SIG_PFX_PASS }}
+        run: |
+          if (-not (Get-Command makensis.exe -ErrorAction SilentlyContinue) -and -not (Test-Path 'C:\Program Files (x86)\NSIS\makensis.exe')) {
+            choco install nsis -y --no-progress
+          }
+          $setup = "./VistumblerCS-v${{ needs.release-check.outputs.version }}-win-${{ matrix.arch }}-setup.exe"
+          ./build/Build-Installer.ps1 -SourceDir "./publish/${{ matrix.arch }}" -AppName VistumblerCS -AppExe Vistumbler.UI.exe `
+            -Version "${{ needs.release-check.outputs.version }}" -Arch ${{ matrix.arch }} -Icon Vistumbler.UI/Assets/Vistumbler.ico -OutFile $setup
+          ./build/Sign-Files.ps1 -Path $setup
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:
           name: release-artifact-${{ matrix.arch }}
-          path: VistumblerCS-v${{ needs.release-check.outputs.version }}-win-${{ matrix.arch }}.zip
+          path: |
+            VistumblerCS-v${{ needs.release-check.outputs.version }}-win-${{ matrix.arch }}.zip
+            VistumblerCS-v${{ needs.release-check.outputs.version }}-win-${{ matrix.arch }}-setup.exe
           retention-days: 7
 
   release:
@@ -222,7 +239,7 @@ jobs:
           tag:        v${{ needs.release-check.outputs.version }}
           name:       VistumblerCS v${{ needs.release-check.outputs.version }}
           bodyFile:   changelog_for_version.md
-          artifacts:  ./artifacts/VistumblerCS-v${{ needs.release-check.outputs.version }}-win-x64.zip,./artifacts/VistumblerCS-v${{ needs.release-check.outputs.version }}-win-arm64.zip
+          artifacts:  ./artifacts/VistumblerCS-v${{ needs.release-check.outputs.version }}-win-x64-setup.exe,./artifacts/VistumblerCS-v${{ needs.release-check.outputs.version }}-win-arm64-setup.exe,./artifacts/VistumblerCS-v${{ needs.release-check.outputs.version }}-win-x64.zip,./artifacts/VistumblerCS-v${{ needs.release-check.outputs.version }}-win-arm64.zip
           prerelease: ${{ steps.flags.outputs.prerelease }}
           allowUpdates: true
           draft: false

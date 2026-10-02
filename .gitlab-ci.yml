@@ -2,7 +2,8 @@
 #
 #   ci-test, ci-publish   Merge requests and pushes to main: build, test and publish win-x64/win-arm64
 #                         single-file exes (job artifacts, 7 days). Port of .github/workflows/ci.yml.
-#   release-*             Push to main: if no GitLab release exists for <Version> in Vistumbler.UI.csproj, publish
+#   release-*             Push to main: if no GitLab release exists for <Version> in Vistumbler.UI.csproj, build an
+#                         NSIS installer (build/installer.nsi) for each architecture as well, and publish
 #                         signed self-contained exes for win-x64/win-arm64 and create the release with the
 #                         CHANGELOG.md notes. Port of .github/workflows/release.yml.
 #   bump-version          Build > Pipelines > New pipeline with BUMP_VERSION set: bump the version and changelog,
@@ -108,9 +109,14 @@ release-build:
     - dotnet publish Vistumbler.UI/Vistumbler.UI.csproj --configuration Release --runtime $env:RID --self-contained true
         -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishReadyToRun=true
         --output ./publish/$env:ARCH
-    - ./.gitlab/scripts/sign-files.ps1 -Path (Get-ChildItem ./publish/$env:ARCH -Recurse -Filter *.exe).FullName
+    - ./build/Sign-Files.ps1 -Path (Get-ChildItem ./publish/$env:ARCH -Recurse -Filter *.exe).FullName
     - New-Item -ItemType Directory release-files -Force | Out-Null
     - Compress-Archive -Path "./publish/$env:ARCH/*" -DestinationPath "./release-files/VistumblerCS-v$env:RELEASE_VERSION-win-$env:ARCH.zip"
+    # NSIS installer (Start Menu shortcut, uninstaller) alongside the portable zip
+    - $setup = "./release-files/VistumblerCS-v$env:RELEASE_VERSION-win-$env:ARCH-setup.exe"
+    - ./build/Build-Installer.ps1 -SourceDir ./publish/$env:ARCH -AppName VistumblerCS -AppExe Vistumbler.UI.exe
+        -Version $env:RELEASE_VERSION -Arch $env:ARCH -Icon Vistumbler.UI/Assets/Vistumbler.ico -OutFile $setup
+    - ./build/Sign-Files.ps1 -Path $setup
   artifacts:
     paths:
       - release-files/

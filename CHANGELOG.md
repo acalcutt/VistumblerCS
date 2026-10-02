@@ -7,6 +7,11 @@
 ### 🐞 Bug fixes
 - _...Add new stuff here..._
 
+## 0.4.5
+### ✨ Features and improvements
+
+### 🐞 Bug fixes
+
 ## 0.4.4
 ### ✨ Features and improvements
 - **GPS follow zoom setting (Settings → Map)** — controls the zoom the map eases to when the GPS button enters Follow mode, matching the setting VistumblerMAUI gained. **Auto (fit GPS accuracy)** (default) picks a level from the fix's reported accuracy — a sharp fix lands at street level, a coarse one stays out far enough to cover its uncertainty; **Manual zoom level** always eases to a chosen level (1–22); **Keep current zoom** preserves the old behaviour. Later fixes never change the zoom, so scrolling to a different level sticks until Follow is re-entered. Note the app defaults to Auto while the renderer's own default is Keep current, so the default behaviour changes even if the setting is never opened.

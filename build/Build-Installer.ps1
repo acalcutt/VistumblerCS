@@ -59,7 +59,8 @@ $uninstall += '!macroend'
 $fileList = Join-Path ([IO.Path]::GetTempPath()) ("installer-files-{0}.nsh" -f [guid]::NewGuid())
 [IO.File]::WriteAllLines($fileList, [string[]]($install + $uninstall), [Text.UTF8Encoding]::new($true))
 
-$out = [IO.Path]::GetFullPath($OutFile)
+# Resolve against the PowerShell location, not the process directory (they differ under the GitLab runner)
+$out = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutFile)
 New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null
 
 $defines = @(

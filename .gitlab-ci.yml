@@ -1,0 +1,138 @@
+# VistumblerCS CI on the Windows shell runner (tag "windows"). GitLab ignores the GitHub workflows in .github/.
+#
+#   ci-test, ci-publish   Merge requests and pushes to main: build, test and publish win-x64/win-arm64
+#                         single-file exes (job artifacts, 7 days). Port of .github/workflows/ci.yml.
+#   release-*             Push to main: if no GitLab release exists for <Version> in Vistumbler.UI.csproj, publish
+#                         signed self-contained exes for win-x64/win-arm64 and create the release with the
+#                         CHANGELOG.md notes. Port of .github/workflows/release.yml.
+#   bump-version          Build > Pipelines > New pipeline with BUMP_VERSION set: bump the version and changelog,
+#                         push release-v<version> and open a merge request. Port of .github/workflows/bump-version.yml.
+#
+# CI/CD variables (Settings > CI/CD > Variables), Protected + Masked, environment scope "signing/main":
+#   CI_PUSH_TOKEN  Project access token, role Maintainer, scopes api + write_repository (bump-version only)
+#   SIG_PFX_B64    Base64 of the code-signing .pfx (the release is published unsigned, with a warning, without it)
+#   SIG_PFX_PASS   Password for the .pfx
+# win-arm64 is cross-compiled on the x64 runner, so its tests don't run; GitHub ran them on an ARM runner.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Avoid a duplicate branch pipeline while a merge request is open for the branch
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+variables:
+  BUMP_VERSION:
+    value: "none"
+    options: ["none", "patch", "minor", "major", "prepatch", "preminor", "premajor", "prerelease"]
+    description: "Version bump type. Leave as 'none' to just build and release the current version."
+  BUMP_PREID:
+    value: "rc"
+    description: "Prerelease identifier for the pre* bump types (e.g. alpha, beta, rc)."
+
+default:
+  tags: [windows]
+
+stages:
+  - check
+  - build
+  - release
+
+# Jobs that sign or push run in this environment; scope the protected variables to it.
+.signing-environment: &signing-environment
+  name: signing/$CI_COMMIT_BRANCH
+  action: prepare
+
+.ci-rules: &ci-rules
+  - if: $BUMP_VERSION != "none"
+    when: never
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+.release-rules: &release-rules
+  - if: $BUMP_VERSION != "none"
+    when: never
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+.arch-matrix: &arch-matrix
+  - ARCH: x64
+    RID: win-x64
+  - ARCH: arm64
+    RID: win-arm64
+
+# ── CI ──────────────────────────────────────────────────────────────────────────────────────────────
+
+ci-test:
+  stage: build
+  rules: *ci-rules
+  script:
+    - dotnet restore VistumblerCS.sln
+    - dotnet build VistumblerCS.sln --configuration Release --no-restore
+    - dotnet test VistumblerCS.sln --configuration Release --no-build --verbosity normal
+
+ci-publish:
+  stage: build
+  rules: *ci-rules
+  parallel:
+    matrix: *arch-matrix
+  script:
+    - dotnet publish Vistumbler.UI/Vistumbler.UI.csproj --configuration Release --runtime $env:RID --self-contained true
+        -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output ./publish/$env:ARCH
+  artifacts:
+    name: VistumblerCS-ci-$ARCH-$CI_COMMIT_SHORT_SHA
+    paths:
+      - publish/$ARCH/
+    expire_in: 7 days
+
+# ── Release ─────────────────────────────────────────────────────────────────────────────────────────
+
+release-check:
+  stage: check
+  rules: *release-rules
+  script:
+    - ./.gitlab/scripts/release-check.ps1 -Project Vistumbler.UI/Vistumbler.UI.csproj -Element Version
+  artifacts:
+    reports:
+      dotenv: release.env
+
+release-build:
+  stage: build
+  rules: *release-rules
+  needs: [release-check]
+  environment: *signing-environment
+  parallel:
+    matrix: *arch-matrix
+  script:
+    - if ($env:RELEASE_PUBLISHED -eq 'true') { Write-Host "Release $env:RELEASE_TAG already exists; skipping."; exit 0 }
+    - dotnet publish Vistumbler.UI/Vistumbler.UI.csproj --configuration Release --runtime $env:RID --self-contained true
+        -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishReadyToRun=true
+        --output ./publish/$env:ARCH
+    - ./.gitlab/scripts/sign-files.ps1 -Path (Get-ChildItem ./publish/$env:ARCH -Recurse -Filter *.exe).FullName
+    - New-Item -ItemType Directory release-files -Force | Out-Null
+    - Compress-Archive -Path "./publish/$env:ARCH/*" -DestinationPath "./release-files/Vistumbler-v$env:RELEASE_VERSION-win-$env:ARCH.zip"
+  artifacts:
+    paths:
+      - release-files/
+    expire_in: 7 days
+
+release-publish:
+  stage: release
+  rules: *release-rules
+  needs: [release-check, release-build]
+  resource_group: release
+  script:
+    - ./.gitlab/scripts/publish-release.ps1 -PackageName vistumblercs
+
+# ── Version bump ────────────────────────────────────────────────────────────────────────────────────
+
+bump-version:
+  stage: build
+  resource_group: bump-version
+  environment: *signing-environment
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web" && $BUMP_VERSION != "none"
+  variables:
+    GIT_DEPTH: 0   # full history: the changelog lists merge requests since the last tag
+  script:
+    - ./.gitlab/scripts/bump.ps1 -BumpType $env:BUMP_VERSION -PreId $env:BUMP_PREID

@@ -36,6 +36,7 @@ public partial class App : Application
                 services.AddSingleton<IExportService, ExportService>();
                 services.AddSingleton<IImportService, ImportService>();
                 services.AddSingleton<ISoundService, SoundService>();
+                services.AddSingleton<Services.AppUpdater>();
 
                 // Register ViewModels
                 services.AddSingleton<MainViewModel>();
@@ -106,6 +107,10 @@ public partial class App : Application
         // Restore normal shutdown behaviour, then show the main window.
         ShutdownMode = ShutdownMode.OnLastWindowClose;
         mainWindow.Show();
+
+        // Like the original Vistumbler: offer a newer release at startup (quietly does nothing when offline)
+        if (settings.AutoCheckForUpdates)
+            _ = _host.Services.GetRequiredService<Services.AppUpdater>().CheckAsync(interactive: false, mainVm.ExitForUpdate);
     }
 
     protected override void OnExit(ExitEventArgs e)

@@ -12,6 +12,9 @@
 ; The uninstaller removes only the files this installer put down (from FILE_LIST), never the whole folder, so an
 ; unusual install folder can't take other files with it. Installing over an older version runs the old version's
 ; uninstaller first, so files dropped between versions don't pile up.
+;
+; In-app updates run this installer as: setup.exe /S /UPDATE /D=<install folder>. With /UPDATE it waits for the app to
+; exit before replacing its files, and starts the app again when the install finishes.
 
 Unicode true
 ManifestDPIAware true
@@ -40,7 +43,6 @@ ManifestDPIAware true
 Name "${APP_NAME} ${VERSION}"
 OutFile "${OUTFILE}"
 InstallDir "$PROGRAMFILES64\${APP_NAME}"
-InstallDirRegKey HKLM "${UNINST_KEY}" "InstallLocation"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 BrandingText "${APP_NAME} ${VERSION} (${ARCH})"
@@ -90,6 +92,50 @@ Function .onInit
       Abort
     ${EndIf}
   !endif
+
+  ; Upgrade in place. InstallDirRegKey can't do this: it reads the 32-bit registry view, and the install location is
+  ; written to the 64-bit one. An explicit /D= other than the default still wins.
+  ${If} $INSTDIR == "$PROGRAMFILES64\${APP_NAME}"
+    ReadRegStr $0 HKLM "${UNINST_KEY}" "InstallLocation"
+    ${If} $0 != ""
+      StrCpy $INSTDIR $0
+    ${EndIf}
+  ${EndIf}
+
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/UPDATE" $R1
+  ${IfNot} ${Errors}
+    Call WaitForAppExit
+  ${EndIf}
+FunctionEnd
+
+; The app starts this installer and then exits; wait (up to 30 s) until its exe is no longer in use
+Function WaitForAppExit
+  StrCpy $R2 0
+  ${DoWhile} ${FileExists} "$INSTDIR\${APP_EXE}"
+    ClearErrors
+    FileOpen $R3 "$INSTDIR\${APP_EXE}" a
+    ${IfNot} ${Errors}
+      FileClose $R3
+      Return
+    ${EndIf}
+    ${If} $R2 >= 60
+      MessageBox MB_ICONSTOP "${APP_NAME} is still running. Close it, then run this installer again." /SD IDOK
+      Abort
+    ${EndIf}
+    IntOp $R2 $R2 + 1
+    Sleep 500
+  ${Loop}
+FunctionEnd
+
+Function .onInstSuccess
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/UPDATE" $R1
+  ${IfNot} ${Errors}
+    Call LaunchApp
+  ${EndIf}
 FunctionEnd
 
 Function un.onInit

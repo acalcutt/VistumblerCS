@@ -270,6 +270,7 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ImportSettingsCommand { get; }
     public ICommand UploadToWifiDbCommand { get; }
     public ICommand ShowAboutCommand { get; }
+    public ICommand CheckForUpdatesCommand { get; }
 
     public MainViewModel(
         IWiFiScannerService wifiScanner,
@@ -384,6 +385,8 @@ public partial class MainViewModel : ViewModelBase
         SelectAdapterCommand    = new RelayCommand<WiFiAdapter>(SelectAdapter);
         RefreshInterfacesCommand = new AsyncRelayCommand(LoadAdaptersAsync);
         ShowAboutCommand   = new RelayCommand(ShowAbout);
+        CheckForUpdatesCommand = new AsyncRelayCommand(() =>
+            _serviceProvider.GetRequiredService<Services.AppUpdater>().CheckAsync(interactive: true, ExitForUpdate));
         NewSessionCommand  = new RelayCommand(StartNewSession);
     }
 
@@ -1035,6 +1038,16 @@ public partial class MainViewModel : ViewModelBase
         _keepSession = true;   // tell CloseSessionAsync to leave the file alone
         Application.Current.Shutdown();
         await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Exits so the update installer can replace the app's files. Keeps the session file, like "Exit (Save DB)",
+    /// so it can be resumed from the session picker when the updated app starts.
+    /// </summary>
+    public void ExitForUpdate()
+    {
+        _keepSession = true;
+        Application.Current.Shutdown();
     }
 
     /// <summary>

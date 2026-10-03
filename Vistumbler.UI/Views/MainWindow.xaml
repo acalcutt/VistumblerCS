@@ -212,6 +212,7 @@
                 <MenuItem Header="Update Manufacturers" Command="{Binding UpdateManufacturersCommand}"/>
             </MenuItem>
             <MenuItem Header="_Help">
+                <MenuItem Header="Check for Updates..." Command="{Binding CheckForUpdatesCommand}"/>
                 <MenuItem Header="About" Command="{Binding ShowAboutCommand}"/>
             </MenuItem>
         </Menu>

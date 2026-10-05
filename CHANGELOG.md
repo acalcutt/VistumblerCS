@@ -7,6 +7,11 @@
 ### 🐞 Bug fixes
 - _...Add new stuff here..._
 
+## 0.5.0
+### ✨ Features and improvements
+
+### 🐞 Bug fixes
+
 ## 0.4.5
 ### ✨ Features and improvements
 - Test Release

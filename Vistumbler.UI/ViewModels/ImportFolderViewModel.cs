@@ -99,8 +99,7 @@ public partial class ImportFolderViewModel : ViewModelBase
             {
                 var aps = await ImportFileAsync(file);
                 totalAps += aps.Count;
-                foreach (var ap in aps)
-                    totalNew += await _databaseService.UpsertAccessPointAsync(ap);
+                totalNew += await ImportSaver.SaveAsync(_databaseService, aps);   // with each AP's readings and GPS fixes
             }
             catch (Exception ex)
             {

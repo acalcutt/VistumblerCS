@@ -138,11 +138,8 @@ public partial class ImportViewModel : ViewModelBase
             {
                 ProgressLabel = $"Progress: Saving {importedAps.Count} APs...";
                 ProgressValue = 50;
-                int savedCount = 0;
-                foreach (var ap in importedAps)
-                {
-                   savedCount += await _databaseService.UpsertAccessPointAsync(ap);
-                }
+                // With each AP's readings and the GPS fixes they were taken at
+                int savedCount = await ImportSaver.SaveAsync(_databaseService, importedAps);
                 ProgressValue = 100;
                 ProgressLabel = "Progress: Done";
                 NewApsLabel = $"New APs: {savedCount}";

@@ -9,7 +9,7 @@ using Vistumbler.Core.Services;
 
 namespace Vistumbler.Infrastructure.Import;
 
-public class ImportService : IImportService
+public partial class ImportService : IImportService
 {
     public async Task<List<AccessPoint>> ImportFromNs1Async(string filePath)
     {
@@ -641,28 +641,8 @@ public class ImportService : IImportService
         var accessPoints = new List<AccessPoint>();
         if (!File.Exists(filePath)) return accessPoints;
 
-        var lines = await File.ReadAllLinesAsync(filePath);
-
-        foreach (var line in lines)
-        {
-            if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#"))
-                continue;
-
-            var parts = line.Split('|');
-            // Check for valid VS1 line (starts with AP and has enough parts)
-            if (parts.Length >= 19 && parts[0] == "AP")
-            {
-                var ap = ParseVs1Line(parts);
-                if (ap != null) accessPoints.Add(ap);
-            }
-            // Check for Vistumbler V4 VS1 format (at least 15 columns, index 1 is BSSID)
-            else if (parts.Length >= 15 && IsMacAddress(parts[1]))
-            {
-                var ap = ParseExternalVs1Line(parts);
-                if (ap != null) accessPoints.Add(ap);
-            }
-        }
-        return accessPoints;
+        // The GPS lines, then the APs with the readings that point at them (ImportService.Vs1.cs)
+        return ReadVs1(await File.ReadAllLinesAsync(filePath));
     }
 
     private bool IsMacAddress(string value)
@@ -670,61 +650,6 @@ public class ImportService : IImportService
         if (string.IsNullOrWhiteSpace(value)) return false;
         // Simple MAC check (XX:XX:XX:XX:XX:XX)
         return Regex.IsMatch(value, @"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$");
-    }
-
-    private AccessPoint? ParseExternalVs1Line(string[] parts)
-    {
-        try 
-        {
-            // V4 Format:
-            // 0:SSID|1:BSSID|2:MANUF|3:Auth|4:Encr|5:SecType|6:RadType|7:Chan
-            // 8:BasicRates|9:OtherRates|10:HighSignal|11:HighRSSI|12:NetType|13:Label|14:History
-            
-            var ap = new AccessPoint
-            {
-                Ssid = parts[0],
-                Bssid = parts[1],
-                Manufacturer = parts[2],
-                Authentication = ParseAuthentication(parts[3]),
-                Encryption = ParseEncryption(parts[4]),
-                RadioType = parts[6],
-                Channel = ParseInt(parts[7]),
-                BasicTransferRates = parts[8],
-                OtherTransferRates = parts[9],
-                HighestSignal = ParseInt(parts[10]),
-                HighestRssi = ParseInt(parts[11]),
-                NetworkType = Enum.TryParse<NetworkType>(parts[12], true, out var nt) ? nt : NetworkType.Unknown,
-                Label = parts[13] == "Unknown" ? string.Empty : parts[13],
-                FirstSeen = DateTime.Now, // Default since dates are in GPS section
-                LastSeen = DateTime.Now
-            };
-
-            // Use Highest as current if history parsing is skipped for now
-            ap.Signal = ap.HighestSignal;
-            ap.Rssi = ap.HighestRssi;
-
-            // Try parse history for better Signal/RSSI?
-            // History format: GID,SIGNAL,RSSI\GID,SIGNAL,RSSI
-            if (parts.Length > 14 && !string.IsNullOrWhiteSpace(parts[14]))
-            {
-                var entries = parts[14].Split('\\');
-                if (entries.Length > 0)
-                {
-                    var lastEntry = entries[entries.Length - 1].Split(',');
-                    if (lastEntry.Length >= 3)
-                    {
-                         ap.Signal = ParseInt(lastEntry[1]);
-                         ap.Rssi = ParseInt(lastEntry[2]);
-                    }
-                }
-            }
-
-            return ap;
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     private AuthenticationType ParseAuthentication(string value)

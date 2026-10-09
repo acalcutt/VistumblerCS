@@ -792,8 +792,8 @@ public class ExportService : IExportService
                 File.Delete(filePath);
 
             using var archive = ZipFile.Open(filePath, ZipArchiveMode.Create);
-            var entryName = Path.GetFileNameWithoutExtension(filePath) + ".vs1";
-            archive.CreateEntryFromFile(tempVs1, entryName);
+            // Always "data.vs1": the original Vistumbler (_ExtractVSZ) and WifiDB's importer open that entry by name
+            archive.CreateEntryFromFile(tempVs1, "data.vs1");
         }
         finally
         {

@@ -10,12 +10,12 @@ public interface IExportService
     /// <summary>
     /// Export access points to KML format for Google Earth
     /// </summary>
-    Task ExportToKmlAsync(string filePath, List<AccessPoint> accessPoints, ExportOptions options);
+    Task ExportToKmlAsync(string filePath, List<AccessPoint> accessPoints, ExportOptions options, IReadOnlyList<GpsData>? gpsFixes = null);
     
     /// <summary>
     /// Export access points to GPX format
     /// </summary>
-    Task ExportToGpxAsync(string filePath, List<AccessPoint> accessPoints);
+    Task ExportToGpxAsync(string filePath, List<AccessPoint> accessPoints, IReadOnlyList<GpsData>? gpsFixes = null);
 
     /// <summary>
     /// Export access points to NS1 format (NetStumbler binary)

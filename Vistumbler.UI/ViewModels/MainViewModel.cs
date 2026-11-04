@@ -1734,7 +1734,8 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "KML Files (*.kml)|*.kml" };
         if (dialog.ShowDialog() == true)
         {
-            await _exportService.ExportToKmlAsync(dialog.FileName, GetAccessPointsModels(), new ExportOptions());
+            // the APs, and the GPS track
+            await _exportService.ExportToKmlAsync(dialog.FileName, GetAccessPointsModels(), new ExportOptions(), await _databaseService.GetAllGpsDataAsync());
             StatusMessage = "Exported to KML";
         }
     }
@@ -1744,7 +1745,8 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "GPX Files (*.gpx)|*.gpx" };
         if (dialog.ShowDialog() == true)
         {
-            await _exportService.ExportToGpxAsync(dialog.FileName, GetAccessPointsModels());
+            // the APs as waypoints, and the GPS track
+            await _exportService.ExportToGpxAsync(dialog.FileName, GetAccessPointsModels(), await _databaseService.GetAllGpsDataAsync());
             StatusMessage = "Exported to GPX";
         }
     }

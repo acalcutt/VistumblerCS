@@ -592,7 +592,12 @@ public class ExportService : IExportService
         return 0;
     }
 
-    public async Task ExportToKmlAsync(string filePath, List<AccessPoint> accessPoints, ExportOptions options)
+    /// <summary>
+    /// KML for Google Earth: a placemark per AP with a position, and, with <see cref="ExportOptions.ShowTrack"/>, the GPS
+    /// track as the original Vistumbler draws it (a line in its "Location" style, broken where the fixes are more than
+    /// 3 minutes apart).
+    /// </summary>
+    public async Task ExportToKmlAsync(string filePath, List<AccessPoint> accessPoints, ExportOptions options, IReadOnlyList<GpsData>? gpsFixes = null)
     {
         var settings = new XmlWriterSettings
         {
@@ -625,14 +630,61 @@ public class ExportService : IExportService
                 await WritePlacemarkAsync(writer, ap, options);
             }
         }
-        
+
+        if (options.ShowTrack && gpsFixes is { Count: > 0 })
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            await writer.WriteStartElementAsync(null, "Style", null);
+            await writer.WriteAttributeStringAsync(null, "id", null, "Location");
+            await writer.WriteStartElementAsync(null, "LineStyle", null);
+            await writer.WriteElementStringAsync(null, "color", null, options.TrackColor);
+            await writer.WriteElementStringAsync(null, "width", null, "4");
+            await writer.WriteEndElementAsync(); // LineStyle
+            await writer.WriteEndElementAsync(); // Style
+
+            await writer.WriteStartElementAsync(null, "Folder", null);
+            await writer.WriteElementStringAsync(null, "name", null, "GPS Track");
+            foreach (var segment in TrackSegments(gpsFixes).Where(s => s.Count >= 2))
+            {
+                await writer.WriteStartElementAsync(null, "Placemark", null);
+                await writer.WriteElementStringAsync(null, "name", null, "GPS Track");
+                await writer.WriteElementStringAsync(null, "styleUrl", null, "#Location");
+                await writer.WriteStartElementAsync(null, "LineString", null);
+                await writer.WriteElementStringAsync(null, "extrude", null, "1");
+                await writer.WriteElementStringAsync(null, "tessellate", null, "1");
+                await writer.WriteElementStringAsync(null, "coordinates", null,
+                    string.Join("\n", segment.Select(g => $"{g.Longitude.ToString(inv)},{g.Latitude.ToString(inv)},0")));
+                await writer.WriteEndElementAsync(); // LineString
+                await writer.WriteEndElementAsync(); // Placemark
+            }
+            await writer.WriteEndElementAsync(); // Folder
+        }
+
         await writer.WriteEndElementAsync(); // Document
         await writer.WriteEndElementAsync(); // kml
         await writer.WriteEndDocumentAsync();
     }
 
-    public async Task ExportToGpxAsync(string filePath, List<AccessPoint> accessPoints)
+    /// <summary>The GPS fixes in time order, split where they're more than 3 minutes apart (a stop, another day).</summary>
+    private static List<List<GpsData>> TrackSegments(IReadOnlyList<GpsData> fixes)
     {
+        var segments = new List<List<GpsData>>();
+        List<GpsData>? current = null;
+        DateTime prev = default;
+        foreach (var g in fixes.Where(g => g.Latitude != 0 || g.Longitude != 0).OrderBy(g => g.Timestamp))
+        {
+            if (current is null || (g.Timestamp - prev).TotalSeconds > 180)
+                segments.Add(current = new List<GpsData>());
+            current.Add(g);
+            prev = g.Timestamp;
+        }
+        return segments;
+    }
+
+    /// <summary>GPX: a waypoint per AP with a position, and the GPS track, a segment per stretch of fixes.</summary>
+    public async Task ExportToGpxAsync(string filePath, List<AccessPoint> accessPoints, IReadOnlyList<GpsData>? gpsFixes = null)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
         var settings = new XmlWriterSettings
         {
             Indent = true,
@@ -650,16 +702,39 @@ public class ExportService : IExportService
         foreach (var ap in accessPoints.Where(a => a.Latitude.HasValue && a.Longitude.HasValue))
         {
             await writer.WriteStartElementAsync(null, "wpt", null);
-            await writer.WriteAttributeStringAsync(null, "lat", null, ap.Latitude!.Value.ToString("F6"));
-            await writer.WriteAttributeStringAsync(null, "lon", null, ap.Longitude!.Value.ToString("F6"));
-            
-            await writer.WriteElementStringAsync(null, "name", null, ap.Ssid);
-            await writer.WriteElementStringAsync(null, "desc", null, 
-                $"BSSID: {ap.Bssid}, Signal: {ap.Signal}%, Channel: {ap.Channel}");
-            
+            await writer.WriteAttributeStringAsync(null, "lat", null, ap.Latitude!.Value.ToString("F6", inv));
+            await writer.WriteAttributeStringAsync(null, "lon", null, ap.Longitude!.Value.ToString("F6", inv));
+
+            await writer.WriteElementStringAsync(null, "name", null, XmlText(ap.Ssid));
+            await writer.WriteElementStringAsync(null, "desc", null,
+                $"BSSID: {ap.Bssid}, Signal: {ap.HighestSignal ?? ap.Signal}%, Channel: {ap.Channel}");
+
             await writer.WriteEndElementAsync(); // wpt
         }
-        
+
+        if (gpsFixes is { Count: > 0 })
+        {
+            await writer.WriteStartElementAsync(null, "trk", null);
+            await writer.WriteElementStringAsync(null, "name", null, "GPS Track");
+            foreach (var segment in TrackSegments(gpsFixes))
+            {
+                await writer.WriteStartElementAsync(null, "trkseg", null);
+                foreach (var g in segment)
+                {
+                    await writer.WriteStartElementAsync(null, "trkpt", null);
+                    await writer.WriteAttributeStringAsync(null, "lat", null, g.Latitude.ToString("F7", inv));
+                    await writer.WriteAttributeStringAsync(null, "lon", null, g.Longitude.ToString("F7", inv));
+                    if (g.Altitude is { } alt) await writer.WriteElementStringAsync(null, "ele", null, alt.ToString("0.0", inv));
+                    await writer.WriteElementStringAsync(null, "time", null, Utc(g.Timestamp).ToString("yyyy-MM-ddTHH:mm:ssZ", inv));
+                    if (g.NumberOfSatellites > 0) await writer.WriteElementStringAsync(null, "sat", null, g.NumberOfSatellites.ToString(inv));
+                    if (g.HorizontalDilution is { } hdop) await writer.WriteElementStringAsync(null, "hdop", null, hdop.ToString(inv));
+                    await writer.WriteEndElementAsync(); // trkpt
+                }
+                await writer.WriteEndElementAsync(); // trkseg
+            }
+            await writer.WriteEndElementAsync(); // trk
+        }
+
         await writer.WriteEndElementAsync(); // gpx
         await writer.WriteEndDocumentAsync();
     }
@@ -962,18 +1037,12 @@ public class ExportService : IExportService
 
     private List<AccessPoint> FilterAccessPoints(List<AccessPoint> accessPoints, ExportOptions options)
     {
-        return accessPoints.Where(ap =>
+        // Open, WEP or secure, as the original's security type: everything that's not open or WEP is secure (CCMP, GCMP, …)
+        return accessPoints.Where(ap => Vs1SecurityType(ap.Encryption) switch
         {
-            if (ap.Encryption == EncryptionType.None && !options.IncludeOpenNetworks)
-                return false;
-            
-            if (ap.Encryption == EncryptionType.WEP && !options.IncludeWepNetworks)
-                return false;
-            
-            if ((ap.Encryption == EncryptionType.TKIP || ap.Encryption == EncryptionType.AES) && !options.IncludeSecureNetworks)
-                return false;
-            
-            return true;
+            1 => options.IncludeOpenNetworks,
+            2 => options.IncludeWepNetworks,
+            _ => options.IncludeSecureNetworks,
         }).ToList();
     }
 
@@ -1007,30 +1076,31 @@ public class ExportService : IExportService
         await writer.WriteStartElementAsync(null, "Placemark", null);
         
         // Name
-        await writer.WriteElementStringAsync(null, "name", null, string.IsNullOrEmpty(ap.Ssid) ? ap.Bssid : ap.Ssid);
-        
+        await writer.WriteElementStringAsync(null, "name", null, XmlText(string.IsNullOrEmpty(ap.Ssid) ? ap.Bssid : ap.Ssid));
+
         // Description
         var description = $"BSSID: {ap.Bssid}\n" +
                          $"Channel: {ap.Channel}\n" +
-                         $"Signal: {ap.Signal}%\n" +
-                         $"RSSI: {ap.Rssi} dBm\n" +
-                         $"Authentication: {ap.Authentication}\n" +
-                         $"Encryption: {ap.Encryption}\n" +
+                         $"Signal: {ap.HighestSignal ?? ap.Signal}%\n" +
+                         $"RSSI: {ap.HighestRssi ?? ap.Rssi} dBm\n" +
+                         $"Authentication: {ap.Authentication.ToLegacyString()}\n" +
+                         $"Encryption: {ap.Encryption.ToLegacyString()}\n" +
                          $"Manufacturer: {ap.Manufacturer}";
-        
-        await writer.WriteElementStringAsync(null, "description", null, description);
-        
-        // Style based on signal strength
+
+        await writer.WriteElementStringAsync(null, "description", null, XmlText(description));
+
+        // Style by the strongest signal, where the placemark is
         if (options.UseSignalColors)
         {
-            var styleId = GetSignalStyleId(ap.Signal ?? 0);
+            var styleId = GetSignalStyleId(ap.HighestSignal ?? ap.Signal ?? 0);
             await writer.WriteElementStringAsync(null, "styleUrl", null, $"#{styleId}");
         }
-        
+
         // Point coordinates
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
         await writer.WriteStartElementAsync(null, "Point", null);
-        await writer.WriteElementStringAsync(null, "coordinates", null, 
-            $"{ap.Longitude},{ap.Latitude},0");
+        await writer.WriteElementStringAsync(null, "coordinates", null,
+            $"{ap.Longitude!.Value.ToString(inv)},{ap.Latitude!.Value.ToString(inv)},0");
         await writer.WriteEndElementAsync(); // Point
         
         await writer.WriteEndElementAsync(); // Placemark
@@ -1050,6 +1120,10 @@ public class ExportService : IExportService
 
     // The stored times are UTC; one still local (a reading taken this session) is converted
     private static DateTime Utc(DateTime t) => t.Kind == DateTimeKind.Local ? t.ToUniversalTime() : t;
+
+    // Text XML can hold: an SSID can have control characters that XmlWriter refuses
+    private static string XmlText(string? s)
+        => string.IsNullOrEmpty(s) ? string.Empty : new string(s.Where(XmlConvert.IsXmlChar).ToArray());
 
     private string EscapeCsv(string? value)
     {

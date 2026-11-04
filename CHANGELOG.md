@@ -10,6 +10,13 @@
 - **WiGLE CSV: cell towers and Bluetooth devices, both ways, and a WiGLE CSV export** — a WiGLE CSV's `BT`, `BLE`, `GSM`, `CDMA`, `WCDMA`, `LTE` and `NR` rows are imported as cell towers and Bluetooth devices, with their readings and positions, instead of as Wi-Fi APs. **Export → Export To WiGLE CSV** (new) writes WiGLE's 1.6 format, 14 columns: a row per reading with a position, as WiGLE's app and the original Vistumbler write it, then the cell towers and Bluetooth devices as WiGLE WiFi Wardriving writes them.
 
 ### 🐞 Bug fixes
+- **KML and GPX exports have the GPS track, and work in every locale** — both wrote only the APs. Now:
+  - **KML** also draws the GPS track as the original Vistumbler does, broken where fixes are more than 3 minutes apart.
+  - **GPX** has the track too, a segment per stretch, with elevation, time, satellites and HDOP.
+  - **Locale:** coordinates were written in the PC's locale, so a German locale wrote `42,36` and Google Earth put the APs in the wrong place.
+  - **Security filter:** it counted only TKIP and AES as secure, so CCMP, GCMP and other APs ignored it.
+  - **Placemarks** are colored by each AP's strongest signal rather than its current one.
+  - **SSIDs with control characters** no longer stop the export.
 - **NetStumbler files: signals in dBm, and the text format** — NetStumbler keeps signal and noise in dBm, but the NS1 export wrote percentages there and the import read them as percentages, so every AP came out wrong in NetStumbler and in WifiDB. Both now use dBm, as the original Vistumbler does. A reading without an RSSI gets an estimate from its percentage. The NS1 import also reads NetStumbler's text export (wi-scan), whether NetStumbler or Vistumbler wrote it. Text and binary files are told apart by their content, so either can be named `.ns1` or `.txt`.
 - **Wardrive-Android files import** — the Wardrive-Android import type handed the `.db3` database to the CSV reader, so nothing came in. It now reads the database's `networks` table, as the original Vistumbler does. Each network arrives with every logged reading, each with its GPS position and altitude. The file picker now looks for `.db3` files.
 - **CSV is Vistumbler's CSV, and the WifiDB upload as CSV works** — the CSV export wrote a 17-column layout of its own, which the original Vistumbler, VistumblerMAUI and WifiDB can't read; WifiDB skipped every row, so an upload with file type CSV imported nothing. The CSV export is now Vistumbler's own, in the original's two layouts:

@@ -123,7 +123,7 @@ public partial class ImportViewModel : ViewModelBase
                     importedAps = await _importService.ImportFromCsvAsync(FilePath);
                     break;
                 case ImportType.WardriveAndroid:
-                    importedAps = await _importService.ImportFromCsvAsync(FilePath);
+                    importedAps = await _importService.ImportFromWardriveDb3Async(FilePath);
                     break;
                 case ImportType.KismetFiles:
                     // Auto-detect by extension: .kismet = KismetDB, .netxml = NetXML
@@ -183,8 +183,9 @@ public partial class ImportViewModel : ViewModelBase
                 return "Vistumbler Files (*.vs1;*.vsz)|*.vs1;*.vsz|All files (*.*)|*.*";
             case ImportType.Netstumbler:
                 return "NetStumbler Files (*.ns1;*.txt)|*.ns1;*.txt|All files (*.*)|*.*";
-            case ImportType.VistumblerDetailedCsv:
             case ImportType.WardriveAndroid:
+                return "Wardrive-Android Files (*.db3)|*.db3|All files (*.*)|*.*";
+            case ImportType.VistumblerDetailedCsv:
             case ImportType.WigleCsv:
                 return "CSV Files (*.csv)|*.csv|All files (*.*)|*.*";
             case ImportType.KismetFiles:

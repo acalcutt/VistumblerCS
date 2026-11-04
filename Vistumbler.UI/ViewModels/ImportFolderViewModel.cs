@@ -133,7 +133,7 @@ public partial class ImportFolderViewModel : ViewModelBase
                     : await _importService.ImportFromVs1Async(filePath),
             ImportType.VistumblerDetailedCsv => await _importService.ImportFromCsvAsync(filePath),
             ImportType.WigleCsv              => await _importService.ImportFromCsvAsync(filePath),
-            ImportType.WardriveAndroid        => await _importService.ImportFromCsvAsync(filePath),
+            ImportType.WardriveAndroid        => await _importService.ImportFromWardriveDb3Async(filePath),
             ImportType.Netstumbler            => await _importService.ImportFromNs1Async(filePath),
             ImportType.KismetFiles =>
                 ext == ".netxml"

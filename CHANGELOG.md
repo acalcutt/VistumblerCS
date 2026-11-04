@@ -10,6 +10,7 @@
 - **WiGLE CSV: cell towers and Bluetooth devices, both ways, and a WiGLE CSV export** — a WiGLE CSV's `BT`, `BLE`, `GSM`, `CDMA`, `WCDMA`, `LTE` and `NR` rows are imported as cell towers and Bluetooth devices, with their readings and positions, instead of as Wi-Fi APs. **Export → Export To WiGLE CSV** (new) writes WiGLE's 1.6 format, 14 columns: a row per reading with a position, as WiGLE's app and the original Vistumbler write it, then the cell towers and Bluetooth devices as WiGLE WiFi Wardriving writes them.
 
 ### 🐞 Bug fixes
+- **Wardrive-Android files import** — the Wardrive-Android import type handed the `.db3` database to the CSV reader, so nothing came in. It now reads the database's `networks` table, as the original Vistumbler does. Each network arrives with every logged reading, each with its GPS position and altitude. The file picker now looks for `.db3` files.
 - **CSV is Vistumbler's CSV, and the WifiDB upload as CSV works** — the CSV export wrote a 17-column layout of its own, which the original Vistumbler, VistumblerMAUI and WifiDB can't read; WifiDB skipped every row, so an upload with file type CSV imported nothing. The CSV export is now Vistumbler's own, in the original's two layouts:
   - **Export To CSV (Detailed)**: 26 columns, a row per reading with its GPS fix. This is what WifiDB imports, and what the upload sends.
   - **Export To CSV (Summary)** (new): a row per AP at its strongest position, with its first and last seen.

@@ -26,6 +26,11 @@ public interface IDatabaseService
     /// Add GPS data
     /// </summary>
     Task<int> AddGpsDataAsync(GpsData gpsData);
+
+    /// <summary>
+    /// Every stored GPS fix (what the readings point at, for an export)
+    /// </summary>
+    Task<List<GpsData>> GetAllGpsDataAsync();
     
     /// <summary>
     /// Get all access points

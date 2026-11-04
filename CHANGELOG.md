@@ -8,6 +8,7 @@
 - **VS1 imports keep their GPS positions and signal history** — the import read only each AP's summary line, so imported APs had no readings or positions and were dated to the import. The GPS section and each AP's history are now read, as in the original Vistumbler, and every import now saves the readings it reads (NetStumbler files carried them too).
 - **VSZ files open in Vistumbler and WifiDB** — the VS1 inside was named after the file, but the original Vistumbler and WifiDB only look for `data.vs1`.
 - **Import's "New APs" count** — it added up the APs' database ids instead of counting them.
+- **VS1 exports are VS1** — the export wrote a format of its own (an `AP|id|bssid|…` line per AP, no GPS) that the original Vistumbler and WifiDB couldn't read. It now writes Vistumbler's Detailed Export Version 4.0: the GPS section, then each AP with its readings (`GID,SIGNAL,RSSI`), so a VS1 or VSZ from this app (Save & Clear, Export, the WifiDB upload) imports anywhere with its positions and history.
 
 ## 0.5.0
 ### ✨ Features and improvements

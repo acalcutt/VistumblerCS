@@ -649,6 +649,7 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
+            await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
             if (path.EndsWith(".vsz", StringComparison.OrdinalIgnoreCase))
                 await _exportService.ExportToVszAsync(path, aps);
             else
@@ -957,7 +958,10 @@ public partial class MainViewModel : ViewModelBase
             if (fileType == "CSV")
                 await _exportService.ExportToCsvAsync(tempPath, models);
             else
+            {
+                await ExportLoader.LoadHistoryAsync(_databaseService, models);   // the readings and their GPS fixes
                 await _exportService.ExportToVs1Async(tempPath, models);
+            }
 
             var fileBytes = await File.ReadAllBytesAsync(tempPath);
 
@@ -1637,7 +1641,9 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "Vistumbler VS1 (*.vs1)|*.vs1" };
         if (dialog.ShowDialog() == true)
         {
-            await _exportService.ExportToVs1Async(dialog.FileName, GetAccessPointsModels());
+            var aps = GetAccessPointsModels();
+            await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
+            await _exportService.ExportToVs1Async(dialog.FileName, aps);
             StatusMessage = "Exported to VS1";
         }
     }
@@ -1647,7 +1653,9 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "Vistumbler VSZ (*.vsz)|*.vsz" };
         if (dialog.ShowDialog() == true)
         {
-            await _exportService.ExportToVszAsync(dialog.FileName, GetAccessPointsModels());
+            var aps = GetAccessPointsModels();
+            await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
+            await _exportService.ExportToVszAsync(dialog.FileName, aps);
             StatusMessage = "Exported to VSZ";
         }
     }

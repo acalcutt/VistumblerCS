@@ -756,28 +756,95 @@ public class ExportService : IExportService
         return flags;
     }
 
+    /// <summary>
+    /// Vistumbler's VS1, "Detailed Export Version 4.0", as the original writes it (_ExportVS1): the GPS lines (12
+    /// fields), then an access point a line (15 fields) whose last field is its readings, "GID,SIGNAL,RSSI" joined by
+    /// '\', each GID one of the GPS lines. Readers tell the lines apart by their field count, so a value can't have a
+    /// '|' in it. The readings come from each access point's <see cref="AccessPoint.SignalHistory"/>, with their
+    /// <see cref="SignalHistory.GpsData"/> (<see cref="ExportLoader.LoadHistoryAsync"/>).
+    /// </summary>
     public async Task ExportToVs1Async(string filePath, List<AccessPoint> accessPoints)
     {
-        using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
-        
-        // Write header
-        await writer.WriteLineAsync("# Vistumbler VS1 File");
-        await writer.WriteLineAsync($"# Exported: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-        await writer.WriteLineAsync("# GpsID|Latitude|Longitude|NumOfSats|HorDilPitch|Alt|Geo|SpeedInMPH|SpeedInKmH|TrackAngle|Date|Time");
-        await writer.WriteLineAsync("# APID|BSSID|SSID|CHAN|AUTH|ENCR|RADTYPE|BTX|OTX|NETTYPE|Signal|HighSignal|RSSI|HighRSSI|Latitude|Longitude|FirstSeen|LastSeen|Manufacturer|Label");
-        await writer.WriteLineAsync("# HistID|APID|GpsID|Signal|RSSI|Date|Time");
-        
-        // Write access points
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        const string sep = "# -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------";
+
+        // The GPS lines: every fix a reading was taken at, numbered as stored
+        var gps = new SortedDictionary<int, GpsData>();
+        foreach (var h in accessPoints.SelectMany(ap => ap.SignalHistory))
+            if (h.GpsData is { } g && g.GpsId > 0) gps[g.GpsId] = g;
+
+        // CRLF, as Vistumbler writes it and WifiDB's importer reads it
+        using var writer = new StreamWriter(filePath, false, Encoding.UTF8) { NewLine = "\r\n" };
+        await writer.WriteLineAsync("# Vistumbler VS1 - Detailed Export Version 4.0");
+        await writer.WriteLineAsync("# Created By: VistumblerCS");
+        await writer.WriteLineAsync(sep);
+        await writer.WriteLineAsync("# GpsID|Latitude|Longitude|NumOfSatalites|HorizontalDilutionOfPrecision|Altitude(m)|HeightOfGeoidAboveWGS84Ellipsoid(m)|Speed(km/h)|Speed(MPH)|TrackAngle(Deg)|Date(UTC y-m-d)|Time(UTC h:m:s.ms)");
+        await writer.WriteLineAsync(sep);
+        foreach (var g in gps.Values)
+        {
+            var utc = g.Timestamp.Kind == DateTimeKind.Local ? g.Timestamp.ToUniversalTime() : g.Timestamp;
+            await writer.WriteLineAsync(string.Join('|',
+                g.GpsId,
+                DecimalToDmm(g.Latitude, isLat: true),
+                DecimalToDmm(g.Longitude, isLat: false),
+                g.NumberOfSatellites,
+                (g.HorizontalDilution ?? 0).ToString("0.0", inv),
+                (g.Altitude ?? 0).ToString("0.0", inv),
+                "0",
+                g.SpeedKmh.ToString("0.0", inv),
+                g.SpeedMph.ToString("0.0", inv),
+                (g.TrackAngle ?? 0).ToString("0.0", inv),
+                utc.ToString("yyyy-MM-dd", inv),
+                utc.ToString("HH:mm:ss.fff", inv)));
+        }
+
+        await writer.WriteLineAsync(sep);
+        await writer.WriteLineAsync("# SSID|BSSID|MANUFACTURER|Authentication|Encryption|Security Type|Radio Type|Channel|Basic Transfer Rates|Other Transfer Rates|High Signal|High RSSI|Network Type|Label|GID,SIGNAL,RSSI");
+        await writer.WriteLineAsync(sep);
         foreach (var ap in accessPoints)
         {
-            var line = $"AP|{ap.ApId}|{ap.Bssid}|{ap.Ssid}|{ap.Channel}|{ap.Authentication.ToLegacyString()}|{ap.Encryption.ToLegacyString()}|" +
-                      $"{ap.RadioType}|{ap.BasicTransferRates}|{ap.OtherTransferRates}|{ap.NetworkType}|" +
-                      $"{ap.Signal}|{ap.HighestSignal}|{ap.Rssi}|{ap.HighestRssi}|" +
-                      $"{ap.Latitude}|{ap.Longitude}|{ap.FirstSeen:yyyy-MM-dd HH:mm:ss}|{ap.LastSeen:yyyy-MM-dd HH:mm:ss}|" +
-                      $"{ap.Manufacturer}|{ap.Label}";
-            
-            await writer.WriteLineAsync(line);
+            var history = string.Join('\\', ap.SignalHistory
+                .Where(h => h.GpsData is { GpsId: > 0 })
+                .Select(h => $"{h.GpsData!.GpsId},{h.Signal},{h.Rssi}"));
+            await writer.WriteLineAsync(string.Join('|',
+                Vs1Field(ap.Ssid),
+                Vs1Field(ap.Bssid),
+                Vs1Field(ap.Manufacturer),
+                Vs1Field(ap.Authentication.ToLegacyString()),
+                Vs1Field(ap.Encryption.ToLegacyString()),
+                Vs1SecurityType(ap.Encryption),
+                Vs1Field(ap.RadioType),
+                ap.Channel,
+                Vs1Field(ap.BasicTransferRates),
+                Vs1Field(ap.OtherTransferRates),
+                ap.HighestSignal ?? ap.Signal ?? 0,
+                ap.HighestRssi ?? ap.Rssi ?? -100,
+                Vs1Field(ap.NetworkType.ToLegacyString()),
+                Vs1Field(ap.Label),
+                history));
         }
+    }
+
+    // Keeps a value to one VS1 field: no '|' or line break, which would change the line's field count
+    private static string Vs1Field(string? value)
+        => (value ?? string.Empty).Replace('|', ' ').Replace('\r', ' ').Replace('\n', ' ');
+
+    // Vistumbler's security type: 1 open, 2 WEP, 3 anything stronger
+    private static int Vs1SecurityType(EncryptionType encryption) => encryption switch
+    {
+        EncryptionType.None => 1,
+        EncryptionType.WEP => 2,
+        _ => 3,
+    };
+
+    // Decimal degrees as Vistumbler stores them: "N 4807.0380" (hemisphere, degrees and minutes)
+    private static string DecimalToDmm(double dd, bool isLat)
+    {
+        char hemi = isLat ? (dd >= 0 ? 'N' : 'S') : (dd >= 0 ? 'E' : 'W');
+        double a = Math.Abs(dd);
+        int deg = (int)a;
+        double dmm = deg * 100 + (a - deg) * 60.0;
+        return $"{hemi} {dmm.ToString("0000.0000", System.Globalization.CultureInfo.InvariantCulture)}";
     }
 
     public async Task ExportToVszAsync(string filePath, List<AccessPoint> accessPoints)

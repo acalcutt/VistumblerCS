@@ -205,6 +205,15 @@ public class SQLiteDatabaseService : IDatabaseService
         return await _connection.ExecuteScalarAsync<int>(sql, gpsData);
     }
 
+    public async Task<List<GpsData>> GetAllGpsDataAsync()
+    {
+        if (_connection == null)
+            throw new InvalidOperationException("Database not initialized");
+
+        var result = await _connection.QueryAsync<GpsData>("SELECT * FROM GpsData ORDER BY GpsId");
+        return result.ToList();
+    }
+
     public async Task<List<AccessPoint>> GetAllAccessPointsAsync()
     {
         if (_connection == null)

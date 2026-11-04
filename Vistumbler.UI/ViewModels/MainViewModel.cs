@@ -198,6 +198,7 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ExportVs1Command { get; }
     public ICommand ExportVszCommand { get; }
     public ICommand ExportCsvCommand { get; }
+    public ICommand ExportCsvSummaryCommand { get; }
     public ICommand ExportWigleCsvCommand { get; }
     public ICommand ExportKmlCommand { get; }
     public ICommand ExportGpxCommand { get; }
@@ -320,7 +321,8 @@ public partial class MainViewModel : ViewModelBase
         ToggleKmlNetworkLinkCommand = new RelayCommand(ToggleKmlNetworkLink);
         ExportVs1Command = new AsyncRelayCommand(ExportVs1);
         ExportVszCommand = new AsyncRelayCommand(ExportVsz);
-        ExportCsvCommand = new AsyncRelayCommand(ExportCsv);
+        ExportCsvCommand = new AsyncRelayCommand(() => ExportCsv(detailed: true));
+        ExportCsvSummaryCommand = new AsyncRelayCommand(() => ExportCsv(detailed: false));
         ExportWigleCsvCommand = new AsyncRelayCommand(ExportWigleCsv);
         ExportKmlCommand = new AsyncRelayCommand(ExportKml);
         ExportGpxCommand = new AsyncRelayCommand(ExportGpx);
@@ -990,11 +992,11 @@ public partial class MainViewModel : ViewModelBase
 
         try
         {
+            await ExportLoader.LoadHistoryAsync(_databaseService, models);   // the readings and their GPS fixes
             if (fileType == "CSV")
-                await _exportService.ExportToCsvAsync(tempPath, models);
+                await _exportService.ExportToCsvAsync(tempPath, models);   // detailed, as WifiDB imports it
             else
             {
-                await ExportLoader.LoadHistoryAsync(_databaseService, models);   // the readings and their GPS fixes
                 await _exportService.ExportToVs1Async(tempPath, models, await ExportLoader.LoadRadioNetworksAsync(_databaseService));
             }
 
@@ -1701,13 +1703,16 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    private async Task ExportCsv()
+    /// <summary>Vistumbler's CSV: detailed, a row per reading (what WifiDB imports), or summary, a row per AP.</summary>
+    private async Task ExportCsv(bool detailed)
     {
         var dialog = new SaveFileDialog { Filter = "CSV Files (*.csv)|*.csv" };
         if (dialog.ShowDialog() == true)
         {
-            await _exportService.ExportToCsvAsync(dialog.FileName, GetAccessPointsModels());
-            StatusMessage = "Exported to CSV";
+            var aps = GetAccessPointsModels();
+            await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
+            await _exportService.ExportToCsvAsync(dialog.FileName, aps, detailed);
+            StatusMessage = detailed ? "Exported to CSV (detailed)" : "Exported to CSV (summary)";
         }
     }
 

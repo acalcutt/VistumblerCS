@@ -658,26 +658,61 @@ public class ExportService : IExportService
         await writer.WriteEndDocumentAsync();
     }
 
-    public async Task ExportToCsvAsync(string filePath, List<AccessPoint> accessPoints, bool includeSignalHistory = false)
+    /// <summary>
+    /// Vistumbler's CSV, as the original's _ExportToCSV writes it (and its _ImportCSV, VistumblerMAUI and WifiDB read
+    /// it). Detailed: 26 columns, a row per reading (<see cref="ExportLoader.LoadHistoryAsync"/>) with its GPS fix.
+    /// Summary: 18 columns, a row per AP at its strongest position, with its first and last seen.
+    /// </summary>
+    public async Task ExportToCsvAsync(string filePath, List<AccessPoint> accessPoints, bool detailed = true)
     {
-        using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
-        
-        // Write header
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        using var writer = new StreamWriter(filePath, false, new UTF8Encoding(false));
+
+        // Quoted text, with no quotes inside, as the original writes it
+        static string Q(string? s) => "\"" + (s ?? string.Empty).Replace("\"", "") + "\"";
+        string D(double? d) => d?.ToString(inv) ?? "0";
+
+        if (detailed)
+        {
+            await writer.WriteLineAsync(
+                "SSID,BSSID,MANUFACTURER,SIGNAL,High Signal,RSSI,High RSSI,AUTHENTICATION,ENCRYPTION," +
+                "RADIO TYPE,CHANNEL,BTX,OTX,NETWORK TYPE,LABEL,LATITUDE,LONGITUDE,SATELLITES,HDOP," +
+                "ALTITUDE,HEIGHT OF GEOID,SPEED(km/h),SPEED(MPH),TRACK ANGLE,DATE(UTC),TIME(UTC)");
+            foreach (var ap in accessPoints)
+            {
+                foreach (var h in ap.SignalHistory.Where(h => h.Signal != 0).OrderBy(h => h.Timestamp))
+                {
+                    var g = h.GpsData;
+                    var ts = Utc(g?.Timestamp ?? h.Timestamp);
+                    await writer.WriteLineAsync(string.Join(",",
+                        Q(ap.Ssid), ap.Bssid, Q(ap.Manufacturer),
+                        h.Signal, ap.HighestSignal ?? 0, h.Rssi, ap.HighestRssi ?? 0,
+                        ap.Authentication.ToLegacyString(), ap.Encryption.ToLegacyString(), ap.RadioType, ap.Channel,
+                        Q(ap.BasicTransferRates), Q(ap.OtherTransferRates), ap.NetworkType.ToLegacyString(), Q(ap.Label),
+                        D(g?.Latitude), D(g?.Longitude),
+                        g?.NumberOfSatellites ?? 0, D(g?.HorizontalDilution), D(g?.Altitude), "0",
+                        (g?.SpeedKmh ?? 0).ToString("0.0", inv), (g?.SpeedMph ?? 0).ToString("0.0", inv), D(g?.TrackAngle),
+                        ts.ToString("yyyy-MM-dd", inv), ts.ToString("HH:mm:ss.fff", inv)));
+                }
+            }
+            return;
+        }
+
         await writer.WriteLineAsync(
-            "BSSID,SSID,Channel,Authentication,Encryption,NetworkType,Signal,HighSignal,RSSI,HighRSSI," +
-            "RadioType,Manufacturer,Label,Latitude,Longitude,FirstSeen,LastSeen");
-        
-        // Write data
+            "SSID,BSSID,MANUFACTURER,HIGHEST SIGNAL W/GPS,AUTHENTICATION,ENCRYPTION,RADIO TYPE,CHANNEL,LATITUDE,LONGITUDE," +
+            "BTX,OTX,FIRST SEEN(UTC),LAST SEEN(UTC),NETWORK TYPE,LABEL, HIGHEST SIGNAL, HIGHEST RSSI");
         foreach (var ap in accessPoints)
         {
-            var line = $"{EscapeCsv(ap.Bssid)},{EscapeCsv(ap.Ssid)},{ap.Channel}," +
-                      $"{ap.Authentication.ToLegacyString()},{ap.Encryption.ToLegacyString()},{ap.NetworkType}," +
-                      $"{ap.Signal},{ap.HighestSignal},{ap.Rssi},{ap.HighestRssi}," +
-                      $"{EscapeCsv(ap.RadioType)},{EscapeCsv(ap.Manufacturer)},{EscapeCsv(ap.Label)}," +
-                      $"{ap.Latitude},{ap.Longitude}," +
-                      $"{ap.FirstSeen:yyyy-MM-dd HH:mm:ss},{ap.LastSeen:yyyy-MM-dd HH:mm:ss}";
-            
-            await writer.WriteLineAsync(line);
+            // the strongest reading with a position, or the AP's own position without readings
+            var best = ap.SignalHistory.Where(h => h.GpsData is not null).MaxBy(h => h.Signal);
+            double? lat = best?.GpsData!.Latitude ?? ap.Latitude, lon = best?.GpsData!.Longitude ?? ap.Longitude;
+            await writer.WriteLineAsync(string.Join(",",
+                Q(ap.Ssid), ap.Bssid, Q(ap.Manufacturer), best?.Signal ?? 0,
+                ap.Authentication.ToLegacyString(), ap.Encryption.ToLegacyString(), ap.RadioType, ap.Channel,
+                D(lat), D(lon), Q(ap.BasicTransferRates), Q(ap.OtherTransferRates),
+                Utc(ap.FirstSeen).ToString("yyyy-MM-dd HH:mm:ss.fff", inv),
+                Utc(ap.LastSeen).ToString("yyyy-MM-dd HH:mm:ss.fff", inv),
+                ap.NetworkType.ToLegacyString(), Q(ap.Label), ap.HighestSignal ?? 0, ap.HighestRssi ?? 0));
         }
     }
 
@@ -1006,6 +1041,9 @@ public class ExportService : IExportService
             _ => "SignalVeryLow"
         };
     }
+
+    // The stored times are UTC; one still local (a reading taken this session) is converted
+    private static DateTime Utc(DateTime t) => t.Kind == DateTimeKind.Local ? t.ToUniversalTime() : t;
 
     private string EscapeCsv(string? value)
     {

@@ -33,9 +33,9 @@ public interface IExportService
     Task ExportToNetXmlAsync(string filePath, List<AccessPoint> accessPoints);
 
     /// <summary>
-    /// Export access points to CSV format
+    /// Export access points to Vistumbler's CSV: detailed (a row per reading, which WifiDB imports) or summary (a row per AP)
     /// </summary>
-    Task ExportToCsvAsync(string filePath, List<AccessPoint> accessPoints, bool includeSignalHistory = false);
+    Task ExportToCsvAsync(string filePath, List<AccessPoint> accessPoints, bool detailed = true);
 
     /// <summary>
     /// Export access points to Wigle CSV format, with the cell towers and Bluetooth devices

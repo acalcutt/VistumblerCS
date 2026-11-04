@@ -47,7 +47,8 @@
                 <MenuItem Header="Export">
                     <MenuItem Header="Export To VS1" Command="{Binding ExportVs1Command}"/>
                     <MenuItem Header="Export To VSZ" Command="{Binding ExportVszCommand}"/>
-                    <MenuItem Header="Export To CSV" Command="{Binding ExportCsvCommand}"/>
+                    <MenuItem Header="Export To CSV (Detailed)" Command="{Binding ExportCsvCommand}"/>
+                    <MenuItem Header="Export To CSV (Summary)" Command="{Binding ExportCsvSummaryCommand}"/>
                     <MenuItem Header="Export To WiGLE CSV" Command="{Binding ExportWigleCsvCommand}"/>
                     <MenuItem Header="Export To KML" Command="{Binding ExportKmlCommand}"/>
                     <MenuItem Header="Export To GPX" Command="{Binding ExportGpxCommand}"/>

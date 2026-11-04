@@ -744,31 +744,22 @@ public partial class ImportService : IImportService
 
         // Simple heuristic to detect format
         var header = lines[0];
-        bool isWigle = header.Contains("WigleWifi", StringComparison.OrdinalIgnoreCase) || 
+        bool isWigle = header.Contains("WigleWifi", StringComparison.OrdinalIgnoreCase) ||
                        header.Contains("MAC,SSID,AuthMode", StringComparison.OrdinalIgnoreCase);
 
-        // Parse remaining lines
+        // Vistumbler's detailed and summary CSVs (ImportService.Csv.cs)
+        if (!isWigle) return ReadVistumblerCsv(lines);
+
         for (int i = 1; i < lines.Length; i++)
         {
             var line = lines[i];
             if (string.IsNullOrWhiteSpace(line)) continue;
-
-            // Simple split for now. TODO: Handle quoted CSV fields properly if Vistumbler export produces them.
-            // Using a simple regex split for quoted CSV: 
             var parts = SplitCsvLine(line);
-            
-            AccessPoint? ap = null;
-            if (isWigle)
-            {
-                // the column names, the second of WiGLE's two header lines, not an AP called "MAC"
-                if (parts.Length > 0 && parts[0].Trim().Equals("MAC", StringComparison.OrdinalIgnoreCase)) continue;
-                if (ParseWigleRadioLine(parts)) continue;   // a cell tower or Bluetooth device, kept apart (TakeRadioNetworks)
-                ap = ParseWigleLine(parts);
-            }
-            else
-                ap = ParseDetailedCsvLine(parts);
 
-            if (ap != null) accessPoints.Add(ap);
+            // the column names, the second of WiGLE's two header lines, not an AP called "MAC"
+            if (parts.Length > 0 && parts[0].Trim().Equals("MAC", StringComparison.OrdinalIgnoreCase)) continue;
+            if (ParseWigleRadioLine(parts)) continue;   // a cell tower or Bluetooth device, kept apart (TakeRadioNetworks)
+            if (ParseWigleLine(parts) is { } ap) accessPoints.Add(ap);
         }
 
         return accessPoints;
@@ -863,7 +854,7 @@ public partial class ImportService : IImportService
         if (parts.Length < 10) return null;
         try
         {
-            // "BSSID,SSID,Channel,Authentication,Encryption,NetworkType,Signal,HighSignal,RSSI,HighRSSI,RadioType,Manufacturer,Label,Latitude,Longitude,FirstSeen,LastSeen"
+            // This app's old CSV (ReadVistumblerCsv): "BSSID,SSID,Channel,Authentication,Encryption,NetworkType,Signal,HighSignal,RSSI,HighRSSI,RadioType,Manufacturer,Label,Latitude,Longitude,FirstSeen,LastSeen"
              return new AccessPoint
              {
                  Bssid = parts[0],

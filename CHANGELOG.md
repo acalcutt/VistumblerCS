@@ -10,6 +10,13 @@
 - **WiGLE CSV: cell towers and Bluetooth devices, both ways, and a WiGLE CSV export** — a WiGLE CSV's `BT`, `BLE`, `GSM`, `CDMA`, `WCDMA`, `LTE` and `NR` rows are imported as cell towers and Bluetooth devices, with their readings and positions, instead of as Wi-Fi APs. **Export → Export To WiGLE CSV** (new) writes WiGLE's 1.6 format, 14 columns: a row per reading with a position, as WiGLE's app and the original Vistumbler write it, then the cell towers and Bluetooth devices as WiGLE WiFi Wardriving writes them.
 
 ### 🐞 Bug fixes
+- **CSV is Vistumbler's CSV, and the WifiDB upload as CSV works** — the CSV export wrote a 17-column layout of its own, which the original Vistumbler, VistumblerMAUI and WifiDB can't read; WifiDB skipped every row, so an upload with file type CSV imported nothing. The CSV export is now Vistumbler's own, in the original's two layouts:
+  - **Export To CSV (Detailed)**: 26 columns, a row per reading with its GPS fix. This is what WifiDB imports, and what the upload sends.
+  - **Export To CSV (Summary)** (new): a row per AP at its strongest position, with its first and last seen.
+
+  Numbers are always written with a decimal point. Before, a locale such as German wrote coordinates like `42,36`, which broke the columns.
+
+  Import reads the same files from any of these apps: detailed CSV (26 columns, and the older 23), summary CSV (18, and the older 16), and the old layout from earlier versions of this app. A detailed CSV now comes in with every reading and its GPS fix, not one row per AP.
 - **NS1, NetXML and KismetDB exports have each AP's readings** — they wrote only what the list showed, with no signal history, so NetStumbler files had no data points and Kismet files no packets or GPS points. Each AP's stored readings and their GPS fixes now go out with it, as they already did for VS1, VSZ and WiGLE CSV. The transfer rates and frequency now go out too.
 - **WiGLE CSV imports no longer add an AP called "MAC"** — the second of a WiGLE file's two header lines, the column names, was read as an access point.
 - **VS1 imports keep their GPS positions and signal history** — the import read only each AP's summary line, so imported APs had no readings or positions and were dated to the import. The GPS section and each AP's history are now read, as in the original Vistumbler, and every import now saves the readings it reads (NetStumbler files carried them too).

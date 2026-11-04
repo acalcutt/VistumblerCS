@@ -681,33 +681,54 @@ public class ExportService : IExportService
         }
     }
 
-    public async Task ExportToWigleCsvAsync(string filePath, List<AccessPoint> accessPoints)
+    /// <summary>
+    /// WiGLE's CSV, version 1.6 (https://api.wigle.net/csvFormat.html): 14 columns, a row per reading with a position
+    /// (its <see cref="SignalHistory.GpsData"/>, <see cref="ExportLoader.LoadHistoryAsync"/>), or one at the best
+    /// position for an AP without readings. Cell towers and Bluetooth devices follow as WiGLE WiFi Wardriving writes
+    /// them: the key as MAC, the name as SSID, the capabilities as AuthMode, MfgrId for BLE, and their Type.
+    /// </summary>
+    public async Task ExportToWigleCsvAsync(string filePath, List<AccessPoint> accessPoints, IReadOnlyList<RadioNetwork>? radios = null)
     {
-        using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
-        
-        // WigleCSV v1.6 header
-        await writer.WriteLineAsync("WigleWifi-1.6,appRelease=VistumblerCS,model=PC,release=1.0,device=PC,display=,board=,brand=");
-        await writer.WriteLineAsync("MAC,SSID,AuthMode,FirstSeen,Channel,Frequency,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,Type");
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        using var writer = new StreamWriter(filePath, false, new UTF8Encoding(false));
+
+        await writer.WriteLineAsync("WigleWifi-1.6,appRelease=VistumblerCS,model=PC,release=1.0,device=PC,display=,board=,brand=,star=Sol,body=3,subBody=0");
+        await writer.WriteLineAsync("MAC,SSID,AuthMode,FirstSeen,Channel,Frequency,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,RCOIs,MfgrId,Type");
+        // WiGLE's rows aren't quoted: commas and line breaks come out of the text
+        static string Clean(string? s) => (s ?? string.Empty).Replace(",", "").Replace("\r", "").Replace("\n", "");
 
         foreach (var ap in accessPoints)
         {
-            string authMode = BuildWigleAuthMode(ap.Authentication, ap.Encryption, ap.NetworkType);
+            string head = $"{ap.Bssid.ToLowerInvariant()},{Clean(ap.Ssid)},{BuildWigleAuthMode(ap.Authentication, ap.Encryption, ap.NetworkType)}";
             int freq = GetFreqFromChannel(ap.Channel);
+            string Row(DateTime when, int? rssi, double lat, double lon, double? alt) =>
+                $"{head},{when.ToString("yyyy-MM-dd HH:mm:ss", inv)},{ap.Channel},{freq},{rssi?.ToString(inv) ?? ""}," +
+                $"{lat.ToString(inv)},{lon.ToString(inv)},{(alt ?? 0).ToString(inv)},0,,,WIFI";
 
-            var line = string.Join(",",
-                EscapeCsv(ap.Bssid),
-                EscapeCsv(ap.Ssid),
-                authMode,
-                ap.FirstSeen.ToString("yyyy-MM-dd HH:mm:ss"),
-                ap.Channel,
-                freq,
-                ap.Rssi?.ToString() ?? "",
-                ap.Latitude?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
-                ap.Longitude?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
-                "0",
-                "0",
-                "WIFI");
-            await writer.WriteLineAsync(line);
+            var readings = ap.SignalHistory.Where(h => h.GpsData is not null).ToList();
+            if (readings.Count > 0)
+                foreach (var h in readings)
+                    await writer.WriteLineAsync(Row(h.Timestamp, h.Rssi, h.GpsData!.Latitude, h.GpsData.Longitude, h.GpsData.Altitude));
+            else if (ap.Latitude is { } lat && ap.Longitude is { } lon)
+                await writer.WriteLineAsync(Row(ap.FirstSeen, ap.Rssi, lat, lon, null));
+        }
+
+        foreach (var n in radios ?? Array.Empty<RadioNetwork>())
+        {
+            string head = $"{n.Key},{Clean(n.Name)},{Clean(n.Capabilities)}";
+            string channel = n.Channel is { } c ? c.ToString(inv) : "";
+            string freq = n.Frequency != 0 ? n.Frequency.ToString(inv) : "";
+            string mfgr = n.MfgrId is { } m and not 0 ? m.ToString(inv) : "";
+            string Row(DateTime when, int rssi, double lat, double lon, double? alt) =>
+                $"{head},{when.ToString("yyyy-MM-dd HH:mm:ss", inv)},{channel},{freq},{rssi.ToString(inv)}," +
+                $"{lat.ToString(inv)},{lon.ToString(inv)},{(alt ?? 0).ToString(inv)},0,,{mfgr},{n.Type}";
+
+            var readings = n.History.Where(r => r.GpsData is not null).ToList();
+            if (readings.Count > 0)
+                foreach (var r in readings)
+                    await writer.WriteLineAsync(Row(r.Timestamp, r.Rssi, r.GpsData!.Latitude, r.GpsData.Longitude, r.GpsData.Altitude));
+            else if (n.Latitude is { } lat && n.Longitude is { } lon)
+                await writer.WriteLineAsync(Row(n.FirstSeen, n.HighestRssi == int.MinValue ? n.Rssi : n.HighestRssi, lat, lon, null));
         }
     }
 

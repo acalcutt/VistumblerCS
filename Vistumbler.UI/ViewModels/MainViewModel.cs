@@ -202,6 +202,7 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ExportVs1Command { get; }
     public ICommand ExportVszCommand { get; }
     public ICommand ExportCsvCommand { get; }
+    public ICommand ExportWigleCsvCommand { get; }
     public ICommand ExportKmlCommand { get; }
     public ICommand ExportGpxCommand { get; }
     public ICommand ExportNs1Command { get; }
@@ -321,6 +322,7 @@ public partial class MainViewModel : ViewModelBase
         ExportVs1Command = new AsyncRelayCommand(ExportVs1);
         ExportVszCommand = new AsyncRelayCommand(ExportVsz);
         ExportCsvCommand = new AsyncRelayCommand(ExportCsv);
+        ExportWigleCsvCommand = new AsyncRelayCommand(ExportWigleCsv);
         ExportKmlCommand = new AsyncRelayCommand(ExportKml);
         ExportGpxCommand = new AsyncRelayCommand(ExportGpx);
         ExportNs1Command = new AsyncRelayCommand(ExportNs1);
@@ -1668,6 +1670,19 @@ public partial class MainViewModel : ViewModelBase
         {
             await _exportService.ExportToCsvAsync(dialog.FileName, GetAccessPointsModels());
             StatusMessage = "Exported to CSV";
+        }
+    }
+
+    private async Task ExportWigleCsv()
+    {
+        var dialog = new SaveFileDialog { Filter = "WiGLE CSV (*.csv)|*.csv" };
+        if (dialog.ShowDialog() == true)
+        {
+            // a row per reading, and the cell towers and Bluetooth devices
+            var aps = GetAccessPointsModels();
+            await ExportLoader.LoadHistoryAsync(_databaseService, aps);
+            await _exportService.ExportToWigleCsvAsync(dialog.FileName, aps, await ExportLoader.LoadRadioNetworksAsync(_databaseService));
+            StatusMessage = "Exported to WiGLE CSV";
         }
     }
 

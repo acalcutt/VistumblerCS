@@ -736,6 +736,7 @@ public partial class ImportService : IImportService
     public async Task<List<AccessPoint>> ImportFromCsvAsync(string filePath)
     {
         var accessPoints = new List<AccessPoint>();
+        _radios.Clear();
         if (!File.Exists(filePath)) return accessPoints;
 
         var lines = await File.ReadAllLinesAsync(filePath);
@@ -758,7 +759,12 @@ public partial class ImportService : IImportService
             
             AccessPoint? ap = null;
             if (isWigle)
+            {
+                // the column names, the second of WiGLE's two header lines, not an AP called "MAC"
+                if (parts.Length > 0 && parts[0].Trim().Equals("MAC", StringComparison.OrdinalIgnoreCase)) continue;
+                if (ParseWigleRadioLine(parts)) continue;   // a cell tower or Bluetooth device, kept apart (TakeRadioNetworks)
                 ap = ParseWigleLine(parts);
+            }
             else
                 ap = ParseDetailedCsvLine(parts);
 
@@ -878,13 +884,64 @@ public partial class ImportService : IImportService
         catch { return null; }
     }
 
+    /// <summary>
+    /// A WiGLE CSV row for a cell tower or Bluetooth device (Type GSM, CDMA, WCDMA, LTE, NR, BT or BLE): adds it to
+    /// <see cref="_radios"/> with the reading and returns true. False for Wi-Fi rows, left to <see cref="ParseWigleLine"/>.
+    /// v1.6 has 14 columns (Frequency, RCOIs and MfgrId), v1.4 11.
+    /// </summary>
+    private bool ParseWigleRadioLine(string[] parts)
+    {
+        bool v16 = parts.Length >= 14;
+        if (!v16 && parts.Length < 11) return false;
+        string typeText = parts[v16 ? 13 : 10].Trim();
+        if (typeText.Equals("WIFI", StringComparison.OrdinalIgnoreCase) || int.TryParse(typeText, out _)
+            || !Enum.TryParse<RadioNetworkType>(typeText, true, out var type))
+            return false;
+
+        string key = parts[0].Trim();
+        if (key.Length == 0) return true;
+        int rssi = ParseInt(parts[v16 ? 6 : 5]);
+        double? lat = ParseDouble(parts[v16 ? 7 : 6]), lon = ParseDouble(parts[v16 ? 8 : 7]);
+        if (lat == 0 && lon == 0) lat = lon = null;
+        var when = DateTime.TryParse(parts[3], CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var t) ? t : DateTime.UtcNow;
+
+        if (!_radios.TryGetValue(key, out var n))
+        {
+            int channel = ParseInt(parts[4]);
+            _radios[key] = n = new RadioNetwork
+            {
+                Key = type is RadioNetworkType.BT or RadioNetworkType.BLE ? key.ToUpperInvariant() : key,
+                Type = type,
+                Name = parts[1],
+                Capabilities = parts[2],
+                Channel = channel > 0 ? channel : null,
+                Frequency = v16 ? ParseInt(parts[5]) : channel,
+                MfgrId = v16 && int.TryParse(parts[12], out var mfgr) ? mfgr : null,
+                Rssi = rssi,
+                FirstSeen = when,
+                LastSeen = when,
+            };
+        }
+        if (when < n.FirstSeen) n.FirstSeen = when;
+        if (when >= n.LastSeen) { n.LastSeen = when; n.Rssi = rssi; }
+        if (rssi >= n.HighestRssi && lat is not null) { n.HighestRssi = rssi; n.Latitude = lat; n.Longitude = lon; }
+        if (n.HighestRssi == int.MinValue) n.HighestRssi = rssi;
+        // the row's position as a GPS fix of its own, as a WiGLE row is
+        var fix = lat is { } la && lon is { } lo
+            ? new GpsData { Latitude = la, Longitude = lo, Altitude = ParseDouble(parts[v16 ? 9 : 8]), Timestamp = when, Quality = GpsQuality.GpsFix }
+            : null;
+        n.History.Add(new RadioReading { Rssi = rssi, Timestamp = when, GpsData = fix });
+        return true;
+    }
+
     private AccessPoint? ParseWigleLine(string[] parts)
     {
         if (parts.Length < 7) return null;
         try
         {
             // v1.4: MAC,SSID,AuthMode,FirstSeen,Channel,RSSI,Lat,Lon,Alt,Accuracy,Type  (11 cols)
-            // v1.6: MAC,SSID,AuthMode,FirstSeen,Channel,Frequency,RSSI,Lat,Lon,Alt,Accuracy,Type (12 cols)
+            // v1.6: MAC,SSID,AuthMode,FirstSeen,Channel,Frequency,RSSI,Lat,Lon,Alt,Accuracy,RCOIs,MfgrId,Type (14 cols)
             bool isV16 = parts.Length >= 12;
             int rssiIdx = isV16 ? 6 : 5;
             int latIdx  = isV16 ? 7 : 6;

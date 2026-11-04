@@ -38,9 +38,9 @@ public interface IExportService
     Task ExportToCsvAsync(string filePath, List<AccessPoint> accessPoints, bool includeSignalHistory = false);
 
     /// <summary>
-    /// Export access points to Wigle CSV format
+    /// Export access points to Wigle CSV format, with the cell towers and Bluetooth devices
     /// </summary>
-    Task ExportToWigleCsvAsync(string filePath, List<AccessPoint> accessPoints);
+    Task ExportToWigleCsvAsync(string filePath, List<AccessPoint> accessPoints, IReadOnlyList<RadioNetwork>? radios = null);
     
     /// <summary>
     /// Export to VS1 text format (Vistumbler native): version 4.0, or 4.1 with the cell towers and Bluetooth devices

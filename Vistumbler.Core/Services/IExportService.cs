@@ -63,6 +63,12 @@ public interface IExportService
     /// A KML signal map: a folder per AP, with a dot for each reading coloured by its RSSI
     /// </summary>
     Task ExportToKmlSignalMapAsync(string filePath, List<AccessPoint> accessPoints);
+
+    /// <summary>
+    /// WiGLE's Magic 8 Ball (.m8b): each AP's best-signal position as a 1 km MGRS square, keyed by a hash of its MAC,
+    /// for offline "where am I" in WiGLE WiFi Wardriving and VistumblerMAUI. Returns the number of records.
+    /// </summary>
+    Task<int> ExportToM8bAsync(string filePath, List<AccessPoint> accessPoints);
 }
 
 public class ExportOptions

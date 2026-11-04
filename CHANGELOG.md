@@ -2,6 +2,7 @@
 
 ## master
 ### ✨ Features and improvements
+- **Export To M8b (WiGLE Magic 8 Ball)** — writes WiGLE's offline "where am I" file: each AP's best-signal position as a 1 km map square, keyed by a hash of its MAC, so the file doesn't list MACs. WiGLE WiFi Wardriving and VistumblerMAUI load it to place you from the APs they can see, without a GPS. The writer is VistumblerMAUI's, which follows WiGLE's (BSD licence, in the new THIRD-PARTY-NOTICES.md).
 - **GeoJSON and signal map exports** — three new items on the Export menu, as VistumblerMAUI has them:
   - **Export To GeoJSON:** a point per AP at its strongest position.
   - **Export Signal Map (GeoJSON):** a point for every reading with a GPS fix, with its signal, RSSI and time.

@@ -1041,6 +1041,15 @@ public class ExportService : IExportService
     public Task ExportToKmlSignalMapAsync(string filePath, List<AccessPoint> accessPoints)
         => SignalMapExport.WriteKmlSignalMapAsync(filePath, accessPoints, Path.GetFileNameWithoutExtension(filePath));
 
+    public Task<int> ExportToM8bAsync(string filePath, List<AccessPoint> accessPoints) => Task.Run(() =>
+    {
+        // each AP's best-signal position, as WiGLE writes it
+        using var stream = File.Create(filePath);
+        return M8b.M8bFile.Write(stream, accessPoints
+            .Where(a => a.Latitude is not null && a.Longitude is not null)
+            .Select(a => (a.Bssid, a.Latitude!.Value, a.Longitude!.Value)));
+    });
+
     private List<AccessPoint> FilterAccessPoints(List<AccessPoint> accessPoints, ExportOptions options)
     {
         // Open, WEP or secure, as the original's security type: everything that's not open or WEP is secure (CCMP, GCMP, …)

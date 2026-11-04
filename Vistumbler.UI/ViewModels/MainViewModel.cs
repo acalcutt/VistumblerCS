@@ -208,6 +208,7 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ExportGeoJsonCommand { get; }
     public ICommand ExportGeoJsonSignalMapCommand { get; }
     public ICommand ExportKmlSignalMapCommand { get; }
+    public ICommand ExportM8bCommand { get; }
     public ICommand UpdateManufacturersCommand { get; }
     public ICommand OpenSettingsCommand { get; }
     public ICommand OpenSettingsAtTabCommand { get; }
@@ -335,6 +336,7 @@ public partial class MainViewModel : ViewModelBase
         ExportGeoJsonCommand          = new AsyncRelayCommand(() => ExportGeoJson(signalMap: false));
         ExportGeoJsonSignalMapCommand = new AsyncRelayCommand(() => ExportGeoJson(signalMap: true));
         ExportKmlSignalMapCommand     = new AsyncRelayCommand(ExportKmlSignalMap);
+        ExportM8bCommand              = new AsyncRelayCommand(ExportM8b);
         UpdateManufacturersCommand = new AsyncRelayCommand(UpdateManufacturersAsync);
         OpenSettingsCommand        = new RelayCommand(OpenSettingsWindow);
         OpenSettingsAtTabCommand = new RelayCommand<string>(s => OpenSettingsWindowAt(int.TryParse(s, out int i) ? i : 0));
@@ -1815,6 +1817,17 @@ public partial class MainViewModel : ViewModelBase
             await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
             await _exportService.ExportToKmlSignalMapAsync(dialog.FileName, aps);
             StatusMessage = "Exported a KML signal map";
+        }
+    }
+
+    /// <summary>WiGLE's Magic 8 Ball, for offline "where am I" in WiGLE WiFi Wardriving and VistumblerMAUI.</summary>
+    private async Task ExportM8b()
+    {
+        var dialog = new SaveFileDialog { Filter = "Magic 8 Ball Files (*.m8b)|*.m8b" };
+        if (dialog.ShowDialog() == true)
+        {
+            int records = await _exportService.ExportToM8bAsync(dialog.FileName, GetAccessPointsModels());
+            StatusMessage = $"Exported to M8b ({records} records)";
         }
     }
 

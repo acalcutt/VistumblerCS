@@ -502,9 +502,11 @@
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"
                           Visibility="{Binding IsTreeViewVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
             
+            <!-- Wi-Fi, Bluetooth and Cell towers: each its own list (VistumblerMAUI's Scan page has the same three) -->
+            <TabControl Grid.Column="2" Padding="0">
+            <TabItem Header="Wi-Fi">
             <!-- Access Points List -->
             <ScrollViewer x:Name="ApListScroll"
-                          Grid.Column="2"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Disabled">
                 <DataGrid HorizontalAlignment="Left"
@@ -580,6 +582,55 @@
                 </DataGrid.Columns>
                 </DataGrid>
             </ScrollViewer>
+            </TabItem>
+
+            <!-- Bluetooth devices: scanned (Interface → Bluetooth), or from a VS1 4.1 file or a WiGLE CSV -->
+            <TabItem Header="{Binding BluetoothTabHeader}">
+                <DataGrid ItemsSource="{Binding BluetoothDevices}"
+                          AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                          GridLinesVisibility="All" AlternatingRowBackground="LightGray" Background="White"
+                          EnableRowVirtualization="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Active"        Binding="{Binding ActiveDisplay}"       Width="60"/>
+                        <DataGridTextColumn Header="Name"          Binding="{Binding NameDisplay}"         Width="160"/>
+                        <DataGridTextColumn Header="Address"       Binding="{Binding Key}"                 Width="120"/>
+                        <DataGridTextColumn Header="Type"          Binding="{Binding TypeDisplay}"         Width="95"/>
+                        <DataGridTextColumn Header="RSSI"          Binding="{Binding RssiDisplay}"         Width="75"/>
+                        <DataGridTextColumn Header="High RSSI"     Binding="{Binding HighRssiDisplay}"     Width="75"/>
+                        <DataGridTextColumn Header="Device Class"  Binding="{Binding CapabilitiesDisplay}" Width="120"/>
+                        <DataGridTextColumn Header="Manufacturer"  Binding="{Binding Manufacturer}"        Width="120"/>
+                        <DataGridTextColumn Header="Mfgr ID"       Binding="{Binding MfgrIdDisplay}"       Width="70"/>
+                        <DataGridTextColumn Header="Latitude"      Binding="{Binding LatitudeDisplay}"     Width="85"/>
+                        <DataGridTextColumn Header="Longitude"     Binding="{Binding LongitudeDisplay}"    Width="85"/>
+                        <DataGridTextColumn Header="First Seen"    Binding="{Binding FirstSeenDisplay}"    Width="130"/>
+                        <DataGridTextColumn Header="Last Seen"     Binding="{Binding LastSeenDisplay}"     Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <!-- Cell towers: from a cellular modem (Interface menu), or from a VS1 4.1 file or a WiGLE CSV -->
+            <TabItem Header="{Binding CellTabHeader}">
+                <DataGrid ItemsSource="{Binding CellTowers}"
+                          AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                          GridLinesVisibility="All" AlternatingRowBackground="LightGray" Background="White"
+                          EnableRowVirtualization="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Active"        Binding="{Binding ActiveDisplay}"       Width="60"/>
+                        <DataGridTextColumn Header="Type"          Binding="{Binding TypeDisplay}"         Width="70"/>
+                        <DataGridTextColumn Header="Operator"      Binding="{Binding NameDisplay}"         Width="140"/>
+                        <DataGridTextColumn Header="Cell"          Binding="{Binding Key}"                 Width="170"/>
+                        <DataGridTextColumn Header="Channel"       Binding="{Binding ChannelDisplay}"      Width="70"/>
+                        <DataGridTextColumn Header="RSSI"          Binding="{Binding RssiDisplay}"         Width="75"/>
+                        <DataGridTextColumn Header="High RSSI"     Binding="{Binding HighRssiDisplay}"     Width="75"/>
+                        <DataGridTextColumn Header="Capabilities"  Binding="{Binding CapabilitiesDisplay}" Width="90"/>
+                        <DataGridTextColumn Header="Latitude"      Binding="{Binding LatitudeDisplay}"     Width="85"/>
+                        <DataGridTextColumn Header="Longitude"     Binding="{Binding LongitudeDisplay}"    Width="85"/>
+                        <DataGridTextColumn Header="First Seen"    Binding="{Binding FirstSeenDisplay}"    Width="130"/>
+                        <DataGridTextColumn Header="Last Seen"     Binding="{Binding LastSeenDisplay}"     Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+            </TabControl>
         </Grid>
         
         <!-- Status Bar -->

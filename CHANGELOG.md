@@ -2,6 +2,7 @@
 
 ## master
 ### ✨ Features and improvements
+- **Bluetooth and Cell towers tabs** — the list area has Wi-Fi, Bluetooth and Cell towers tabs (the Wi-Fi tab is the AP list as it was). The other two list the Bluetooth devices and cell towers, with their counts on the tabs: name or operator, address or cell, type, RSSI, device class, manufacturer, position, first and last seen. They fill when an import brings some, and empty with Clear All and Save & Clear.
 - **VS1 version 4.1: cell towers and Bluetooth devices are kept** — the section VistumblerMAUI adds after the APs (10-field lines) is imported with each network's readings and positions, into tables of their own beside the APs, and goes out again with the next VS1 or VSZ export (Save & Clear and the WifiDB upload too), which is then version 4.1. This app still doesn't scan for these itself; they're kept so a file from VistumblerMAUI passes through without losing them. A file without any is written as 4.0, as before.
 - **WiGLE CSV: cell towers and Bluetooth devices, both ways, and a WiGLE CSV export** — a WiGLE CSV's `BT`, `BLE`, `GSM`, `CDMA`, `WCDMA`, `LTE` and `NR` rows are imported as cell towers and Bluetooth devices, with their readings and positions, instead of as Wi-Fi APs. **Export → Export To WiGLE CSV** (new) writes WiGLE's 1.6 format, 14 columns: a row per reading with a position, as WiGLE's app and the original Vistumbler write it, then the cell towers and Bluetooth devices as WiGLE WiFi Wardriving writes them.
 

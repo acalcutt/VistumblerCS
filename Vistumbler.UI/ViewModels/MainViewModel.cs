@@ -630,6 +630,7 @@ public partial class MainViewModel : ViewModelBase
             await _databaseService.ClearAllAccessPointsAsync();
             AccessPoints.Clear();
             ClearTreeview();
+            ClearRadioNetworkLists();
             ActiveApCount = 0;
             StatusMessage = "All access points cleared";
         }
@@ -661,6 +662,7 @@ public partial class MainViewModel : ViewModelBase
             await _databaseService.ClearAllAccessPointsAsync();
             AccessPoints.Clear();
             ClearTreeview();
+            ClearRadioNetworkLists();
             ActiveApCount = 0;
             StatusMessage = $"Saved & cleared — {aps.Count} APs written to {System.IO.Path.GetFileName(path)}";
         }
@@ -1601,6 +1603,7 @@ public partial class MainViewModel : ViewModelBase
                 ActiveApCount = AccessPoints.Count(ap => ap.IsActive);
                 StatusMessage = $"Loaded {AccessPoints.Count} access points.";
             });
+            await LoadRadioNetworksFromDatabaseAsync();   // and the Bluetooth and Cell towers tabs
         }
         catch (Exception ex)
         {

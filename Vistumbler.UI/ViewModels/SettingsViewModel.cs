@@ -30,6 +30,10 @@ public partial class SettingsViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(GraphGapThresholdSeconds))]
     private int  _refreshLoopTimeMs   = 1000;
 
+    // ── Interface menu: Bluetooth and the cellular modems (ids joined by |), scanned with the Wi-Fi ──
+    [ObservableProperty] private bool _scanBluetooth;
+    [ObservableProperty] private string _cellularModemIds = string.Empty;
+
     [ObservableProperty] private int  _maxSignalDbm        = -30;
     [ObservableProperty] private int  _disassociationSignalDbm = -85;
     [ObservableProperty] private int  _timeBeforeMarkingDeadS  = 10;
@@ -598,6 +602,8 @@ public partial class SettingsViewModel : ViewModelBase
         AutoCheckForUpdates        = B("Vistumbler",  "AutoCheckForUpdates",       true);
         CheckForBetaUpdates        = B("Vistumbler",  "CheckForBetaUpdates",       false);
         RefreshLoopTimeMs          = I("Vistumbler",  "Sleeptime",                 1000);
+        ScanBluetooth              = B("Radio",       "ScanBluetooth",             false);
+        CellularModemIds           = V("Radio",       "CellularModems",            "");
         MaxSignalDbm               = I("Vistumbler",  "dBmMaxSignal",              -30);
         DisassociationSignalDbm    = I("Vistumbler",  "dBmDissociationSignal",     -85);
         TimeBeforeMarkingDeadS     = I("Vistumbler",  "TimeBeforeMarkedDead",      5);
@@ -848,6 +854,8 @@ public partial class SettingsViewModel : ViewModelBase
         WB("Vistumbler", "AutoCheckForUpdates",    AutoCheckForUpdates);
         WB("Vistumbler", "CheckForBetaUpdates",    CheckForBetaUpdates);
         WI("Vistumbler", "Sleeptime",               RefreshLoopTimeMs);
+        WB("Radio",      "ScanBluetooth",           ScanBluetooth);
+        W ("Radio",      "CellularModems",          CellularModemIds);
         WI("Vistumbler", "dBmMaxSignal",            MaxSignalDbm);
         WI("Vistumbler", "dBmDissociationSignal",   DisassociationSignalDbm);
         WI("Vistumbler", "TimeBeforeMarkedDead",    TimeBeforeMarkingDeadS);

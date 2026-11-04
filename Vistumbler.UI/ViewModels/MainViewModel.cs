@@ -21,6 +21,7 @@ namespace Vistumbler.UI.ViewModels;
 public partial class MainViewModel : ViewModelBase
 {
     private readonly IWiFiScannerService _wifiScanner;
+    private readonly IRadioScannerService _radioScanner;
     private readonly IGpsService _gpsService;
     private readonly IDatabaseService _databaseService;
     private readonly IImportService _importService;
@@ -275,6 +276,7 @@ public partial class MainViewModel : ViewModelBase
 
     public MainViewModel(
         IWiFiScannerService wifiScanner,
+        IRadioScannerService radioScanner,
         IGpsService gpsService,
         IDatabaseService databaseService,
         IImportService importService,
@@ -283,6 +285,7 @@ public partial class MainViewModel : ViewModelBase
         SettingsViewModel settingsViewModel)
     {
         _wifiScanner = wifiScanner;
+        _radioScanner = radioScanner;
         _gpsService = gpsService;
         _databaseService = databaseService;
         _importService = importService;
@@ -302,6 +305,7 @@ public partial class MainViewModel : ViewModelBase
         _wifiScanner.ScanError += OnScanError;
         _gpsService.GpsDataReceived += OnGpsDataReceived;
         _gpsService.GpsError += OnGpsError;
+        InitializeRadio();
 
         // Initialize commands
         StartScanCommand = new AsyncRelayCommand(StartScanAsync, () => !IsScanning);
@@ -468,6 +472,7 @@ public partial class MainViewModel : ViewModelBase
 
     private async Task LoadAdaptersAsync()
     {
+        await LoadRadioInterfacesAsync();
         var adapters = await _wifiScanner.GetAvailableAdaptersAsync();
         Application.Current.Dispatcher.Invoke(() =>
         {
@@ -547,6 +552,9 @@ public partial class MainViewModel : ViewModelBase
             // Apply scan interval from settings
             _wifiScanner.ScanIntervalMs = _settings.RefreshLoopTimeMs;
 
+            // Bluetooth and cell towers alongside, if the Interface menu has them on
+            StartRadio();
+
             await _wifiScanner.StartScanningAsync(_scanCancellationTokenSource.Token);
         }
         catch (Exception ex)
@@ -560,6 +568,7 @@ public partial class MainViewModel : ViewModelBase
     {
         _scanCancellationTokenSource?.Cancel();
         _wifiScanner.StopScanning();
+        StopRadio();
         IsScanning = false;
         StatusMessage = "Scanning stopped";
     }
@@ -1374,6 +1383,8 @@ public partial class MainViewModel : ViewModelBase
             ActiveApCount = AccessPoints.Count(ap => ap.IsActive);
             FireLiveApGeoJson();
         });
+
+        await SaveHeardRadioNetworksAsync();
     }
 
     // ── Live AP GeoJSON ───────────────────────────────────────────────────────

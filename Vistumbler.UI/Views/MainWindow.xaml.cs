@@ -56,7 +56,13 @@ public partial class MainWindow : Window
         viewModel.AvailableAdapters.CollectionChanged += (_, _) => RebuildInterfaceMenu();
         viewModel.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(MainViewModel.ActiveAdapter))
+            if (e.PropertyName is nameof(MainViewModel.ActiveAdapter) or nameof(MainViewModel.IsBluetoothAvailable))
+                RebuildInterfaceMenu();
+        };
+        viewModel.AvailableCellularModems.CollectionChanged += (_, _) => RebuildInterfaceMenu();
+        viewModel.Settings.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(SettingsViewModel.ScanBluetooth) or nameof(SettingsViewModel.CellularModemIds))
                 RebuildInterfaceMenu();
         };
 
@@ -305,7 +311,7 @@ public partial class MainWindow : Window
     // ── Interface menu (dynamic adapter items) ─────────────────────────────────
 
     /// <summary>
-    /// Rebuilds the adapter items in the Interface menu. The first two items
+    /// Rebuilds the adapter, Bluetooth and modem items in the Interface menu. The first two items
     /// (Refresh Interfaces + Separator) are declared in XAML and kept in place.
     /// </summary>
     private void RebuildInterfaceMenu()
@@ -325,6 +331,24 @@ public partial class MainWindow : Window
                 IsChecked   = adapter == vm.ActiveAdapter
             };
             item.Click += (_, _) => vm.SelectAdapterCommand.Execute(adapter);
+            InterfaceMenu.Items.Add(item);
+        }
+
+        // Bluetooth (Windows scans with its one Bluetooth radio) and the cellular modems, scanned with the Wi-Fi: each
+        // on or off by itself
+        if (!vm.IsBluetoothAvailable && vm.AvailableCellularModems.Count == 0) return;
+        InterfaceMenu.Items.Add(new Separator());
+        if (vm.IsBluetoothAvailable)
+        {
+            var bluetooth = new MenuItem { Header = "Bluetooth", IsCheckable = true, IsChecked = vm.Settings.ScanBluetooth };
+            bluetooth.Click += (_, _) => vm.ToggleBluetoothCommand.Execute(null);
+            InterfaceMenu.Items.Add(bluetooth);
+        }
+        var selectedModems = vm.SelectedCellularModemIds();
+        foreach (var modem in vm.AvailableCellularModems)
+        {
+            var item = new MenuItem { Header = $"Cell towers: {modem.Name}", IsCheckable = true, IsChecked = selectedModems.Contains(modem.Id) };
+            item.Click += (_, _) => vm.ToggleCellularModemCommand.Execute(modem);
             InterfaceMenu.Items.Add(item);
         }
     }

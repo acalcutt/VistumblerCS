@@ -16,8 +16,8 @@ public enum RadioNetworkType
 
 /// <summary>
 /// A cell tower or Bluetooth device, kept apart from the Wi-Fi access points as WiGLE, VistumblerMAUI and WifiDB keep
-/// them. This app doesn't record these itself; they come in with a VS1 4.1 file or a WiGLE CSV and go out again with
-/// the same formats. The fields are WiGLE's:
+/// them. Bluetooth devices are scanned (Interface → Bluetooth); both come in with a VS1 4.1 file or a WiGLE CSV and go out
+/// again with the same formats. The fields are WiGLE's:
 /// <list type="bullet">
 /// <item>Cells: <see cref="Key"/> is "mccmnc_lac_cid" (TAC for LTE and NR; "sid_nid_bid" for CDMA), <see cref="Name"/>
 /// the operator, <see cref="Capabilities"/> "LTE;mccmnc", <see cref="Channel"/> the ARFCN, UARFCN, EARFCN or NRARFCN.</item>

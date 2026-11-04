@@ -7,6 +7,7 @@ using Vistumbler.Infrastructure.Data;
 using Vistumbler.Infrastructure.Export;
 using Vistumbler.Infrastructure.Gps;
 using Vistumbler.Infrastructure.Import;
+using Vistumbler.Infrastructure.Radio;
 using Vistumbler.Infrastructure.Settings;
 using Vistumbler.Infrastructure.Sound;
 using Vistumbler.Infrastructure.WiFi;
@@ -28,6 +29,7 @@ public partial class App : Application
 
                 // Register services
                 services.AddSingleton<IWiFiScannerService, NativeWiFiScanner>();
+                services.AddSingleton<IRadioScannerService, WindowsRadioScannerService>();
                 services.AddSingleton<SerialGpsService>();
                 services.AddSingleton<WindowsLocationGpsService>();
                 services.AddSingleton<GpsServiceRouter>();

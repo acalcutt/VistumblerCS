@@ -21,7 +21,9 @@ public partial class RadioNetworkViewModel : ViewModelBase
     [ObservableProperty] private int _frequency;
     [ObservableProperty] private int? _mfgrId;
 
-    [ObservableProperty] private int _rssi;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RssiDisplay))]
+    private int _rssi;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HighRssiDisplay))]
     private int _highestRssi;
@@ -44,6 +46,7 @@ public partial class RadioNetworkViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveDisplay))]
+    [NotifyPropertyChangedFor(nameof(RssiDisplay))]
     private bool _isActive;
 
     public bool IsBluetooth => Type is RadioNetworkType.BT or RadioNetworkType.BLE;

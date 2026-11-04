@@ -306,6 +306,7 @@ public partial class MainViewModel : ViewModelBase
         _gpsService.GpsDataReceived += OnGpsDataReceived;
         _gpsService.GpsError += OnGpsError;
         InitializeRadio();
+        InitializeFilter();
 
         // Initialize commands
         StartScanCommand = new AsyncRelayCommand(StartScanAsync, () => !IsScanning);
@@ -1172,6 +1173,7 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     private void AddApToTreeview(AccessPointViewModel ap)
     {
+        if (!PassesFilter(ap)) return;   // the filter in use keeps it out (MainViewModel.Filter.cs)
         AddApToCategory(_authRoot,       ap.AuthenticationDisplay, ap);
         AddApToCategory(_channelRoot,    $"{ap.Channel:000}",      ap);
         AddApToCategory(_encryptionRoot, ap.EncryptionDisplay,     ap);
@@ -1214,6 +1216,7 @@ public partial class MainViewModel : ViewModelBase
     /// </summary>
     private void UpdateApInTreeview(AccessPointViewModel ap)
     {
+        if (!PassesFilter(ap)) { RemoveApFromTreeview(ap); return; }
         UpdateApInCategory(_authRoot,       ap.AuthenticationDisplay,                                ap);
         UpdateApInCategory(_channelRoot,    $"{ap.Channel:000}",                                    ap);
         UpdateApInCategory(_encryptionRoot, ap.EncryptionDisplay,                                   ap);
@@ -1404,6 +1407,7 @@ public partial class MainViewModel : ViewModelBase
                     apVm.IsActive = false;
                     apVm.Signal   = 0;
                     apVm.Rssi     = 0;
+                    if (_activeFilter is not null) UpdateApInTreeview(apVm);   // a filter on Active or signal may now leave it out
                 }
             }
         });
@@ -1411,8 +1415,9 @@ public partial class MainViewModel : ViewModelBase
         // Update counts
         Application.Current.Dispatcher.Invoke(() =>
         {
-            ActiveApCount = AccessPoints.Count(ap => ap.IsActive);
+            ActiveApCount = CountActiveAps();
             FireLiveApGeoJson();
+            UpdateFilterStatus();
         });
 
         await SaveHeardRadioNetworksAsync();
@@ -1642,7 +1647,7 @@ public partial class MainViewModel : ViewModelBase
                     AccessPoints.Add(vm);
                     AddApToTreeview(vm);
                 }
-                ActiveApCount = AccessPoints.Count(ap => ap.IsActive);
+                ActiveApCount = CountActiveAps();
                 StatusMessage = $"Loaded {AccessPoints.Count} access points.";
             });
             await LoadRadioNetworksFromDatabaseAsync();   // and the Bluetooth and Cell towers tabs
@@ -1653,39 +1658,7 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    private List<AccessPoint> GetAccessPointsModels()
-    {
-        var list = new List<AccessPoint>();
-        foreach (var vm in AccessPoints)
-        {
-            list.Add(new AccessPoint
-            {
-                ApId = vm.ApId,
-                Bssid = vm.Bssid,
-                Ssid = vm.Ssid,
-                Manufacturer = vm.Manufacturer,
-                Label = vm.Label,
-                NetworkType = vm.NetworkType,
-                Authentication = vm.Authentication,
-                Encryption = vm.Encryption,
-                RadioType = vm.RadioType,
-                Channel = vm.Channel,
-                FrequencyMhz = vm.FrequencyMhz,
-                BasicTransferRates = vm.BasicTransferRates,
-                OtherTransferRates = vm.OtherTransferRates,
-                Signal = vm.Signal,
-                HighestSignal = vm.HighestSignal,
-                Rssi = vm.Rssi,
-                HighestRssi = vm.HighestRssi,
-                FirstSeen = vm.FirstSeen,
-                LastSeen = vm.LastSeen,
-                Latitude = vm.Latitude,
-                Longitude = vm.Longitude,
-                IsActive = vm.IsActive
-            });
-        }
-        return list;
-    }
+    private List<AccessPoint> GetAccessPointsModels() => AccessPoints.Select(vm => vm.ToModel()).ToList();
 
     private async Task ExportVs1()
     {

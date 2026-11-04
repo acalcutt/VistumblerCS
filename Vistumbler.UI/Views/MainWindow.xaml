@@ -267,6 +267,8 @@
                 <Separator/>
                 <TextBlock Text="Active APs:" VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding ActiveApCount}" FontWeight="Bold" Margin="2,0,6,0" VerticalAlignment="Center"/>
+                <!-- the filter in use, and how many APs it shows (empty without one) -->
+                <TextBlock Text="{Binding FilterStatusText}" Foreground="DarkBlue" Margin="2,0,6,0" VerticalAlignment="Center"/>
                 <Separator/>
                 <TextBlock Text="Lat:" VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding CurrentLatitude}"  FontWeight="Bold" Margin="2,0,6,0" MinWidth="80" VerticalAlignment="Center"/>

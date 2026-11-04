@@ -2,6 +2,17 @@
 
 ## master
 ### ✨ Features and improvements
+- **Filters work** — choosing a filter in the Filters menu used to save the choice and change nothing. Now, as in the original Vistumbler:
+  - **The list and the treeview** show only the APs the filter lets through.
+  - **The Active APs count** counts only those APs.
+  - **The status bar** shows the filter's name and how many APs it shows out of all of them.
+
+  An AP is checked again whenever one of its fields changes, so an AP that drops below a signal limit or goes dead leaves the list by itself. Filters use the original's syntax in every field:
+  - lists: `1,6,11`
+  - ranges: `-80--60`
+  - not: `<>6`
+  - wildcards: `%guest%`
+  - escapes: `\,`, `\-` and `\%`
 - **Export To M8b (WiGLE Magic 8 Ball)** — writes WiGLE's offline "where am I" file: each AP's best-signal position as a 1 km map square, keyed by a hash of its MAC, so the file doesn't list MACs. WiGLE WiFi Wardriving and VistumblerMAUI load it to place you from the APs they can see, without a GPS. The writer is VistumblerMAUI's, which follows WiGLE's (BSD licence, in the new THIRD-PARTY-NOTICES.md).
 - **GeoJSON and signal map exports** — three new items on the Export menu, as VistumblerMAUI has them:
   - **Export To GeoJSON:** a point per AP at its strongest position.

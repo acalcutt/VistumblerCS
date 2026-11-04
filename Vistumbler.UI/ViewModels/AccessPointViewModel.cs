@@ -97,6 +97,33 @@ public partial class AccessPointViewModel : ViewModelBase
         UpdateFrom(accessPoint);
     }
 
+    /// <summary>The row as a model, for the exports and the filter (without its signal history).</summary>
+    public AccessPoint ToModel() => new()
+    {
+        ApId = ApId,
+        Bssid = Bssid,
+        Ssid = Ssid,
+        Manufacturer = Manufacturer,
+        Label = Label,
+        NetworkType = NetworkType,
+        Authentication = Authentication,
+        Encryption = Encryption,
+        RadioType = RadioType,
+        Channel = Channel,
+        FrequencyMhz = FrequencyMhz,
+        BasicTransferRates = BasicTransferRates,
+        OtherTransferRates = OtherTransferRates,
+        Signal = Signal,
+        HighestSignal = HighestSignal,
+        Rssi = Rssi,
+        HighestRssi = HighestRssi,
+        FirstSeen = FirstSeen,
+        LastSeen = LastSeen,
+        Latitude = Latitude,
+        Longitude = Longitude,
+        IsActive = IsActive,
+    };
+
     public void UpdateFrom(AccessPoint accessPoint)
     {
         // Don't overwrite ApId if we already have one

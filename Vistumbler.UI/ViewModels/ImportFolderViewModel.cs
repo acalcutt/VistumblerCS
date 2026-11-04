@@ -88,6 +88,7 @@ public partial class ImportFolderViewModel : ViewModelBase
         ProgressValue = 0;
         int totalNew = 0;
         int totalAps = 0;
+        int totalRadios = 0;
 
         for (int i = 0; i < files.Count; i++)
         {
@@ -98,8 +99,10 @@ public partial class ImportFolderViewModel : ViewModelBase
             try
             {
                 var aps = await ImportFileAsync(file);
+                var radios = _importService.TakeRadioNetworks();   // the cell towers and Bluetooth devices (VS1 4.1, WiGLE CSV)
                 totalAps += aps.Count;
-                totalNew += await ImportSaver.SaveAsync(_databaseService, aps);   // with each AP's readings and GPS fixes
+                totalRadios += radios.Count;
+                totalNew += await ImportSaver.SaveAsync(_databaseService, aps, radios);   // with each AP's readings and GPS fixes
             }
             catch (Exception ex)
             {
@@ -109,7 +112,8 @@ public partial class ImportFolderViewModel : ViewModelBase
         }
 
         ProgressValue = 100;
-        ProgressLabel = $"Done — {files.Count} files, {totalAps} APs read, {totalNew} new/updated.";
+        ProgressLabel = $"Done — {files.Count} files, {totalAps} APs read, {totalNew} new/updated"
+            + (totalRadios > 0 ? $", {totalRadios} cell towers and Bluetooth devices." : ".");
         IsImporting = false;
     }
 

@@ -21,4 +21,19 @@ public static class ExportLoader
             ap.SignalHistory = history;
         }
     }
+
+    /// <summary>The stored cell towers and Bluetooth devices, each with its readings and their GPS fixes.</summary>
+    public static async Task<List<RadioNetwork>> LoadRadioNetworksAsync(IDatabaseService db)
+    {
+        var networks = await db.GetAllRadioNetworksAsync();
+        if (networks.Count == 0) return networks;
+        var gps = (await db.GetAllGpsDataAsync()).ToDictionary(g => g.GpsId);
+        foreach (var n in networks)
+        {
+            n.History = await db.GetRadioHistoryAsync(n.Id);
+            foreach (var r in n.History)
+                if (r.GpsId is { } id && gps.TryGetValue(id, out var g)) r.GpsData = g;
+        }
+        return networks;
+    }
 }

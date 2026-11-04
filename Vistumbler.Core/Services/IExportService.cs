@@ -43,14 +43,15 @@ public interface IExportService
     Task ExportToWigleCsvAsync(string filePath, List<AccessPoint> accessPoints);
     
     /// <summary>
-    /// Export to VS1 text format (Vistumbler native)
+    /// Export to VS1 text format (Vistumbler native): version 4.0, or 4.1 with the cell towers and Bluetooth devices
+    /// when there are any
     /// </summary>
-    Task ExportToVs1Async(string filePath, List<AccessPoint> accessPoints);
-    
+    Task ExportToVs1Async(string filePath, List<AccessPoint> accessPoints, IReadOnlyList<RadioNetwork>? radios = null);
+
     /// <summary>
     /// Export to VSZ compressed format
     /// </summary>
-    Task ExportToVszAsync(string filePath, List<AccessPoint> accessPoints);
+    Task ExportToVszAsync(string filePath, List<AccessPoint> accessPoints, IReadOnlyList<RadioNetwork>? radios = null);
 }
 
 public class ExportOptions

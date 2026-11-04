@@ -650,10 +650,11 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
+            var radios = await ExportLoader.LoadRadioNetworksAsync(_databaseService);   // and the cell towers and Bluetooth devices (4.1)
             if (path.EndsWith(".vsz", StringComparison.OrdinalIgnoreCase))
-                await _exportService.ExportToVszAsync(path, aps);
+                await _exportService.ExportToVszAsync(path, aps, radios);
             else
-                await _exportService.ExportToVs1Async(path, aps);
+                await _exportService.ExportToVs1Async(path, aps, radios);
 
             await _databaseService.ClearAllAccessPointsAsync();
             AccessPoints.Clear();
@@ -960,7 +961,7 @@ public partial class MainViewModel : ViewModelBase
             else
             {
                 await ExportLoader.LoadHistoryAsync(_databaseService, models);   // the readings and their GPS fixes
-                await _exportService.ExportToVs1Async(tempPath, models);
+                await _exportService.ExportToVs1Async(tempPath, models, await ExportLoader.LoadRadioNetworksAsync(_databaseService));
             }
 
             var fileBytes = await File.ReadAllBytesAsync(tempPath);
@@ -1643,7 +1644,7 @@ public partial class MainViewModel : ViewModelBase
         {
             var aps = GetAccessPointsModels();
             await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
-            await _exportService.ExportToVs1Async(dialog.FileName, aps);
+            await _exportService.ExportToVs1Async(dialog.FileName, aps, await ExportLoader.LoadRadioNetworksAsync(_databaseService));
             StatusMessage = "Exported to VS1";
         }
     }
@@ -1655,7 +1656,7 @@ public partial class MainViewModel : ViewModelBase
         {
             var aps = GetAccessPointsModels();
             await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
-            await _exportService.ExportToVszAsync(dialog.FileName, aps);
+            await _exportService.ExportToVszAsync(dialog.FileName, aps, await ExportLoader.LoadRadioNetworksAsync(_databaseService));
             StatusMessage = "Exported to VSZ";
         }
     }

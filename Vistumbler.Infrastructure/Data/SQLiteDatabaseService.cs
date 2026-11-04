@@ -76,6 +76,34 @@ public class SQLiteDatabaseService : IDatabaseService
                 Timestamp TEXT,
                 Quality INTEGER
             )",
+            // Cell towers and Bluetooth devices (VS1 4.1, WiGLE CSV), beside the APs; their readings point at the same GpsData
+            @"CREATE TABLE IF NOT EXISTS RadioNetworks (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Key TEXT UNIQUE NOT NULL,
+                Type INTEGER,
+                Name TEXT,
+                Capabilities TEXT,
+                Manufacturer TEXT,
+                Channel INTEGER,
+                Frequency INTEGER,
+                MfgrId INTEGER,
+                Rssi INTEGER,
+                HighestRssi INTEGER,
+                FirstSeen TEXT,
+                LastSeen TEXT,
+                Latitude REAL,
+                Longitude REAL
+            )",
+            @"CREATE TABLE IF NOT EXISTS RadioReadings (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                NetworkId INTEGER NOT NULL,
+                GpsId INTEGER,
+                Rssi INTEGER,
+                Timestamp TEXT,
+                FOREIGN KEY(NetworkId) REFERENCES RadioNetworks(Id),
+                FOREIGN KEY(GpsId) REFERENCES GpsData(GpsId)
+            )",
+            "CREATE INDEX IF NOT EXISTS idx_radio_reading_network ON RadioReadings(NetworkId)",
             "CREATE TABLE IF NOT EXISTS Manufacturers (MacPrefix TEXT PRIMARY KEY, Manufacturer TEXT NOT NULL)",
             "CREATE TABLE IF NOT EXISTS Labels (Bssid TEXT PRIMARY KEY, Label TEXT NOT NULL)",
             "CREATE INDEX IF NOT EXISTS idx_ap_bssid ON AccessPoints(Bssid)",
@@ -214,6 +242,67 @@ public class SQLiteDatabaseService : IDatabaseService
         return result.ToList();
     }
 
+    public async Task<int> UpsertRadioNetworkAsync(RadioNetwork network)
+    {
+        if (_connection == null)
+            throw new InvalidOperationException("Database not initialized");
+
+        // Merged with what's stored: a name only replaces an empty one, the earliest first seen and latest last seen
+        // win, and the position stays the strongest reading's
+        var sql = @"
+            INSERT INTO RadioNetworks (
+                Key, Type, Name, Capabilities, Manufacturer, Channel, Frequency, MfgrId,
+                Rssi, HighestRssi, FirstSeen, LastSeen, Latitude, Longitude
+            ) VALUES (
+                @Key, @Type, @Name, @Capabilities, @Manufacturer, @Channel, @Frequency, @MfgrId,
+                @Rssi, @HighestRssi, @FirstSeen, @LastSeen, @Latitude, @Longitude
+            )
+            ON CONFLICT(Key) DO UPDATE SET
+                Name = CASE WHEN @Name <> '' THEN @Name ELSE Name END,
+                Capabilities = CASE WHEN @Capabilities <> '' THEN @Capabilities ELSE Capabilities END,
+                Manufacturer = CASE WHEN @Manufacturer <> '' THEN @Manufacturer ELSE Manufacturer END,
+                Channel = COALESCE(@Channel, Channel),
+                Frequency = CASE WHEN @Frequency <> 0 THEN @Frequency ELSE Frequency END,
+                MfgrId = COALESCE(@MfgrId, MfgrId),
+                Rssi = CASE WHEN @LastSeen >= LastSeen THEN @Rssi ELSE Rssi END,
+                Latitude = CASE WHEN @Latitude IS NOT NULL AND (@HighestRssi >= HighestRssi OR Latitude IS NULL) THEN @Latitude ELSE Latitude END,
+                Longitude = CASE WHEN @Longitude IS NOT NULL AND (@HighestRssi >= HighestRssi OR Longitude IS NULL) THEN @Longitude ELSE Longitude END,
+                HighestRssi = MAX(@HighestRssi, HighestRssi),
+                FirstSeen = MIN(@FirstSeen, FirstSeen),
+                LastSeen = MAX(@LastSeen, LastSeen)
+            RETURNING Id;
+        ";
+        return network.Id = await _connection.ExecuteScalarAsync<int>(sql, network);
+    }
+
+    public async Task AddRadioReadingAsync(RadioReading reading)
+    {
+        if (_connection == null)
+            throw new InvalidOperationException("Database not initialized");
+
+        await _connection.ExecuteAsync(
+            "INSERT INTO RadioReadings (NetworkId, GpsId, Rssi, Timestamp) VALUES (@NetworkId, @GpsId, @Rssi, @Timestamp)", reading);
+    }
+
+    public async Task<List<RadioNetwork>> GetAllRadioNetworksAsync()
+    {
+        if (_connection == null)
+            throw new InvalidOperationException("Database not initialized");
+
+        var result = await _connection.QueryAsync<RadioNetwork>("SELECT * FROM RadioNetworks ORDER BY Id");
+        return result.ToList();
+    }
+
+    public async Task<List<RadioReading>> GetRadioHistoryAsync(int networkId)
+    {
+        if (_connection == null)
+            throw new InvalidOperationException("Database not initialized");
+
+        var result = await _connection.QueryAsync<RadioReading>(
+            "SELECT * FROM RadioReadings WHERE NetworkId = @NetworkId ORDER BY Timestamp, Id", new { NetworkId = networkId });
+        return result.ToList();
+    }
+
     public async Task<List<AccessPoint>> GetAllAccessPointsAsync()
     {
         if (_connection == null)
@@ -255,6 +344,8 @@ public class SQLiteDatabaseService : IDatabaseService
 
         await _connection.ExecuteAsync("DELETE FROM SignalHistory");
         await _connection.ExecuteAsync("DELETE FROM AccessPoints");
+        await _connection.ExecuteAsync("DELETE FROM RadioReadings");
+        await _connection.ExecuteAsync("DELETE FROM RadioNetworks");
         await _connection.ExecuteAsync("DELETE FROM GpsData");
     }
 

@@ -134,15 +134,18 @@ public partial class ImportViewModel : ViewModelBase
                     break;
             }
 
-            if (importedAps != null && importedAps.Count > 0)
+            // the cell towers and Bluetooth devices the file had (VS1 4.1, WiGLE CSV)
+            var radios = _importService.TakeRadioNetworks();
+            importedAps ??= new();
+            if (importedAps.Count > 0 || radios.Count > 0)
             {
                 ProgressLabel = $"Progress: Saving {importedAps.Count} APs...";
                 ProgressValue = 50;
                 // With each AP's readings and the GPS fixes they were taken at
-                int savedCount = await ImportSaver.SaveAsync(_databaseService, importedAps);
+                int savedCount = await ImportSaver.SaveAsync(_databaseService, importedAps, radios);
                 ProgressValue = 100;
                 ProgressLabel = "Progress: Done";
-                NewApsLabel = $"New APs: {savedCount}";
+                NewApsLabel = radios.Count > 0 ? $"New APs: {savedCount}, cell towers and Bluetooth devices: {radios.Count}" : $"New APs: {savedCount}";
                 LineTotalLabel = $"Line/Total: {importedAps.Count}/{importedAps.Count}";
             }
             else

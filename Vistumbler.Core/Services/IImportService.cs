@@ -36,4 +36,10 @@ public interface IImportService
     /// Import from CSV format (Supports Vistumbler Detailed and Wigle)
     /// </summary>
     Task<List<AccessPoint>> ImportFromCsvAsync(string filePath);
+
+    /// <summary>
+    /// The cell towers and Bluetooth devices the last import read (a VS1 4.1 file, a WiGLE CSV), with their readings;
+    /// taking them empties the list. Save them with the APs (<see cref="ImportSaver.SaveAsync"/>).
+    /// </summary>
+    IReadOnlyList<RadioNetwork> TakeRadioNetworks();
 }

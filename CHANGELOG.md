@@ -2,7 +2,7 @@
 
 ## master
 ### ✨ Features and improvements
-- **Reads VS1 version 4.1** — the cell tower and Bluetooth section VistumblerMAUI adds after the APs (10-field lines) is recognised and skipped, since this app doesn't record those networks; the file's APs and GPS import as usual.
+- **VS1 version 4.1: cell towers and Bluetooth devices are kept** — the section VistumblerMAUI adds after the APs (10-field lines) is imported with each network's readings and positions, into tables of their own beside the APs, and goes out again with the next VS1 or VSZ export (Save & Clear and the WifiDB upload too), which is then version 4.1. This app still doesn't scan for these itself; they're kept so a file from VistumblerMAUI passes through without losing them. A file without any is written as 4.0, as before.
 
 ### 🐞 Bug fixes
 - **VS1 imports keep their GPS positions and signal history** — the import read only each AP's summary line, so imported APs had no readings or positions and were dated to the import. The GPS section and each AP's history are now read, as in the original Vistumbler, and every import now saves the readings it reads (NetStumbler files carried them too).

@@ -762,20 +762,29 @@ public class ExportService : IExportService
     /// '\', each GID one of the GPS lines. Readers tell the lines apart by their field count, so a value can't have a
     /// '|' in it. The readings come from each access point's <see cref="AccessPoint.SignalHistory"/>, with their
     /// <see cref="SignalHistory.GpsData"/> (<see cref="ExportLoader.LoadHistoryAsync"/>).
+    /// <para>
+    /// With cell towers or Bluetooth devices (<see cref="ExportLoader.LoadRadioNetworksAsync"/>) it's version 4.1, as
+    /// VistumblerMAUI writes it: a third section of 10-field lines after the APs, "Type|Key|Name|Capabilities|Channel|
+    /// Frequency|MfgrId|Manufacturer|High RSSI|GID,RSSI\…", which readers before 4.1 skip. Without any, the file is
+    /// exactly 4.0.
+    /// </para>
     /// </summary>
-    public async Task ExportToVs1Async(string filePath, List<AccessPoint> accessPoints)
+    public async Task ExportToVs1Async(string filePath, List<AccessPoint> accessPoints, IReadOnlyList<RadioNetwork>? radios = null)
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         const string sep = "# -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------";
+        bool hasRadios = radios is { Count: > 0 };
 
         // The GPS lines: every fix a reading was taken at, numbered as stored
         var gps = new SortedDictionary<int, GpsData>();
         foreach (var h in accessPoints.SelectMany(ap => ap.SignalHistory))
             if (h.GpsData is { } g && g.GpsId > 0) gps[g.GpsId] = g;
+        foreach (var r in (radios ?? Array.Empty<RadioNetwork>()).SelectMany(n => n.History))
+            if (r.GpsData is { } g && g.GpsId > 0) gps[g.GpsId] = g;
 
         // CRLF, as Vistumbler writes it and WifiDB's importer reads it
         using var writer = new StreamWriter(filePath, false, Encoding.UTF8) { NewLine = "\r\n" };
-        await writer.WriteLineAsync("# Vistumbler VS1 - Detailed Export Version 4.0");
+        await writer.WriteLineAsync(hasRadios ? "# Vistumbler VS1 - Detailed Export Version 4.1" : "# Vistumbler VS1 - Detailed Export Version 4.0");
         await writer.WriteLineAsync("# Created By: VistumblerCS");
         await writer.WriteLineAsync(sep);
         await writer.WriteLineAsync("# GpsID|Latitude|Longitude|NumOfSatalites|HorizontalDilutionOfPrecision|Altitude(m)|HeightOfGeoidAboveWGS84Ellipsoid(m)|Speed(km/h)|Speed(MPH)|TrackAngle(Deg)|Date(UTC y-m-d)|Time(UTC h:m:s.ms)");
@@ -823,6 +832,26 @@ public class ExportService : IExportService
                 Vs1Field(ap.Label),
                 history));
         }
+
+        if (!hasRadios) return;
+        await writer.WriteLineAsync(sep);
+        await writer.WriteLineAsync("# Type|Key|Name|Capabilities|Channel|Frequency|MfgrId|Manufacturer|High RSSI|GID,RSSI");
+        await writer.WriteLineAsync(sep);
+        foreach (var n in radios!)
+        {
+            var readings = string.Join('\\', n.History.Where(r => r.GpsData is { GpsId: > 0 }).Select(r => $"{r.GpsData!.GpsId},{r.Rssi.ToString(inv)}"));
+            await writer.WriteLineAsync(string.Join('|',
+                n.Type,
+                Vs1Field(n.Key),
+                Vs1Field(n.Name),
+                Vs1Field(n.Capabilities),
+                n.Channel?.ToString(inv) ?? "",
+                n.Frequency.ToString(inv),
+                n.MfgrId?.ToString(inv) ?? "",
+                Vs1Field(n.Manufacturer),
+                n.HighestRssi == int.MinValue ? n.Rssi : n.HighestRssi,
+                readings));
+        }
     }
 
     // Keeps a value to one VS1 field: no '|' or line break, which would change the line's field count
@@ -847,13 +876,13 @@ public class ExportService : IExportService
         return $"{hemi} {dmm.ToString("0000.0000", System.Globalization.CultureInfo.InvariantCulture)}";
     }
 
-    public async Task ExportToVszAsync(string filePath, List<AccessPoint> accessPoints)
+    public async Task ExportToVszAsync(string filePath, List<AccessPoint> accessPoints, IReadOnlyList<RadioNetwork>? radios = null)
     {
         // VSZ is a compressed VS1 file
         var tempVs1 = Path.GetTempFileName();
         try
         {
-            await ExportToVs1Async(tempVs1, accessPoints);
+            await ExportToVs1Async(tempVs1, accessPoints, radios);
 
             if (File.Exists(filePath))
                 File.Delete(filePath);

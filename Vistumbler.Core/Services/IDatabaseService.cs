@@ -31,6 +31,23 @@ public interface IDatabaseService
     /// Every stored GPS fix (what the readings point at, for an export)
     /// </summary>
     Task<List<GpsData>> GetAllGpsDataAsync();
+
+    // ── Cell towers and Bluetooth devices (VS1 4.1, WiGLE CSV) ───────────────
+
+    /// <summary>
+    /// Add a cell tower or Bluetooth device, or merge it into the one stored with its key (earliest first seen,
+    /// latest last seen, the strongest reading's position). Returns its id.
+    /// </summary>
+    Task<int> UpsertRadioNetworkAsync(RadioNetwork network);
+
+    /// <summary>Add a reading of a cell tower or Bluetooth device.</summary>
+    Task AddRadioReadingAsync(RadioReading reading);
+
+    /// <summary>Every stored cell tower and Bluetooth device.</summary>
+    Task<List<RadioNetwork>> GetAllRadioNetworksAsync();
+
+    /// <summary>A cell tower's or Bluetooth device's readings, oldest first.</summary>
+    Task<List<RadioReading>> GetRadioHistoryAsync(int networkId);
     
     /// <summary>
     /// Get all access points

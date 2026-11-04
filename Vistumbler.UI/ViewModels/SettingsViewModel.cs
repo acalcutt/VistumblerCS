@@ -30,7 +30,8 @@ public partial class SettingsViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(GraphGapThresholdSeconds))]
     private int  _refreshLoopTimeMs   = 1000;
 
-    // ── Interface menu: Bluetooth and the cellular modems (ids joined by |), scanned with the Wi-Fi ──
+    // ── Interface menu: the Wi-Fi adapters, Bluetooth and the cellular modems (ids joined by |) ──
+    [ObservableProperty] private string _wifiAdapterIds = string.Empty;
     [ObservableProperty] private bool _scanBluetooth;
     [ObservableProperty] private string _cellularModemIds = string.Empty;
 
@@ -602,6 +603,7 @@ public partial class SettingsViewModel : ViewModelBase
         AutoCheckForUpdates        = B("Vistumbler",  "AutoCheckForUpdates",       true);
         CheckForBetaUpdates        = B("Vistumbler",  "CheckForBetaUpdates",       false);
         RefreshLoopTimeMs          = I("Vistumbler",  "Sleeptime",                 1000);
+        WifiAdapterIds             = V("Vistumbler",  "WifiAdapters",              "");
         ScanBluetooth              = B("Radio",       "ScanBluetooth",             false);
         CellularModemIds           = V("Radio",       "CellularModems",            "");
         MaxSignalDbm               = I("Vistumbler",  "dBmMaxSignal",              -30);
@@ -854,6 +856,7 @@ public partial class SettingsViewModel : ViewModelBase
         WB("Vistumbler", "AutoCheckForUpdates",    AutoCheckForUpdates);
         WB("Vistumbler", "CheckForBetaUpdates",    CheckForBetaUpdates);
         WI("Vistumbler", "Sleeptime",               RefreshLoopTimeMs);
+        W ("Vistumbler", "WifiAdapters",            WifiAdapterIds);
         WB("Radio",      "ScanBluetooth",           ScanBluetooth);
         W ("Radio",      "CellularModems",          CellularModemIds);
         WI("Vistumbler", "dBmMaxSignal",            MaxSignalDbm);

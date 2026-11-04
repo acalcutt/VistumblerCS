@@ -112,14 +112,9 @@ public partial class MainViewModel : ViewModelBase
     // ── Adapter / Interface selection ─────────────────────────────────────────
     public ObservableCollection<WiFiAdapter> AvailableAdapters { get; } = new();
 
-    [ObservableProperty]
-    private WiFiAdapter? _activeAdapter;
-
-    partial void OnActiveAdapterChanged(WiFiAdapter? value)
-    {
-        if (value != null)
-            _wifiScanner.SetActiveAdapter(value.Id);
-    }
+    /// <summary>The adapters ticked in the Interface menu, any number of them (the setting keeps them joined by '|').</summary>
+    public IReadOnlyList<string> SelectedAdapterIds()
+        => _settings.WifiAdapterIds.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     // Manufacturer cache: keyed by normalized 6-char MAC prefix (e.g. "AABBCC").
     // Populated on first AP scan; cleared and re-populated when user updates manufacturers.
@@ -184,7 +179,7 @@ public partial class MainViewModel : ViewModelBase
         ((AsyncRelayCommand)FindApInWifiDbCommand).NotifyCanExecuteChanged();
     }
 
-    public ICommand SelectAdapterCommand { get; }
+    public ICommand ToggleAdapterCommand { get; }
     public ICommand RefreshInterfacesCommand { get; }
     public ICommand StartScanCommand { get; }
     public ICommand StopScanCommand { get; }
@@ -388,7 +383,7 @@ public partial class MainViewModel : ViewModelBase
         ExportSettingsCommand = new RelayCommand(ExportSettings);
         ImportSettingsCommand = new RelayCommand(ImportSettings);
         UploadToWifiDbCommand = new AsyncRelayCommand(UploadToWifiDb);
-        SelectAdapterCommand    = new RelayCommand<WiFiAdapter>(SelectAdapter);
+        ToggleAdapterCommand    = new RelayCommand<WiFiAdapter>(ToggleAdapter);
         RefreshInterfacesCommand = new AsyncRelayCommand(LoadAdaptersAsync);
         ShowAboutCommand   = new RelayCommand(ShowAbout);
         CheckForUpdatesCommand = new AsyncRelayCommand(() =>
@@ -476,21 +471,47 @@ public partial class MainViewModel : ViewModelBase
         var adapters = await _wifiScanner.GetAvailableAdaptersAsync();
         Application.Current.Dispatcher.Invoke(() =>
         {
-            var previousId = ActiveAdapter?.Id;
             AvailableAdapters.Clear();
             foreach (var a in adapters)
                 AvailableAdapters.Add(a);
-
-            // Re-select previously selected adapter, or default to the first one
-            ActiveAdapter = AvailableAdapters.FirstOrDefault(a => a.Id == previousId)
-                         ?? AvailableAdapters.FirstOrDefault();
+            ApplyAdapterSelection();
         });
     }
 
-    private void SelectAdapter(WiFiAdapter? adapter)
+    /// <summary>
+    /// The adapters to scan with: those ticked that are plugged in, or the first one if none of them is (the setting
+    /// keeps the ticked ones for when they're back).
+    /// </summary>
+    public IReadOnlyList<WiFiAdapter> ActiveAdapters { get; private set; } = Array.Empty<WiFiAdapter>();
+
+    private void ApplyAdapterSelection()
     {
-        if (adapter != null)
-            ActiveAdapter = adapter;
+        var selected = SelectedAdapterIds();
+        var active = AvailableAdapters.Where(a => selected.Contains(a.Id)).ToList();
+        if (active.Count == 0 && AvailableAdapters.Count > 0)
+            active.Add(AvailableAdapters[0]);
+        ActiveAdapters = active;
+        _wifiScanner.SetActiveAdapters(active.Select(a => a.Id).ToList());
+        OnPropertyChanged(nameof(ActiveAdapters));
+    }
+
+    /// <summary>Ticks or unticks an adapter in the Interface menu; the last one ticked stays.</summary>
+    private void ToggleAdapter(WiFiAdapter? adapter)
+    {
+        if (adapter == null) return;
+        var ids = ActiveAdapters.Select(a => a.Id).ToList();
+        if (ids.Contains(adapter.Id))
+        {
+            if (ids.Count == 1) { ApplyAdapterSelection(); return; }   // the menu unticked it: tick it again
+            ids.Remove(adapter.Id);
+        }
+        else
+        {
+            ids.Add(adapter.Id);
+        }
+        _settings.WifiAdapterIds = string.Join('|', ids);
+        _settings.SaveSettings();
+        ApplyAdapterSelection();
     }
 
     // ── Filters ───────────────────────────────────────────────────────────

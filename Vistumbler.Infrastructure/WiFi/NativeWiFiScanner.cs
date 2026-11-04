@@ -9,7 +9,8 @@ public class NativeWiFiScanner : IWiFiScannerService
 {
     private bool _isScanning;
     private CancellationTokenSource? _cancellationTokenSource;
-    private string? _activeAdapterId;
+    // The adapters to scan with (null until they're set: all of them)
+    private volatile HashSet<Guid>? _activeAdapterIds;
 
     public int ScanIntervalMs { get; set; } = 1000;
 
@@ -74,10 +75,15 @@ public class NativeWiFiScanner : IWiFiScannerService
         });
     }
 
-    public void SetActiveAdapter(string adapterId)
+    public void SetActiveAdapters(IReadOnlyCollection<string> adapterIds)
     {
-        _activeAdapterId = adapterId;
+        _activeAdapterIds = adapterIds
+            .Select(id => Guid.TryParse(id, out var guid) ? guid : Guid.Empty)
+            .Where(guid => guid != Guid.Empty)
+            .ToHashSet();
     }
+
+    private bool IsActive(Guid interfaceId) => _activeAdapterIds is not { } ids || ids.Contains(interfaceId);
     public async Task<string?> GetConnectedBssidAsync()
     {
         return await Task.Run(() =>
@@ -89,7 +95,7 @@ public class NativeWiFiScanner : IWiFiScannerService
                 // First, find which interface is connected
                 foreach (var interfaceInfo in NativeWifi.EnumerateInterfaces())
                 {
-                    if (_activeAdapterId != null && interfaceInfo.Id.ToString() != _activeAdapterId)
+                    if (!IsActive(interfaceInfo.Id))
                         continue;
 
                     if (interfaceInfo.State == InterfaceState.Connected)
@@ -179,21 +185,16 @@ public class NativeWiFiScanner : IWiFiScannerService
             // Scan notification didn't arrive within the cap — proceed with cached BSS data.
         }
 
-        // Resolve active adapter GUID for filtering (null = all adapters)
-        Guid? activeGuid = _activeAdapterId != null && Guid.TryParse(_activeAdapterId, out var parsed)
-            ? parsed
-            : (Guid?)null;
-
         return await Task.Run(() =>
         {
             var accessPoints = new List<AccessPoint>();
 
             try
             {
-                // Filter to the selected adapter if one is set.
+                // Filter to the selected adapters.
                 // EnumerateAvailableNetworks / EnumerateBssNetworks return results from ALL adapters.
                 var availableNetworks = NativeWifi.EnumerateAvailableNetworks()
-                    .Where(x => !activeGuid.HasValue || x.Interface.Id == activeGuid.Value)
+                    .Where(x => IsActive(x.Interface.Id))
                     .GroupBy(x => x.Ssid.ToString())
                     .ToDictionary(g => g.Key, g => g.First());
 
@@ -201,7 +202,7 @@ public class NativeWiFiScanner : IWiFiScannerService
                 var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var bss in NativeWifi.EnumerateBssNetworks()
-                    .Where(b => !activeGuid.HasValue || b.Interface.Id == activeGuid.Value))
+                    .Where(b => IsActive(b.Interface.Id)))
                 {
                     var ssid  = Encoding.UTF8.GetString(bss.Ssid.ToBytes()).TrimEnd('\0');
                     var bssid = Convert.ToHexString(bss.Bssid.ToBytes())

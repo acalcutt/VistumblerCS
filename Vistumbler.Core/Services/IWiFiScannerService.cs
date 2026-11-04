@@ -33,9 +33,9 @@ public interface IWiFiScannerService
     Task<List<WiFiAdapter>> GetAvailableAdaptersAsync();
     
     /// <summary>
-    /// Set the active WiFi adapter
+    /// Set the WiFi adapters to scan with (any number of them, by id)
     /// </summary>
-    void SetActiveAdapter(string adapterId);
+    void SetActiveAdapters(IReadOnlyCollection<string> adapterIds);
     
     /// <summary>
     /// Check if currently scanning

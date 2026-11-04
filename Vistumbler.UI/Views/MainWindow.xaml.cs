@@ -56,7 +56,7 @@ public partial class MainWindow : Window
         viewModel.AvailableAdapters.CollectionChanged += (_, _) => RebuildInterfaceMenu();
         viewModel.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(MainViewModel.ActiveAdapter) or nameof(MainViewModel.IsBluetoothAvailable))
+            if (e.PropertyName is nameof(MainViewModel.ActiveAdapters) or nameof(MainViewModel.IsBluetoothAvailable))
                 RebuildInterfaceMenu();
         };
         viewModel.AvailableCellularModems.CollectionChanged += (_, _) => RebuildInterfaceMenu();
@@ -311,8 +311,8 @@ public partial class MainWindow : Window
     // ── Interface menu (dynamic adapter items) ─────────────────────────────────
 
     /// <summary>
-    /// Rebuilds the adapter, Bluetooth and modem items in the Interface menu. The first two items
-    /// (Refresh Interfaces + Separator) are declared in XAML and kept in place.
+    /// Rebuilds the adapter, Bluetooth and modem items in the Interface menu, each ticked or not by itself.
+    /// The first two items (Refresh Interfaces + Separator) are declared in XAML and kept in place.
     /// </summary>
     private void RebuildInterfaceMenu()
     {
@@ -328,9 +328,9 @@ public partial class MainWindow : Window
             {
                 Header      = adapter.Name,
                 IsCheckable = true,
-                IsChecked   = adapter == vm.ActiveAdapter
+                IsChecked   = vm.ActiveAdapters.Contains(adapter)
             };
-            item.Click += (_, _) => vm.SelectAdapterCommand.Execute(adapter);
+            item.Click += (_, _) => vm.ToggleAdapterCommand.Execute(adapter);
             InterfaceMenu.Items.Add(item);
         }
 

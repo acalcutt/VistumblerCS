@@ -52,6 +52,17 @@ public interface IExportService
     /// Export to VSZ compressed format
     /// </summary>
     Task ExportToVszAsync(string filePath, List<AccessPoint> accessPoints, IReadOnlyList<RadioNetwork>? radios = null);
+
+    /// <summary>
+    /// GeoJSON with WifiDB's property names: a point per AP at its strongest position, or with <paramref name="signalMap"/>
+    /// a point per reading (the readings loaded, <see cref="ExportLoader.LoadHistoryAsync"/>)
+    /// </summary>
+    Task ExportToGeoJsonAsync(string filePath, List<AccessPoint> accessPoints, bool signalMap);
+
+    /// <summary>
+    /// A KML signal map: a folder per AP, with a dot for each reading coloured by its RSSI
+    /// </summary>
+    Task ExportToKmlSignalMapAsync(string filePath, List<AccessPoint> accessPoints);
 }
 
 public class ExportOptions

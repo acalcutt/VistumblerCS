@@ -1035,6 +1035,12 @@ public class ExportService : IExportService
         }
     }
 
+    public Task ExportToGeoJsonAsync(string filePath, List<AccessPoint> accessPoints, bool signalMap)
+        => SignalMapExport.WriteGeoJsonAsync(filePath, accessPoints, signalMap);
+
+    public Task ExportToKmlSignalMapAsync(string filePath, List<AccessPoint> accessPoints)
+        => SignalMapExport.WriteKmlSignalMapAsync(filePath, accessPoints, Path.GetFileNameWithoutExtension(filePath));
+
     private List<AccessPoint> FilterAccessPoints(List<AccessPoint> accessPoints, ExportOptions options)
     {
         // Open, WEP or secure, as the original's security type: everything that's not open or WEP is secure (CCMP, GCMP, …)
@@ -1122,7 +1128,7 @@ public class ExportService : IExportService
     private static DateTime Utc(DateTime t) => t.Kind == DateTimeKind.Local ? t.ToUniversalTime() : t;
 
     // Text XML can hold: an SSID can have control characters that XmlWriter refuses
-    private static string XmlText(string? s)
+    internal static string XmlText(string? s)
         => string.IsNullOrEmpty(s) ? string.Empty : new string(s.Where(XmlConvert.IsXmlChar).ToArray());
 
     private string EscapeCsv(string? value)

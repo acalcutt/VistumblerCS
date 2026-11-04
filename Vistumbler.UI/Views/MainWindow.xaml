@@ -55,6 +55,10 @@
                     <MenuItem Header="Export To NS1" Command="{Binding ExportNs1Command}"/>
                     <MenuItem Header="Export To NetXML" Command="{Binding ExportNetXmlCommand}"/>
                     <MenuItem Header="Export To KismetDB" Command="{Binding ExportKismetDbCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="Export To GeoJSON" Command="{Binding ExportGeoJsonCommand}"/>
+                    <MenuItem Header="Export Signal Map (GeoJSON)" Command="{Binding ExportGeoJsonSignalMapCommand}"/>
+                    <MenuItem Header="Export Signal Map (KML)" Command="{Binding ExportKmlSignalMapCommand}"/>
                 </MenuItem>
                 <Separator/>
                 <MenuItem Header="Exit (Save DB)" Command="{Binding ExitSaveDbCommand}"/>

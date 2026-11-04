@@ -205,6 +205,9 @@ public partial class MainViewModel : ViewModelBase
     public ICommand ExportNs1Command { get; }
     public ICommand ExportNetXmlCommand { get; }
     public ICommand ExportKismetDbCommand { get; }
+    public ICommand ExportGeoJsonCommand { get; }
+    public ICommand ExportGeoJsonSignalMapCommand { get; }
+    public ICommand ExportKmlSignalMapCommand { get; }
     public ICommand UpdateManufacturersCommand { get; }
     public ICommand OpenSettingsCommand { get; }
     public ICommand OpenSettingsAtTabCommand { get; }
@@ -329,6 +332,9 @@ public partial class MainViewModel : ViewModelBase
         ExportNs1Command = new AsyncRelayCommand(ExportNs1);
         ExportNetXmlCommand    = new AsyncRelayCommand(ExportNetXml);
         ExportKismetDbCommand      = new AsyncRelayCommand(ExportKismetDb);
+        ExportGeoJsonCommand          = new AsyncRelayCommand(() => ExportGeoJson(signalMap: false));
+        ExportGeoJsonSignalMapCommand = new AsyncRelayCommand(() => ExportGeoJson(signalMap: true));
+        ExportKmlSignalMapCommand     = new AsyncRelayCommand(ExportKmlSignalMap);
         UpdateManufacturersCommand = new AsyncRelayCommand(UpdateManufacturersAsync);
         OpenSettingsCommand        = new RelayCommand(OpenSettingsWindow);
         OpenSettingsAtTabCommand = new RelayCommand<string>(s => OpenSettingsWindowAt(int.TryParse(s, out int i) ? i : 0));
@@ -1784,6 +1790,31 @@ public partial class MainViewModel : ViewModelBase
             await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
             await _exportService.ExportToKismetDbAsync(dialog.FileName, aps);
             StatusMessage = "Exported to KismetDB";
+        }
+    }
+
+    /// <summary>GeoJSON with WifiDB's property names: the APs, or with <paramref name="signalMap"/> every reading.</summary>
+    private async Task ExportGeoJson(bool signalMap)
+    {
+        var dialog = new SaveFileDialog { Filter = "GeoJSON Files (*.geojson)|*.geojson" };
+        if (dialog.ShowDialog() == true)
+        {
+            var aps = GetAccessPointsModels();
+            if (signalMap) await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
+            await _exportService.ExportToGeoJsonAsync(dialog.FileName, aps, signalMap);
+            StatusMessage = signalMap ? "Exported a GeoJSON signal map" : "Exported to GeoJSON";
+        }
+    }
+
+    private async Task ExportKmlSignalMap()
+    {
+        var dialog = new SaveFileDialog { Filter = "KML Files (*.kml)|*.kml" };
+        if (dialog.ShowDialog() == true)
+        {
+            var aps = GetAccessPointsModels();
+            await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
+            await _exportService.ExportToKmlSignalMapAsync(dialog.FileName, aps);
+            StatusMessage = "Exported a KML signal map";
         }
     }
 

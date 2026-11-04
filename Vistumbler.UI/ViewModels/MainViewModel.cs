@@ -1665,9 +1665,9 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "Vistumbler VS1 (*.vs1)|*.vs1" };
         if (dialog.ShowDialog() == true)
         {
-            var aps = GetAccessPointsModels();
+            var aps = GetExportModels();
             await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
-            await _exportService.ExportToVs1Async(dialog.FileName, aps, await ExportLoader.LoadRadioNetworksAsync(_databaseService));
+            await _exportService.ExportToVs1Async(dialog.FileName, aps, await ExportRadiosAsync());
             StatusMessage = "Exported to VS1";
         }
     }
@@ -1677,9 +1677,9 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "Vistumbler VSZ (*.vsz)|*.vsz" };
         if (dialog.ShowDialog() == true)
         {
-            var aps = GetAccessPointsModels();
+            var aps = GetExportModels();
             await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
-            await _exportService.ExportToVszAsync(dialog.FileName, aps, await ExportLoader.LoadRadioNetworksAsync(_databaseService));
+            await _exportService.ExportToVszAsync(dialog.FileName, aps, await ExportRadiosAsync());
             StatusMessage = "Exported to VSZ";
         }
     }
@@ -1690,7 +1690,7 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "CSV Files (*.csv)|*.csv" };
         if (dialog.ShowDialog() == true)
         {
-            var aps = GetAccessPointsModels();
+            var aps = GetExportModels();
             await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
             await _exportService.ExportToCsvAsync(dialog.FileName, aps, detailed);
             StatusMessage = detailed ? "Exported to CSV (detailed)" : "Exported to CSV (summary)";
@@ -1703,9 +1703,9 @@ public partial class MainViewModel : ViewModelBase
         if (dialog.ShowDialog() == true)
         {
             // a row per reading, and the cell towers and Bluetooth devices
-            var aps = GetAccessPointsModels();
+            var aps = GetExportModels();
             await ExportLoader.LoadHistoryAsync(_databaseService, aps);
-            await _exportService.ExportToWigleCsvAsync(dialog.FileName, aps, await ExportLoader.LoadRadioNetworksAsync(_databaseService));
+            await _exportService.ExportToWigleCsvAsync(dialog.FileName, aps, await ExportRadiosAsync());
             StatusMessage = "Exported to WiGLE CSV";
         }
     }
@@ -1716,7 +1716,7 @@ public partial class MainViewModel : ViewModelBase
         if (dialog.ShowDialog() == true)
         {
             // the APs, and the GPS track
-            await _exportService.ExportToKmlAsync(dialog.FileName, GetAccessPointsModels(), new ExportOptions(), await _databaseService.GetAllGpsDataAsync());
+            await _exportService.ExportToKmlAsync(dialog.FileName, GetExportModels(), new ExportOptions(), await _databaseService.GetAllGpsDataAsync());
             StatusMessage = "Exported to KML";
         }
     }
@@ -1727,7 +1727,7 @@ public partial class MainViewModel : ViewModelBase
         if (dialog.ShowDialog() == true)
         {
             // the APs as waypoints, and the GPS track
-            await _exportService.ExportToGpxAsync(dialog.FileName, GetAccessPointsModels(), await _databaseService.GetAllGpsDataAsync());
+            await _exportService.ExportToGpxAsync(dialog.FileName, GetExportModels(), await _databaseService.GetAllGpsDataAsync());
             StatusMessage = "Exported to GPX";
         }
     }
@@ -1737,7 +1737,7 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "NetStumbler Files (*.ns1)|*.ns1" };
         if (dialog.ShowDialog() == true)
         {
-            var aps = GetAccessPointsModels();
+            var aps = GetExportModels();
             await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
             await _exportService.ExportToNs1Async(dialog.FileName, aps);
             StatusMessage = "Exported to NS1";
@@ -1749,7 +1749,7 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "NetXML Files (*.netxml)|*.netxml" };
         if (dialog.ShowDialog() == true)
         {
-            var aps = GetAccessPointsModels();
+            var aps = GetExportModels();
             await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
             await _exportService.ExportToNetXmlAsync(dialog.FileName, aps);
             StatusMessage = "Exported to NetXML";
@@ -1761,7 +1761,7 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "KismetDB Files (*.kismet)|*.kismet" };
         if (dialog.ShowDialog() == true)
         {
-            var aps = GetAccessPointsModels();
+            var aps = GetExportModels();
             await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
             await _exportService.ExportToKismetDbAsync(dialog.FileName, aps);
             StatusMessage = "Exported to KismetDB";
@@ -1774,7 +1774,7 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "GeoJSON Files (*.geojson)|*.geojson" };
         if (dialog.ShowDialog() == true)
         {
-            var aps = GetAccessPointsModels();
+            var aps = GetExportModels();
             if (signalMap) await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
             await _exportService.ExportToGeoJsonAsync(dialog.FileName, aps, signalMap);
             StatusMessage = signalMap ? "Exported a GeoJSON signal map" : "Exported to GeoJSON";
@@ -1786,7 +1786,7 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "KML Files (*.kml)|*.kml" };
         if (dialog.ShowDialog() == true)
         {
-            var aps = GetAccessPointsModels();
+            var aps = GetExportModels();
             await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
             await _exportService.ExportToKmlSignalMapAsync(dialog.FileName, aps);
             StatusMessage = "Exported a KML signal map";
@@ -1799,7 +1799,7 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "Magic 8 Ball Files (*.m8b)|*.m8b" };
         if (dialog.ShowDialog() == true)
         {
-            int records = await _exportService.ExportToM8bAsync(dialog.FileName, GetAccessPointsModels());
+            int records = await _exportService.ExportToM8bAsync(dialog.FileName, GetExportModels());
             StatusMessage = $"Exported to M8b ({records} records)";
         }
     }

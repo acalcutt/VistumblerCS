@@ -567,6 +567,7 @@ public partial class SettingsViewModel : ViewModelBase
     // ── Misc options (Options menu quick-toggles) ─────────────────────────
     [ObservableProperty] private bool _autoScanOnLaunch         = false;
     [ObservableProperty] private bool _saveGpsWhenNoApsActive   = true;
+    [ObservableProperty] private bool _exportFilteredOnly;   // exports take only the APs the filter shows
     [ObservableProperty] private bool _downloadImages           = false;
     [ObservableProperty] private bool _portableMode             = false;
     [ObservableProperty] private bool _debugMode                = false;
@@ -740,6 +741,7 @@ public partial class SettingsViewModel : ViewModelBase
         // Options-menu quick-toggles
         AutoScanOnLaunch       = B("Vistumbler", "AutoScanOnLaunch",       false);
         SaveGpsWhenNoApsActive = B("Vistumbler", "SaveGPSNoAPs",           true);
+        ExportFilteredOnly     = B("Vistumbler", "ExportFiltered",         false);
         DownloadImages         = B("Vistumbler", "DownloadImages",         false);
         PortableMode           = B("Vistumbler", "PortableMode",           false);
         DebugMode              = B("Vistumbler", "Debug",                  false);
@@ -974,6 +976,7 @@ public partial class SettingsViewModel : ViewModelBase
         // Options-menu quick-toggles
         WB("Vistumbler", "AutoScanOnLaunch",       AutoScanOnLaunch);
         WB("Vistumbler", "SaveGPSNoAPs",           SaveGpsWhenNoApsActive);
+        WB("Vistumbler", "ExportFiltered",         ExportFilteredOnly);
         WB("Vistumbler", "DownloadImages",         DownloadImages);
         WB("Vistumbler", "PortableMode",           PortableMode);
         WB("Vistumbler", "Debug",                  DebugMode);

@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Vistumbler.Core.Models;
+using Vistumbler.Core.Services;
 
 namespace Vistumbler.UI.ViewModels;
 
@@ -43,6 +47,12 @@ public partial class MainViewModel
         };
         AvailableFilters.CollectionChanged += (_, _) => ApplyActiveFilter();
         AccessPoints.CollectionChanged += (_, _) => UpdateFilterStatus();
+
+        ToggleExportFilteredOnlyCommand = new RelayCommand(() =>
+        {
+            _settings.ExportFilteredOnly = !_settings.ExportFilteredOnly;
+            _settings.SaveSettings();
+        });
     }
 
     /// <summary>Whether the filter in use (if any) lets this AP through.</summary>
@@ -65,6 +75,25 @@ public partial class MainViewModel
         ActiveApCount = CountActiveAps();
         UpdateFilterStatus();
     }
+
+    // ── Exports ───────────────────────────────────────────────────────────────
+
+    /// <summary>Export → "Only APs The Filter Shows": the original's "Filtered APs" exports, as one switch.</summary>
+    public IRelayCommand ToggleExportFilteredOnlyCommand { get; private set; } = null!;
+
+    /// <summary>Whether the exports are taking only the filter's APs right now (the switch is on and a filter is in use).</summary>
+    private bool ExportingFiltered => _settings.ExportFilteredOnly && _activeFilter is not null;
+
+    /// <summary>The APs an export writes: those the filter shows when the switch is on, otherwise all of them.</summary>
+    private List<AccessPoint> GetExportModels()
+        => (ExportingFiltered ? AccessPoints.Where(PassesFilter) : AccessPoints).Select(vm => vm.ToModel()).ToList();
+
+    /// <summary>
+    /// The cell towers and Bluetooth devices an export writes: none while it's taking the filter's APs, since a
+    /// filter is on Wi-Fi fields (as VistumblerMAUI's Export page does).
+    /// </summary>
+    private async Task<List<RadioNetwork>?> ExportRadiosAsync()
+        => ExportingFiltered ? null : await ExportLoader.LoadRadioNetworksAsync(_databaseService);
 
     /// <summary>The active APs the list shows.</summary>
     private int CountActiveAps() => AccessPoints.Count(ap => ap.IsActive && PassesFilter(ap));

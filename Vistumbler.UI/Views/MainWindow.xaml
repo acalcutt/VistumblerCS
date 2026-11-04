@@ -45,6 +45,11 @@
                     <MenuItem Header="Import Folder" Command="{Binding OpenImportFolderCommand}"/>
                 </MenuItem>
                 <MenuItem Header="Export">
+                    <!-- the original's "Filtered APs" exports, as one switch for all of them -->
+                    <MenuItem Header="Only APs The Filter Shows" IsCheckable="True"
+                              Command="{Binding ToggleExportFilteredOnlyCommand}"
+                              IsChecked="{Binding Settings.ExportFilteredOnly, Mode=OneWay}"/>
+                    <Separator/>
                     <MenuItem Header="Export To VS1" Command="{Binding ExportVs1Command}"/>
                     <MenuItem Header="Export To VSZ" Command="{Binding ExportVszCommand}"/>
                     <MenuItem Header="Export To CSV (Detailed)" Command="{Binding ExportCsvCommand}"/>

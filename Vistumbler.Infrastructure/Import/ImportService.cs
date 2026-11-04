@@ -19,6 +19,14 @@ public partial class ImportService : IImportService
             if (!File.Exists(filePath)) return accessPoints;
 
             using var fs = File.OpenRead(filePath);
+
+            // NetStumbler's text export starts with a "# $Creator:" comment, the binary .ns1 with "NetS" (ImportService.Ns1Text.cs)
+            if (fs.Length > 0 && fs.ReadByte() == '#')
+            {
+                fs.Close();
+                return ReadNs1Text(filePath);
+            }
+            fs.Position = 0;
             using var reader = new BinaryReader(fs);
 
             // Read Header
@@ -43,13 +51,13 @@ public partial class ImportService : IImportService
                 var bssidBytes = reader.ReadBytes(6);
                 ap.Bssid = BitConverter.ToString(bssidBytes).Replace("-", ":");
                 
-                var maxSignal = reader.ReadInt32(); // HighSignal
-                ap.HighestSignal = maxSignal;
-                
+                // NetStumbler keeps signal and noise in dBm
+                var maxSignal = reader.ReadInt32();
+                ap.HighestRssi = maxSignal;
+                ap.HighestSignal = DbmToPercent(maxSignal);
+
                 var minNoise = reader.ReadInt32();
-                
-                var maxSnr = reader.ReadInt32(); // HighRSSI
-                ap.HighestRssi = maxSnr;
+                var maxSnr = reader.ReadInt32();
                 
                 var flags = reader.ReadUInt32();
                 // Map flags if needed. Bit 4 is Privacy.
@@ -93,7 +101,8 @@ public partial class ImportService : IImportService
                     var histTime = reader.ReadInt64();
                     try { hist.Timestamp = DateTime.FromFileTimeUtc(histTime); } catch { hist.Timestamp = DateTime.MinValue; }
                     
-                    hist.Signal = reader.ReadInt32();
+                    hist.Rssi = reader.ReadInt32();   // dBm
+                    hist.Signal = DbmToPercent(hist.Rssi);
                     var histNoise = reader.ReadInt32();
                     
                     var locationSource = reader.ReadInt32();
@@ -119,6 +128,11 @@ public partial class ImportService : IImportService
                     }
                     
                     ap.SignalHistory.Add(hist);
+                }
+                if (ap.SignalHistory.MaxBy(h => h.Timestamp) is { } latest)
+                {
+                    ap.Signal = latest.Signal;
+                    ap.Rssi = latest.Rssi;
                 }
 
                 // Remaining AP fields
@@ -807,48 +821,6 @@ public partial class ImportService : IImportService
         }
     }
 
-    private AccessPoint? ParseNs1Line(string[] parts)
-    {
-        try
-        {
-            // Columns: 0:Lat, 1:Lon, 2:( SSID ), 3:Type, 4:( BSSID ), 5:Time, 6:[ SNR Sig Noise ], 7:Name, 8:Flags, 9:ChanBits, 10:BcnInt, 11:DataRate, 12:Channel
-            
-            var ap = new AccessPoint();
-            ap.Latitude = ParseNs1Gps(parts[0]);
-            ap.Longitude = ParseNs1Gps(parts[1]);
-            
-            ap.Ssid = TrimNs1String(parts[2]);
-            ap.Bssid = TrimNs1String(parts[4]);
-            
-            // Signal parsing logic from AutoIt: "subtracts 95 to calculate RSSI" from middle value
-            var signalParts = parts[6].Trim('[', ']', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (signalParts.Length >= 2 && int.TryParse(signalParts[1], out var sigVal))
-            {
-                ap.Rssi = sigVal - 95;
-                ap.Signal = Math.Clamp((ap.Rssi.Value + 100) * 2, 0, 100);
-            }
-            
-            // Flags
-            if (parts[8].StartsWith("0x") && int.TryParse(parts[8].Substring(2), NumberStyles.HexNumber, null, out var flags))
-            {
-                ap.Encryption = (flags & 0x10) != 0 ? EncryptionType.WEP : EncryptionType.None;
-                ap.NetworkType = (flags & 0x1) != 0 ? NetworkType.Infrastructure : 
-                                 (flags & 0x2) != 0 ? NetworkType.Adhoc : NetworkType.Unknown;
-            }
-            
-            ap.Channel = ParseInt(parts[12]);
-            
-            ap.FirstSeen = DateTime.UtcNow; // NS1 doesn't have full date usually, just time? AutoIt gets Date from header.
-            ap.LastSeen = DateTime.UtcNow;
-
-            return ap;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-    
     private AccessPoint? ParseDetailedCsvLine(string[] parts)
     {
         if (parts.Length < 10) return null;
@@ -1028,24 +1000,6 @@ public partial class ImportService : IImportService
         if (freqMhz >= 2412 && freqMhz <= 2477) return (freqMhz - 2407) / 5;
         if (freqMhz >= 5180 && freqMhz <= 5885) return (freqMhz - 5000) / 5;
         return 0;
-    }
-
-    private string TrimNs1String(string s)
-    {
-        // ( SSID ) -> SSID
-        s = s.Trim();
-        if (s.StartsWith("(") && s.EndsWith(")"))
-            return s.Substring(1, s.Length - 2).Trim();
-        return s;
-    }
-
-    private double? ParseNs1Gps(string s)
-    {
-        // Simple parse for now
-        if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d))
-            return d;
-        // If N 40 12.34 format, return null or implement dms parser
-        return null; 
     }
 
     private int ParseInt(string s) => int.TryParse(s, out var i) ? i : 0;

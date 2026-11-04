@@ -48,9 +48,14 @@ public class ExportService : IExportService
                      writer.Write(new byte[6]);
                  }
                  
-                 writer.Write((int)(ap.HighestSignal ?? 0));
-                 writer.Write((int)0); // MinNoise (unknown)
-                 writer.Write((int)(ap.HighestRssi ?? 0));
+                 // NetStumbler keeps signal and noise in dBm, not %: each reading's RSSI, or an estimate from its
+                 // percentage when there's none, as the original's _ExportNS1Binary does
+                 var dbm = ap.SignalHistory.Select(h => h.Rssi != 0 ? h.Rssi : h.Signal / 2 - 100).ToList();
+                 int maxSignal = dbm.Count > 0 ? dbm.Max() : ap.HighestRssi ?? -100;
+                 int minSignal = dbm.Count > 0 ? dbm.Min() : ap.Rssi ?? -100;
+                 writer.Write(maxSignal);         // MaxSignal
+                 writer.Write(-150);              // MinNoise
+                 writer.Write(maxSignal + 100);   // MaxSNR
                  
                  // Flags
                  uint flags = 0;
@@ -73,11 +78,12 @@ public class ExportService : IExportService
                  
                  // Signal History
                  writer.Write((uint)ap.SignalHistory.Count);
-                 foreach(var hist in ap.SignalHistory)
+                 for (int i = 0; i < ap.SignalHistory.Count; i++)
                  {
+                     var hist = ap.SignalHistory[i];
                      writer.Write(ToFileTimeSafe(hist.Timestamp));
-                     writer.Write(hist.Signal);
-                     writer.Write((int)0); // Noise
+                     writer.Write(dbm[i]);       // Signal
+                     writer.Write((int)-100);    // Noise
                      
                      if (hist.GpsData != null)
                      {
@@ -115,8 +121,8 @@ public class ExportService : IExportService
                  writer.Write((uint)ap.Channel); // LastChannel
                  
                  writer.Write((uint)0); // IP
-                 writer.Write((int)(ap.Signal ?? 0)); // MinSignal
-                 writer.Write((int)0); // MaxNoise
+                 writer.Write(minSignal);    // MinSignal
+                 writer.Write((int)-100);    // MaxNoise
                  writer.Write((uint)0); // DataRate
                  writer.Write((uint)0); // IPSubnet
                  writer.Write((uint)0); // IPMask

@@ -1660,6 +1660,9 @@ public partial class MainViewModel : ViewModelBase
                 Encryption = vm.Encryption,
                 RadioType = vm.RadioType,
                 Channel = vm.Channel,
+                FrequencyMhz = vm.FrequencyMhz,
+                BasicTransferRates = vm.BasicTransferRates,
+                OtherTransferRates = vm.OtherTransferRates,
                 Signal = vm.Signal,
                 HighestSignal = vm.HighestSignal,
                 Rssi = vm.Rssi,
@@ -1746,7 +1749,9 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "NetStumbler Files (*.ns1)|*.ns1" };
         if (dialog.ShowDialog() == true)
         {
-            await _exportService.ExportToNs1Async(dialog.FileName, GetAccessPointsModels());
+            var aps = GetAccessPointsModels();
+            await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
+            await _exportService.ExportToNs1Async(dialog.FileName, aps);
             StatusMessage = "Exported to NS1";
         }
     }
@@ -1756,7 +1761,9 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "NetXML Files (*.netxml)|*.netxml" };
         if (dialog.ShowDialog() == true)
         {
-            await _exportService.ExportToNetXmlAsync(dialog.FileName, GetAccessPointsModels());
+            var aps = GetAccessPointsModels();
+            await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
+            await _exportService.ExportToNetXmlAsync(dialog.FileName, aps);
             StatusMessage = "Exported to NetXML";
         }
     }
@@ -1766,7 +1773,9 @@ public partial class MainViewModel : ViewModelBase
         var dialog = new SaveFileDialog { Filter = "KismetDB Files (*.kismet)|*.kismet" };
         if (dialog.ShowDialog() == true)
         {
-            await _exportService.ExportToKismetDbAsync(dialog.FileName, GetAccessPointsModels());
+            var aps = GetAccessPointsModels();
+            await ExportLoader.LoadHistoryAsync(_databaseService, aps);   // the readings and their GPS fixes
+            await _exportService.ExportToKismetDbAsync(dialog.FileName, aps);
             StatusMessage = "Exported to KismetDB";
         }
     }

@@ -2,6 +2,7 @@
 
 ## master
 ### ✨ Features and improvements
+- **Filters → Add / Remove Filters** — the dialog that said "not yet implemented" now edits the filters: the original's Add/Remove Filters and Add/Edit Filter windows, side by side. The saved filters are listed on the left, with Add and Delete. The chosen filter's fields are on the right, the same fields as the original, with the syntax explained above them. An empty field means any. When the window closes, the Filters menu is reloaded, and a filter in use that was edited takes effect at once. If it was deleted, no filter is in use.
 - **Export only the APs the filter shows** — **Export → Only APs The Filter Shows** is one switch for every export, standing in for the original's "Filtered APs" items under each format. It's remembered. While it's on and a filter is in use, the exports write only the APs the list shows, and leave out the cell towers and Bluetooth devices, since a filter tests Wi-Fi fields (VistumblerMAUI's Export page does the same). The WifiDB upload and Save & Clear always take everything.
 - **Filters work** — choosing a filter in the Filters menu used to save the choice and change nothing. Now, as in the original Vistumbler:
   - **The list and the treeview** show only the APs the filter lets through.

@@ -544,13 +544,13 @@ public partial class MainViewModel : ViewModelBase
         _settings.ActiveFilterId = newId;
     }
 
-    private Task OpenAddRemoveFiltersAsync()
+    private async Task OpenAddRemoveFiltersAsync()
     {
-        // TODO: open the Add/Remove Filters dialog when it is built
-        System.Windows.MessageBox.Show(
-            "The Add/Remove Filters dialog is not yet implemented.",
-            "Filters", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
-        return Task.CompletedTask;
+        new Views.FiltersWindow(_databaseService) { Owner = Application.Current.MainWindow }.ShowDialog();
+        // the Filters menu, and the filter in use if it was edited or deleted
+        await LoadFiltersAsync();
+        if (_settings.ActiveFilterId != -1 && AvailableFilters.All(f => f.FiltId != _settings.ActiveFilterId))
+            _settings.ActiveFilterId = -1;
     }
 
     // ── Edit-menu helpers ─────────────────────────────────────────────────

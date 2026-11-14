@@ -6,6 +6,7 @@
 
 ### 🐞 Bug fixes
 - _...Add new stuff here..._
+- **Interface and Filters menus empty until refreshed** — the Wi-Fi adapters, Bluetooth, cellular modems and saved filters were loaded before the main window opened, and the menus were only filled when those lists changed afterwards, so the Interface menu showed nothing but Refresh Interfaces (and the Filters menu no saved filters) until it was clicked. Both menus are now filled when the window opens.
 - **Map renderer updated to MapLibreNative.Maui.WPF 5.0.0-pre.4** (from 5.0.0-pre.2). With 3D terrain on, dragging the map now moves the ground under the mouse instead of a level far below it.
 - **Install and Restart failed with "The downloaded installer isn't validly signed"** — the releases are signed with Vistumbler's own certificate, which Windows doesn't know, and the updater insisted on a certificate Windows trusts, so every update stopped there. It now accepts an installer signed with exactly the certificate the running app is signed with, and still refuses one that has been changed or is signed by anyone else. This takes effect from the version after the one you have: to get it, install this release from the release page once; later updates install from inside the app.
 

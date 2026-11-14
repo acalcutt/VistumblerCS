@@ -74,6 +74,11 @@ public partial class MainWindow : Window
                 RebuildFilterMenu();
         };
 
+        // App.OnStartup loads the adapters, modems and filters (InitializeWithPathAsync) before it creates this
+        // window, so those changes came before the handlers above: build both menus from what's loaded now
+        RebuildInterfaceMenu();
+        RebuildFilterMenu();
+
         // Push live AP GeoJSON to the map after each scan cycle
         viewModel.LiveApGeoJsonUpdated += (_, geoJson) =>
         {

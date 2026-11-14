@@ -56,19 +56,40 @@ public static class WindowsUpdateInstaller
     }
 
     /// <summary>
-    /// When the running app is code-signed, requires the installer to carry a valid Authenticode signature from the
+    /// When the running app is code-signed, requires the installer to carry an intact Authenticode signature from the
     /// same publisher, so a tampered or substituted download is never run with admin rights. Unsigned builds (no
     /// signing certificate configured in CI) skip the check and rely on the HTTPS download.
+    ///
+    /// A certificate Windows trusts (one from a public CA) only has to match the app's publisher name, so a renewed
+    /// certificate still updates. The releases are signed with a self-signed certificate, though, which Windows
+    /// reports as CERT_E_UNTRUSTEDROOT: the signature is intact, but the chain ends at a root this PC doesn't trust.
+    /// That is accepted only when the installer is signed with the very certificate the app is, since anyone can
+    /// make a self-signed certificate with the same name. A modified file fails either way, with TRUST_E_BAD_DIGEST.
     /// </summary>
     public static void VerifyPublisher(string installerPath)
     {
-        var appSubject = GetSignerSubject(Environment.ProcessPath ?? "");
-        if (appSubject is null) return;
+        using var appCert = GetSignerCertificate(Environment.ProcessPath ?? "");
+        if (appCert is null) return;
 
-        if (!IsSignatureTrusted(installerPath))
-            throw new InvalidOperationException("The downloaded installer isn't validly signed, so it wasn't run.");
-        if (!string.Equals(GetSignerSubject(installerPath), appSubject, StringComparison.Ordinal))
-            throw new InvalidOperationException("The downloaded installer is signed by a different publisher, so it wasn't run.");
+        using var installerCert = GetSignerCertificate(installerPath);
+        if (installerCert is null)
+            throw new InvalidOperationException("The downloaded installer isn't signed, so it wasn't run.");
+
+        switch (VerifySignature(installerPath))
+        {
+            case 0:
+                if (!string.Equals(installerCert.Subject, appCert.Subject, StringComparison.Ordinal))
+                    throw new InvalidOperationException("The downloaded installer is signed by a different publisher, so it wasn't run.");
+                break;
+
+            case CertEUntrustedRoot:
+                if (!installerCert.GetRawCertData().AsSpan().SequenceEqual(appCert.GetRawCertData()))
+                    throw new InvalidOperationException("The downloaded installer is signed by a different publisher, so it wasn't run.");
+                break;
+
+            default:
+                throw new InvalidOperationException("The downloaded installer isn't validly signed, so it wasn't run.");
+        }
     }
 
     /// <summary>
@@ -93,14 +114,13 @@ public static class WindowsUpdateInstaller
         }
     }
 
-    private static string? GetSignerSubject(string path)
+    private static X509Certificate? GetSignerCertificate(string path)
     {
         try
         {
 #pragma warning disable SYSLIB0057 // X509CertificateLoader can't read the signer from a signed PE file
-            using var cert = X509Certificate.CreateFromSignedFile(path);
+            return X509Certificate.CreateFromSignedFile(path);
 #pragma warning restore SYSLIB0057
-            return cert.Subject;
         }
         catch (Exception ex) when (ex is System.Security.Cryptography.CryptographicException or ArgumentException)
         {
@@ -108,11 +128,15 @@ public static class WindowsUpdateInstaller
         }
     }
 
-    // ── WinVerifyTrust: checks the signature covers the file's contents and chains to a trusted root ─────────────
+    // ── WinVerifyTrust: checks the signature covers the file's contents, then that it chains to a trusted root ────
 
     private static readonly Guid GenericVerifyV2 = new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
 
-    private static bool IsSignatureTrusted(string path)
+    /// <summary>The signature is intact but its chain ends at a root this PC doesn't trust (a self-signed certificate).</summary>
+    private const int CertEUntrustedRoot = unchecked((int)0x800B0109);
+
+    /// <summary>WinVerifyTrust's result: 0 when the signature is intact and trusted, else an HRESULT.</summary>
+    private static int VerifySignature(string path)
     {
         var fileInfo = new WinTrustFileInfo
         {
@@ -133,7 +157,7 @@ public static class WindowsUpdateInstaller
                 dwStateAction = 0,         // WTD_STATEACTION_IGNORE: no state to close afterwards
             };
             var action = GenericVerifyV2;
-            return WinVerifyTrust(IntPtr.Zero, ref action, ref data) == 0;
+            return WinVerifyTrust(IntPtr.Zero, ref action, ref data);
         }
         finally
         {

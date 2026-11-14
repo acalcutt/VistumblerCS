@@ -6,6 +6,7 @@
 
 ### 🐞 Bug fixes
 - _...Add new stuff here..._
+- **Map renderer updated to MapLibreNative.Maui.WPF 5.0.0-pre.4** (from 5.0.0-pre.2). With 3D terrain on, dragging the map now moves the ground under the mouse instead of a level far below it.
 
 ## 0.6.0
 ### ✨ Features and improvements
